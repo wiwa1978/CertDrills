@@ -100,6 +100,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('selectedCertificationHref({ questionCategoryId: category.id, tab: "questions" })');
     expect(source).toContain("selectedTab?: string;");
     expect(source).toContain('selectedTab === "questions"');
+    expect(source).toContain('<Tabs key={defaultTab} defaultValue={defaultTab}');
     expect(detailRouteSource).toContain("tab?: SearchParamValue");
     expect(detailRouteSource).toContain("selectedTab={firstSearchParamString(tab)}");
   });

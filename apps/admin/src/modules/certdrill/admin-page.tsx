@@ -309,7 +309,7 @@ export async function CertDrillAdminPage({
         </Card>
       </div>
 
-      <Tabs defaultValue={defaultTab} className="space-y-4">
+      <Tabs key={defaultTab} defaultValue={defaultTab} className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
