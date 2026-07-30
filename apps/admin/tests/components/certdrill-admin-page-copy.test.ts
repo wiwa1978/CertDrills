@@ -97,7 +97,11 @@ describe("CertDrill admin page copy", () => {
   });
 
   it("opens filtered questions when selecting a category", () => {
-    expect(source).toContain("selectedCertificationHref({ questionCategoryId: category.id })");
+    expect(source).toContain('selectedCertificationHref({ questionCategoryId: category.id, tab: "questions" })');
+    expect(source).toContain("selectedTab?: string;");
+    expect(source).toContain('selectedTab === "questions"');
+    expect(detailRouteSource).toContain("tab?: SearchParamValue");
+    expect(detailRouteSource).toContain("selectedTab={firstSearchParamString(tab)}");
   });
 
   it("normalizes array search params before passing string-only filters", () => {

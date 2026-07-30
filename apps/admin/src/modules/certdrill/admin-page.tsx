@@ -61,6 +61,7 @@ type CertDrillAdminPageProps = {
   questionCategoryId?: string;
   questionSort?: string;
   feedbackStatus?: string;
+  selectedTab?: string;
 };
 
 type CertificationOption = {
@@ -80,6 +81,7 @@ type CertDrillAdminHrefParams = {
   questionCategoryId?: string;
   questionSort?: string;
   feedbackStatus?: string;
+  tab?: string;
 };
 
 type QuestionFilters = {
@@ -151,6 +153,7 @@ export async function CertDrillAdminPage({
   questionCategoryId,
   questionSort,
   feedbackStatus,
+  selectedTab,
 }: CertDrillAdminPageProps) {
   const [adminCertifications, vendors] = await Promise.all([
     listCertDrillAdminCertificationsServer(),
@@ -207,7 +210,14 @@ export async function CertDrillAdminPage({
   });
   const filteredQuestions = filterCertDrillAdminQuestions(questions, questionFilters);
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
-  const defaultTab = requestedCategoryId || requestedQuestionId || hasQuestionFilters ? "questions" : "categories";
+  const defaultTab = selectedTab === "categories"
+    || selectedTab === "questions"
+    || selectedTab === "exam-forms"
+    || selectedTab === "resources"
+    || selectedTab === "generate"
+    || selectedTab === "feedback"
+    ? selectedTab
+    : requestedCategoryId || requestedQuestionId || hasQuestionFilters ? "questions" : "categories";
 
   return (
     <div className="space-y-6">
@@ -1364,12 +1374,12 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
         {categories.map((category) => (
           <TableRow key={category.id}>
             <TableCell className="font-medium">
-              <Link href={selectedCertificationHref({ questionCategoryId: category.id })} className="hover:underline">
+              <Link href={selectedCertificationHref({ questionCategoryId: category.id, tab: "questions" })} className="hover:underline">
                 {category.code}
               </Link>
             </TableCell>
             <TableCell>
-              <Link href={selectedCertificationHref({ questionCategoryId: category.id })} className="hover:underline">
+              <Link href={selectedCertificationHref({ questionCategoryId: category.id, tab: "questions" })} className="hover:underline">
                 {category.name}
               </Link>
             </TableCell>
