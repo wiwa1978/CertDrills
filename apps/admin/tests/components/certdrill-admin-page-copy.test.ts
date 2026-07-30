@@ -149,6 +149,14 @@ describe("CertDrill admin page copy", () => {
     expect(editQuestionRouteSource).toContain("questionId");
   });
 
+  it("uses localized links for dedicated question editor navigation", () => {
+    expect(source).toContain('import { Link as LocalizedLink } from "@/i18n/navigation";');
+    expect(source).toContain('<LocalizedLink href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</LocalizedLink>');
+    expect(source).toContain('<LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>');
+    expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>');
+    expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>');
+  });
+
   it("loads and identifies the selected certification in the dedicated question editor", () => {
     expect(source).toContain("getCertDrillCertificationsServer");
     expect(source).toContain("listCertDrillAdminCertificationsServer()");

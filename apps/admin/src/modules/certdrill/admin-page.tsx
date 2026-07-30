@@ -3,6 +3,7 @@ import type { CertDrillCertificationListItem } from "@platform/contracts";
 import Link from "next/link";
 import { Archive, Pencil } from "lucide-react";
 
+import { Link as LocalizedLink } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,7 +177,7 @@ export async function CertDrillQuestionEditorPage({
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</Link>
+          <LocalizedLink href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</LocalizedLink>
         </Button>
       </div>
 
@@ -419,7 +420,7 @@ export async function CertDrillAdminPage({
                 </div>
                 {selectedCertificationId ? (
                   <Button asChild>
-                    <Link href={questionEditorNewHref(selectedCertificationId)}>Create question</Link>
+                    <LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>
                   </Button>
                 ) : null}
               </div>
@@ -1489,10 +1490,10 @@ function QuestionTable({
         {questions.map((question) => (
           <TableRow key={question.id}>
             <TableCell className="font-mono text-xs">
-              <Link href={questionHref(question)} className="hover:underline">{question.id}</Link>
+              <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
             </TableCell>
             <TableCell className="max-w-xl whitespace-normal">
-              <Link href={questionHref(question)} className="hover:underline">{question.stem}</Link>
+              <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
             </TableCell>
             <TableCell><Badge variant="outline">{question.status ?? "draft"}</Badge></TableCell>
             <TableCell>{question.difficulty ?? "medium"}</TableCell>
