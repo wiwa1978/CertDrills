@@ -149,6 +149,16 @@ describe("CertDrill admin page copy", () => {
     expect(editQuestionRouteSource).toContain("questionId");
   });
 
+  it("loads and identifies the selected certification in the dedicated question editor", () => {
+    expect(source).toContain("getCertDrillCertificationsServer");
+    expect(source).toContain("listCertDrillAdminCertificationsServer()");
+    expect(source).toContain("getCertDrillCertificationsServer(),");
+    expect(source).toContain("adminCertifications.find((certification) => certification.id === certificationId)");
+    expect(source).toContain("certifications.find((certification) => certification.id === certificationId)");
+    expect(source).toContain('${selectedQuestion ? "Update" : "Create"} question for ${selectedCertification.code}');
+    expect(source).toContain('${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${selectedCertification.code} - ${selectedCertification.name}.');
+  });
+
   it("shows read-only exam mode defaults and active forms", () => {
     expect(source).toContain("Quick Drill count");
     expect(source).toContain("Category Drill count");
