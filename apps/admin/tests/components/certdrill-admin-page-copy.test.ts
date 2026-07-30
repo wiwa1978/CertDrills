@@ -147,6 +147,10 @@ describe("CertDrill admin page copy", () => {
     expect(newQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("questionId");
+    expect(source).toContain("<CardTitle>Question</CardTitle>");
+    expect(source).toContain("<CardTitle>Answers</CardTitle>");
+    expect(source.indexOf("<CardTitle>Question</CardTitle>"))
+      .toBeLessThan(source.indexOf("<CardTitle>Answers</CardTitle>"));
   });
 
   it("uses localized links for dedicated question editor navigation", () => {

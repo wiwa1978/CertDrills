@@ -855,41 +855,61 @@ function QuestionFormFields({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <CategorySelect id={`${idPrefix}-category-id`} name="categoryId" categories={categories} label="Category" defaultValue={selectedQuestion?.categoryId} required />
-        <SelectField id={`${idPrefix}-difficulty`} name="difficulty" label="Difficulty" defaultValue={selectedQuestion?.difficulty ?? "medium"}>
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
-        </SelectField>
-        <SelectField id={`${idPrefix}-status`} name="status" label="Status" defaultValue={selectedQuestion?.status ?? "draft"}>
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-          <option value="archived">Archived</option>
-        </SelectField>
-        {selectedQuestion ? <CheckboxField id={`${idPrefix}-clear-source-resource-id`} name="sourceResourceId" value="__none__" label="Clear source resource" /> : null}
-        <TextField id={`${idPrefix}-source-resource-id`} name="sourceResourceId" label="Source resource ID" placeholder="Optional resource UUID" defaultValue={selectedQuestion?.sourceResourceId ?? undefined} helperText="Must be a valid resource UUID when set." />
-      </div>
-      <MarkdownTextareaWithPreview id={`${idPrefix}-stem`} name="stem" label="Stem" previewLabel="Stem preview" required placeholder="Which option best answers the scenario?" defaultValue={selectedQuestion?.stem} helperText="Question stem is required. Markdown is supported." />
-      <div className="space-y-3 rounded-lg border p-3">
-        <div className="text-sm font-medium">Answer options</div>
-        <p className="text-xs text-muted-foreground">Published questions require one correct option, explanations, and citation URLs.</p>
-        {[0, 1, 2, 3].map((index) => {
-          const option = selectedQuestion?.options?.[index];
-
-          return (
-            <div key={index} className="grid gap-3 rounded-md bg-muted/40 p-3 md:grid-cols-[auto_1fr_1fr]">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="radio" name="correctOption" value={String(index)} defaultChecked={(selectedCorrectOption ?? 0) === index} />
-                Correct
-              </label>
-              <TextField id={`${idPrefix}-option-${index}-text`} name={`option${index}Text`} label={`Option ${index + 1} text`} placeholder="Answer text" defaultValue={option?.text} helperText="Required before publishing." />
-              <MarkdownTextareaWithPreview id={`${idPrefix}-option-${index}-explanation`} name={`option${index}Explanation`} label={`Option ${index + 1} explanation`} previewLabel="Explanation preview" placeholder="Why this is right or wrong" defaultValue={option?.explanation} helperText="Required before publishing." />
-              <TextareaField id={`${idPrefix}-option-${index}-citations`} name={`option${index}CitationUrls`} label={`Option ${index + 1} citation URLs`} placeholder="Comma-separated URLs" defaultValue={csvDefault(option?.citationUrls)} helperText="Required before publishing. URLs must start with http://, https://, or mailto:." />
+      <Card>
+        <CardHeader>
+          <CardTitle>Question</CardTitle>
+          <CardDescription>Choose the category and define the question prompt.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <CategorySelect id={`${idPrefix}-category-id`} name="categoryId" categories={categories} label="Category" defaultValue={selectedQuestion?.categoryId} required />
+          <MarkdownTextareaWithPreview id={`${idPrefix}-stem`} name="stem" label="Stem" previewLabel="Stem preview" required placeholder="Which option best answers the scenario?" defaultValue={selectedQuestion?.stem} helperText="Question stem is required. Markdown is supported." />
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField id={`${idPrefix}-difficulty`} name="difficulty" label="Difficulty" defaultValue={selectedQuestion?.difficulty ?? "medium"}>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </SelectField>
+            <SelectField id={`${idPrefix}-status`} name="status" label="Status" defaultValue={selectedQuestion?.status ?? "draft"}>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </SelectField>
+            {selectedQuestion ? <CheckboxField id={`${idPrefix}-clear-source-resource-id`} name="sourceResourceId" value="__none__" label="Clear source resource" /> : null}
+            <TextField id={`${idPrefix}-source-resource-id`} name="sourceResourceId" label="Source resource ID" placeholder="Optional resource UUID" defaultValue={selectedQuestion?.sourceResourceId ?? undefined} helperText="Must be a valid resource UUID when set." />
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Answers</CardTitle>
+          <CardDescription>Select one correct answer and provide the supporting details for every option.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Published questions require one correct option, explanations, and citation URLs.</p>
+          <fieldset>
+            <legend className="text-sm font-medium">Correct answer</legend>
+            <div className="mt-2 flex flex-wrap gap-4">
+              {[0, 1, 2, 3].map((index) => (
+                <label key={index} className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="correctOption" value={String(index)} defaultChecked={(selectedCorrectOption ?? 0) === index} />
+                  Option {index + 1}
+                </label>
+              ))}
             </div>
-          );
-        })}
-      </div>
+          </fieldset>
+          {[0, 1, 2, 3].map((index) => {
+            const option = selectedQuestion?.options?.[index];
+
+            return (
+              <div key={index} className="grid gap-3 rounded-md bg-muted/40 p-3 md:grid-cols-3">
+                <TextField id={`${idPrefix}-option-${index}-text`} name={`option${index}Text`} label={`Option ${index + 1} text`} placeholder="Answer text" defaultValue={option?.text} helperText="Required before publishing." />
+                <MarkdownTextareaWithPreview id={`${idPrefix}-option-${index}-explanation`} name={`option${index}Explanation`} label={`Option ${index + 1} explanation`} previewLabel="Explanation preview" placeholder="Why this is right or wrong" defaultValue={option?.explanation} helperText="Required before publishing." />
+                <TextareaField id={`${idPrefix}-option-${index}-citations`} name={`option${index}CitationUrls`} label={`Option ${index + 1} citation URLs`} placeholder="Comma-separated URLs" defaultValue={csvDefault(option?.citationUrls)} helperText="Required before publishing. URLs must start with http://, https://, or mailto:." />
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }
