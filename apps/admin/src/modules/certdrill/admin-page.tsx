@@ -52,7 +52,6 @@ type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
   selectedCertificationId?: string;
   selectedCategoryId?: string;
-  selectedQuestionId?: string;
   selectedExamFormId?: string;
   selectedResourceId?: string;
   questionSearch?: string;
@@ -72,7 +71,6 @@ type CertificationOption = {
 
 type CertDrillAdminHrefParams = {
   categoryId?: string;
-  questionId?: string;
   examFormId?: string;
   resourceId?: string;
   questionSearch?: string;
@@ -140,11 +138,62 @@ export async function CertDrillAdminOverviewPage({ certifications }: { certifica
   );
 }
 
+export async function CertDrillQuestionEditorPage({
+  certificationId,
+  questionId,
+}: {
+  certificationId: string;
+  questionId?: string;
+}) {
+  const [categories, questions] = await Promise.all([
+    listCertDrillAdminCategoriesServer(certificationId),
+    listCertDrillAdminQuestionsServer(certificationId),
+  ]);
+  const selectedQuestion = questionId ? questions.find((question) => question.id === questionId) : undefined;
+
+  if (questionId && !selectedQuestion) {
+    return <EmptyState>Question not found.</EmptyState>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <Badge variant="secondary">Question editor</Badge>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight">{selectedQuestion ? "Update question" : "Create question"}</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            {selectedQuestion ? "Update the selected question for this certification." : "Create a question for this certification."}
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</Link>
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create or update question</CardTitle>
+          <CardDescription>Markdown supported in stems and explanations.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <QuestionForm
+            action={selectedQuestion ? updateCertDrillQuestionAction : createCertDrillQuestionAction}
+            submitLabel={selectedQuestion ? "Update question" : "Create question"}
+            categories={categories}
+            selectedCertificationId={certificationId}
+            selectedQuestion={selectedQuestion}
+            idPrefix="question-editor"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export async function CertDrillAdminPage({
   certifications,
   selectedCertificationId: requestedCertificationId,
   selectedCategoryId: requestedCategoryId,
-  selectedQuestionId: requestedQuestionId,
   selectedExamFormId: requestedExamFormId,
   selectedResourceId: requestedResourceId,
   questionSearch,
@@ -183,9 +232,6 @@ export async function CertDrillAdminPage({
   const selectedCategory = requestedCategoryId && requestedCategoryId !== "new"
     ? categories.find((category) => category.id === requestedCategoryId)
     : undefined;
-  const selectedQuestion = requestedQuestionId && requestedQuestionId !== "new"
-    ? questions.find((question) => question.id === requestedQuestionId)
-    : undefined;
   const selectedExamForm = requestedExamFormId && requestedExamFormId !== "new"
     ? examForms.find((examForm) => examForm.id === requestedExamFormId)
     : undefined;
@@ -217,7 +263,7 @@ export async function CertDrillAdminPage({
     || selectedTab === "generate"
     || selectedTab === "feedback"
     ? selectedTab
-    : requestedCategoryId || requestedQuestionId || hasQuestionFilters ? "questions" : "categories";
+    : requestedCategoryId || hasQuestionFilters ? "questions" : "categories";
 
   return (
     <div className="space-y-6">
@@ -356,31 +402,21 @@ export async function CertDrillAdminPage({
         <TabsContent value="questions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Create or update question</CardTitle>
-              <CardDescription>{selectedCertification ? `Create a question for ${selectedCertification.code} or patch the selected question. Markdown supported in stems and explanations.` : "Select an existing certification before managing questions."}</CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>Questions</CardTitle>
+                  <CardDescription>{selectedCategory ? `Questions in ${selectedCategory.code} - ${selectedCategory.name}.` : "Simple MCQ list for the selected certification."}</CardDescription>
+                </div>
+                {selectedCertificationId ? (
+                  <Button asChild>
+                    <Link href={questionEditorNewHref(selectedCertificationId)}>Create question</Link>
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SelectionLinks
-                newLabel="New question"
-                newHref={selectedCertificationHref({ ...certificationQuery, ...questionFilters, questionId: "new" })}
-                disabled={!selectedCertificationId}
-              >
-                {filteredQuestions.map((question) => (
-                  <Button key={question.id} asChild variant={question.id === selectedQuestion?.id ? "default" : "outline"} size="sm">
-                    <Link href={selectedCertificationHref({ ...certificationQuery, ...questionFilters, questionId: question.id })}>{question.stem.slice(0, 48) || question.id}</Link>
-                  </Button>
-                ))}
-              </SelectionLinks>
-              {selectedCertificationId ? (
-                <QuestionForm
-                  action={selectedQuestion ? updateCertDrillQuestionAction : createCertDrillQuestionAction}
-                  submitLabel={selectedQuestion ? "Update question" : "Create question"}
-                  categories={categories}
-                  selectedCertificationId={selectedCertificationId}
-                  selectedQuestion={selectedQuestion}
-                  idPrefix="question"
-                />
-              ) : <EmptyState>Select or create a certification first.</EmptyState>}
+              {selectedCertificationId ? <QuestionFilterForm categories={categories} filters={questionFilters} /> : null}
+              {filteredQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={filteredQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
 
@@ -394,17 +430,6 @@ export async function CertDrillAdminPage({
                 <QuestionSelect id="publish-question-id" name="questionId" questions={filteredQuestions} label="Question" />
                 <Button type="submit">Publish question</Button>
               </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Questions</CardTitle>
-              <CardDescription>{selectedCategory ? `Questions in ${selectedCategory.code} - ${selectedCategory.name}.` : "Simple MCQ list for the selected certification."}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {selectedCertificationId ? <QuestionFilterForm categories={categories} filters={questionFilters} /> : null}
-              {filteredQuestions.length > 0 ? <QuestionTable questions={filteredQuestions} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -522,7 +547,7 @@ export async function CertDrillAdminPage({
               <CardTitle>Draft questions</CardTitle>
               <CardDescription>Draft result list, including mock-generated questions ready for review.</CardDescription>
             </CardHeader>
-            <CardContent>{draftQuestions.length > 0 ? <QuestionTable questions={draftQuestions} /> : <EmptyState>No draft questions yet.</EmptyState>}</CardContent>
+            <CardContent>{draftQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={draftQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} /> : <EmptyState>No draft questions yet.</EmptyState>}</CardContent>
           </Card>
         </TabsContent>
 
@@ -553,6 +578,14 @@ function buildCertificationOptions(
 
 function certdrillAdminOverviewHref() {
   return "/admin/certdrill";
+}
+
+export function questionEditorNewHref(certificationId: string) {
+  return `/admin/certdrill/${certificationId}/questions/new`;
+}
+
+export function questionEditorHref(certificationId: string, questionId: string) {
+  return `/admin/certdrill/${certificationId}/questions/${questionId}`;
 }
 
 function certdrillAdminDetailHref(certificationId: string, params: CertDrillAdminHrefParams = {}) {
@@ -1424,7 +1457,13 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
   );
 }
 
-function QuestionTable({ questions }: { questions: CertDrillAdminQuestion[] }) {
+function QuestionTable({
+  questions,
+  questionHref,
+}: {
+  questions: CertDrillAdminQuestion[];
+  questionHref: (question: CertDrillAdminQuestion) => string;
+}) {
   return (
     <Table>
       <TableHeader>
@@ -1439,8 +1478,12 @@ function QuestionTable({ questions }: { questions: CertDrillAdminQuestion[] }) {
       <TableBody>
         {questions.map((question) => (
           <TableRow key={question.id}>
-            <TableCell className="font-mono text-xs">{question.id}</TableCell>
-            <TableCell className="max-w-xl whitespace-normal">{question.stem}</TableCell>
+            <TableCell className="font-mono text-xs">
+              <Link href={questionHref(question)} className="hover:underline">{question.id}</Link>
+            </TableCell>
+            <TableCell className="max-w-xl whitespace-normal">
+              <Link href={questionHref(question)} className="hover:underline">{question.stem}</Link>
+            </TableCell>
             <TableCell><Badge variant="outline">{question.status ?? "draft"}</Badge></TableCell>
             <TableCell>{question.difficulty ?? "medium"}</TableCell>
             <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>

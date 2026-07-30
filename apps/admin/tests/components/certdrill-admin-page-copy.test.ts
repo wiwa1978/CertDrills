@@ -11,6 +11,14 @@ const detailRouteSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/page.tsx", import.meta.url),
   "utf8",
 );
+const newQuestionRouteSource = readFileSync(
+  new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/questions/new/page.tsx", import.meta.url),
+  "utf8",
+);
+const editQuestionRouteSource = readFileSync(
+  new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/questions/[questionId]/page.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("CertDrill admin page copy", () => {
   it("shows management tabs and primary form labels", () => {
@@ -128,9 +136,17 @@ describe("CertDrill admin page copy", () => {
   it("shows new-record controls for every editable tab", () => {
     expect(source).toContain("New certification");
     expect(source).toContain("Create category");
-    expect(source).toContain("New question");
+    expect(source).toContain("Create question");
     expect(source).toContain("New exam form");
     expect(source).toContain("New resource");
+  });
+
+  it("uses dedicated routes for question editing", () => {
+    expect(source).toContain("questionEditorNewHref(selectedCertificationId)");
+    expect(source).toContain("questionEditorHref(selectedCertificationId, question.id)");
+    expect(newQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
+    expect(editQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
+    expect(editQuestionRouteSource).toContain("questionId");
   });
 
   it("shows read-only exam mode defaults and active forms", () => {
@@ -192,12 +208,10 @@ describe("CertDrill admin page copy", () => {
     expect(routeSource).toContain("CertDrillAdminOverviewPage");
     expect(detailRouteSource).toContain("CertDrillAdminPage");
     expect(detailRouteSource).toContain("categoryId");
-    expect(detailRouteSource).toContain("questionId");
     expect(detailRouteSource).toContain("examFormId");
     expect(detailRouteSource).toContain("resourceId");
     expect(source).toContain("selectedCertificationId");
     expect(source).toContain("selectedCategoryId");
-    expect(source).toContain("selectedQuestionId");
     expect(source).toContain("selectedExamFormId");
     expect(source).toContain("selectedResourceId");
     expect(source).toContain("certdrillAdminDetailHref");
@@ -209,7 +223,6 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("certificationId:");
     expect(source).toContain('type="hidden" name="certificationId" value={selectedCertificationId ?? ""}');
     expect(source).toContain("questionCategoryId: category.id");
-    expect(source).toContain("questionId:");
     expect(source).toContain("examFormId:");
     expect(source).toContain("resourceId:");
     expect(source).toContain("Manage CertDrill content for the selected certification.");
