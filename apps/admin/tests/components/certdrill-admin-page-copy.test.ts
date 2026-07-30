@@ -96,6 +96,10 @@ describe("CertDrill admin page copy", () => {
     expect(detailRouteSource).toContain("questionSort");
   });
 
+  it("opens filtered questions when selecting a category", () => {
+    expect(source).toContain("selectedCertificationHref({ questionCategoryId: category.id })");
+  });
+
   it("normalizes array search params before passing string-only filters", () => {
     expect(detailRouteSource).toContain("type SearchParamValue = string | string[] | undefined");
     expect(detailRouteSource).toContain("firstSearchParamString");
@@ -199,7 +203,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).not.toContain("Switch the query-scoped certification");
     expect(source).toContain("certificationId:");
     expect(source).toContain('type="hidden" name="certificationId" value={selectedCertificationId ?? ""}');
-    expect(source).toContain("categoryId:");
+    expect(source).toContain("questionCategoryId: category.id");
     expect(source).toContain("questionId:");
     expect(source).toContain("examFormId:");
     expect(source).toContain("resourceId:");
