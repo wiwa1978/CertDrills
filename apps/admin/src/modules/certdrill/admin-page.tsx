@@ -153,12 +153,13 @@ export async function CertDrillQuestionEditorPage({
     listCertDrillAdminQuestionsServer(certificationId),
   ]);
   const selectedAdminCertification = adminCertifications.find((certification) => certification.id === certificationId);
-  const selectedCertification = certifications.find((certification) => certification.id === certificationId);
+  const selectedCatalogCertification = certifications.find((certification) => certification.id === certificationId);
   const selectedQuestion = questionId ? questions.find((question) => question.id === questionId) : undefined;
 
-  if (!selectedAdminCertification || !selectedCertification) {
+  if (!selectedAdminCertification) {
     return <EmptyState>Certification not found.</EmptyState>;
   }
+  const certificationContext = selectedCatalogCertification ?? selectedAdminCertification;
 
   if (questionId && !selectedQuestion) {
     return <EmptyState>Question not found.</EmptyState>;
@@ -169,9 +170,9 @@ export async function CertDrillQuestionEditorPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Badge variant="secondary">Question editor</Badge>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight">{`${selectedQuestion ? "Update" : "Create"} question for ${selectedCertification.code}`}</h1>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight">{`${selectedQuestion ? "Update" : "Create"} question for ${certificationContext.code}`}</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            {`${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${selectedCertification.code} - ${selectedCertification.name}.`}
+            {`${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${certificationContext.code} - ${certificationContext.name}.`}
           </p>
         </div>
         <Button asChild variant="outline">

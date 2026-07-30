@@ -155,8 +155,11 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("getCertDrillCertificationsServer(),");
     expect(source).toContain("adminCertifications.find((certification) => certification.id === certificationId)");
     expect(source).toContain("certifications.find((certification) => certification.id === certificationId)");
-    expect(source).toContain('${selectedQuestion ? "Update" : "Create"} question for ${selectedCertification.code}');
-    expect(source).toContain('${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${selectedCertification.code} - ${selectedCertification.name}.');
+    expect(source).toContain("const certificationContext = selectedCatalogCertification ?? selectedAdminCertification;");
+    expect(source).toContain("if (!selectedAdminCertification) {");
+    expect(source).not.toContain("if (!selectedAdminCertification || !selectedCatalogCertification) {");
+    expect(source).toContain('${selectedQuestion ? "Update" : "Create"} question for ${certificationContext.code}');
+    expect(source).toContain('${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${certificationContext.code} - ${certificationContext.name}.');
   });
 
   it("shows read-only exam mode defaults and active forms", () => {
