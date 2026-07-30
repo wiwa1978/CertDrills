@@ -1,0 +1,17 @@
+{
+  "name": "@platform/payments-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@platform/contracts": "*",
+    "@hono/zod-validator": "^0.7.4",
+    "hono": "^4.10.3",
+    "zod": "^4.2.1"
+  }
+}

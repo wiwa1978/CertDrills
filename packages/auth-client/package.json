@@ -1,0 +1,22 @@
+{
+  "name": "@platform/auth-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web-user": "./src/web-user.ts",
+    "./web-admin": "./src/web-admin.ts",
+    "./mobile": "./src/mobile.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "^1.4.9",
+    "@dodopayments/better-auth": "^1.4.2",
+    "better-auth": "^1.4.9"
+  }
+}

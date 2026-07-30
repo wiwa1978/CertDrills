@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "germanywestcentral"
+    },
+    "resourceGroupName": {
+      "value": "RG-Boilerplate-SingleTenant-Hono"
+    },
+    "appName": {
+      "value": "singletenant-hono"
+    },
+    "environmentName": {
+      "value": "production"
+    },
+    "postgresServerFqdn": {
+      "value": "<postgres-server>.postgres.database.azure.com"
+    },
+    "postgresAdminLogin": {
+      "value": "<postgres-admin-login>"
+    },
+    "postgresAdminPassword": {
+      "value": "<set-via-github-secret>"
+    },
+    "postgresDatabaseName": {
+      "value": "boilerplate-singletenant-hono"
+    },
+    "apiImage": {
+      "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+    },
+    "enableApiLivenessProbe": {
+      "value": false
+    },
+    "webImage": {
+      "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+    },
+    "adminImage": {
+      "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+    },
+    "acrUsername": {
+      "value": ""
+    },
+    "acrPassword": {
+      "value": ""
+    }
+  }
+}

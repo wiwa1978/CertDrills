@@ -1,0 +1,38 @@
+{
+  "name": "@apps/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node --enable-source-maps src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed:certdrill": "tsx src/scripts/seed-certdrill-demo.ts"
+  },
+  "dependencies": {
+    "@platform/auth-core": "*",
+    "@platform/contracts": "*",
+    "@platform/email-core": "*",
+    "@platform/payments-core": "*",
+    "@platform/platform-db": "*",
+    "@better-auth/passkey": "^1.4.9",
+    "@dodopayments/better-auth": "^1.4.2",
+    "better-auth": "^1.4.9",
+    "dotenv": "^17.2.3",
+    "dodopayments": "^2.13.1",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.10.3",
+    "pino": "^9.9.0",
+    "postgres": "^3.4.7",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.19.4",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

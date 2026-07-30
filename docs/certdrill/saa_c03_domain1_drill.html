@@ -1,0 +1,487 @@
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f1720;
+    --panel: #16212f;
+    --panel-raised: #1c293a;
+    --grid-line: rgba(94, 200, 216, 0.07);
+    --hairline: #2a3b57;
+    --accent: #e8a33d;
+    --accent-dim: rgba(232, 163, 61, 0.16);
+    --correct: #4cae7d;
+    --correct-dim: rgba(76, 174, 125, 0.14);
+    --incorrect: #d9614f;
+    --incorrect-dim: rgba(217, 97, 79, 0.14);
+    --paper: #e8ecf1;
+    --muted: #7e8ca3;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  .quiz-app {
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 28px,
+      var(--ink);
+    font-family: var(--font-body);
+    color: var(--paper);
+    padding: 32px 16px 48px;
+    min-height: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .quiz-wrap { width: 100%; max-width: 660px; }
+
+  .stamp-header { margin-bottom: 28px; }
+  .stamp-box {
+    display: inline-flex;
+    gap: 0;
+    border: 1px solid var(--hairline);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 18px;
+    background: var(--panel);
+    flex-wrap: wrap;
+  }
+  .stamp-cell {
+    padding: 6px 12px;
+    border-right: 1px solid var(--hairline);
+    white-space: nowrap;
+  }
+  .stamp-cell:last-child { border-right: none; }
+  .stamp-cell b { color: var(--accent); font-weight: 600; }
+
+  .stamp-header h1 {
+    font-family: var(--font-display);
+    font-size: 25px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .stamp-header .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .ruler { display: flex; gap: 4px; margin: 24px 0 20px; }
+  .tick { flex: 1; height: 4px; background: var(--hairline); border-radius: 1px; }
+  .tick.done { background: var(--accent); }
+  .tick.current { background: var(--paper); }
+
+  .q-counter {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .q-counter b { color: var(--paper); }
+  .q-task {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 14px;
+    letter-spacing: 0.03em;
+  }
+
+  .quiz-card {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 26px 26px 22px;
+  }
+
+  .q-stem { font-size: 16.5px; line-height: 1.55; margin: 0 0 20px; color: var(--paper); }
+
+  .options { display: flex; flex-direction: column; gap: 10px; }
+
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--panel-raised);
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--paper);
+    line-height: 1.5;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .option:hover:not(.locked) { border-color: var(--accent); }
+  .option.selected { border-color: var(--accent); background: var(--accent-dim); }
+  .option.correct { border-color: var(--correct); background: var(--correct-dim); }
+  .option.incorrect { border-color: var(--incorrect); background: var(--incorrect-dim); }
+  .option.locked { cursor: default; }
+
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .option.selected .badge { border-color: var(--accent); color: var(--accent); }
+  .option.correct .badge { border-color: var(--correct); background: var(--correct); color: var(--ink); }
+  .option.incorrect .badge { border-color: var(--incorrect); background: var(--incorrect); color: var(--ink); }
+
+  .explain {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 3px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    display: none;
+  }
+  .explain.show { display: block; }
+  .explain.right { background: var(--correct-dim); border: 1px solid var(--correct); color: var(--paper); }
+  .explain.wrong { background: var(--incorrect-dim); border: 1px solid var(--incorrect); color: var(--paper); }
+  .explain .tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .explain.right .tag { color: var(--correct); }
+  .explain.wrong .tag { color: var(--incorrect); }
+
+  .action-row { margin-top: 22px; display: flex; justify-content: flex-end; }
+  .btn {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 22px;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+    background: var(--accent);
+    color: var(--ink);
+    transition: opacity 0.15s ease;
+  }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn:hover:not(:disabled) { opacity: 0.88; }
+
+  .score-footer {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding: 0 4px;
+  }
+  .score-footer b { color: var(--accent); font-size: 13px; }
+
+  .results { text-align: center; padding: 10px 0 4px; }
+  .results .big-score {
+    font-family: var(--font-display);
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 4px 0 2px;
+  }
+  .results .big-score span { font-size: 22px; color: var(--muted); font-weight: 500; }
+  .results .verdict { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+
+  @media (max-width: 480px) {
+    .stamp-header h1 { font-size: 19px; }
+    .quiz-card { padding: 20px 18px 18px; }
+    .stamp-box { font-size: 10px; }
+  }
+</style>
+
+<div class="quiz-app">
+  <div class="quiz-wrap">
+    <div class="stamp-header">
+      <div class="stamp-box">
+        <div class="stamp-cell">DOC <b>SAA-C03-DOMAIN1</b></div>
+        <div class="stamp-cell">REV <b>1.0</b></div>
+        <div class="stamp-cell">SRC <b>AWS Certification Docs</b></div>
+      </div>
+      <h1>AWS SAA-C03 — Domain 1 Drill</h1>
+      <p class="subtitle">Design Secure Architectures. 10 scenario-based questions across access control, secure workloads, and data protection.</p>
+    </div>
+
+    <div class="q-counter">QUESTION <b id="qNum">1</b> / <span id="qTotal">10</span></div>
+    <div class="ruler" id="ruler"></div>
+
+    <div class="quiz-card" id="quizCard"></div>
+
+    <div class="score-footer">
+      <span>RUNNING SCORE</span>
+      <b id="scoreValue">0 / 10</b>
+    </div>
+  </div>
+</div>
+
+<script>
+  const questions = [
+    {
+      task: "TASK 1.1 · SECURE ACCESS",
+      stem: "An SCP attached to an OU denies access to a set of AWS Regions. A user in an account within that OU has an IAM policy explicitly allowing 'ec2:*' in all Regions. What is the effective permission in a denied Region?",
+      options: [
+        "The user can act, because identity-based IAM policies always override SCPs",
+        "The user cannot act — SCPs set the maximum available permissions org-wide, and an explicit SCP deny cannot be overridden by any identity-based allow",
+        "The user can act only if the SCP were attached at the account level instead of the OU level",
+        "The user can act, because SCPs apply only to the root user",
+        "Effective permission depends on which policy was created most recently"
+      ],
+      correct: 1,
+      explain: "SCPs don't grant permissions — they cap what's available account/OU-wide, and an explicit SCP deny always wins over any IAM allow, regardless of how specific or recent that allow is."
+    },
+    {
+      task: "TASK 1.1 · SECURE ACCESS",
+      stem: "Engineers in a Dev account need to temporarily assume elevated permissions in a Prod account, without permanent Prod credentials. What's the recommended mechanism?",
+      options: [
+        "Create a Prod IAM user per engineer and share access keys via a password manager",
+        "Create an IAM role in Prod with a trust policy allowing the Dev account/roles, and have engineers call AWS STS AssumeRole for temporary credentials",
+        "Share the Prod root account credentials through AWS Organizations consolidated billing",
+        "Attach Prod's IAM policies directly to the Dev account's IAM group",
+        "Issue ACM client certificates per engineer to authenticate into Prod"
+      ],
+      correct: 1,
+      explain: "Cross-account role assumption via STS AssumeRole is the standard pattern: no long-lived credentials, and permissions are scoped and time-limited."
+    },
+    {
+      task: "TASK 1.1 · SECURE ACCESS",
+      stem: "Employees should sign in once with their existing on-premises Active Directory credentials and reach multiple AWS accounts, without AWS provisioning a separate IAM user per employee. Which service is purpose-built for this?",
+      options: [
+        "AWS IAM Identity Center, federated with the on-premises directory",
+        "Amazon Cognito user pools",
+        "AWS Directory Service Simple AD, used standalone with no federation",
+        "AWS Secrets Manager with automatic credential rotation",
+        "IAM users with MFA enabled per employee"
+      ],
+      correct: 0,
+      explain: "IAM Identity Center (successor to AWS SSO) is the multi-account workforce SSO/federation service. Cognito targets customer-facing application sign-in, not enterprise multi-account access."
+    },
+    {
+      task: "TASK 1.2 · SECURE WORKLOADS",
+      stem: "A single malicious IP address must be explicitly blocked at the subnet boundary, while normal traffic stays governed by security groups. Which statement is accurate?",
+      options: [
+        "Security groups should be used, since they support explicit deny rules for individual IPs",
+        "A network ACL should be used — NACLs are stateless, evaluate numbered rules in order, and support both explicit allow and explicit deny at the subnet level",
+        "Security groups and NACLs are functionally interchangeable for this purpose",
+        "AWS WAF must be used, since it's the only AWS service able to block a single IP",
+        "The route table should be edited to null-route the offending IP"
+      ],
+      correct: 1,
+      explain: "Security groups are stateful and only support allow rules (implicit deny otherwise). NACLs are stateless, rule-ordered, and are the layer that supports explicit deny — this distinction is one of the most heavily tested on the SAA exam."
+    },
+    {
+      task: "TASK 1.2 · SECURE WORKLOADS",
+      stem: "Which AWS service is purpose-built to continuously discover and classify sensitive data such as PII stored in Amazon S3, using machine learning?",
+      options: [
+        "Amazon GuardDuty",
+        "Amazon Macie",
+        "Amazon Inspector",
+        "AWS Config",
+        "AWS Shield Advanced"
+      ],
+      correct: 1,
+      explain: "Macie is the S3 sensitive-data discovery/classification service. GuardDuty detects threats from logs/network activity; Inspector automates vulnerability scanning for EC2, ECR, and Lambda."
+    },
+    {
+      task: "TASK 1.2 · SECURE WORKLOADS",
+      stem: "An app faces both a Layer 7 HTTP flood targeting a specific API path and a large volumetric network-layer DDoS attack. What's the correct combination and division of responsibility?",
+      options: [
+        "AWS WAF alone, since it operates at every OSI layer",
+        "AWS Shield alone, since it inspects HTTP request content",
+        "AWS WAF for Layer 7 rules matching the malicious request patterns, combined with AWS Shield for network/transport-layer volumetric DDoS protection",
+        "Amazon GuardDuty for both, since it is AWS's DDoS mitigation service",
+        "AWS Firewall Manager alone, without WAF or Shield"
+      ],
+      correct: 2,
+      explain: "WAF operates at Layer 7 (HTTP-aware rules, rate limiting, managed rule groups); Shield protects against Layer 3/4 volumetric attacks. They're complementary, not substitutes."
+    },
+    {
+      task: "TASK 1.2 · SECURE WORKLOADS",
+      stem: "A three-tier app has a public web tier, an internal app tier needing outbound-only internet access, and a database tier that must never be internet-reachable. How should subnets and NAT be arranged?",
+      options: [
+        "All three tiers in one public subnet, isolated only by security groups",
+        "Web tier in a public subnet; app and database tiers in private subnets; a NAT gateway in a public subnet gives the app tier outbound-only access; the database subnet has no route to any NAT gateway or internet gateway",
+        "Database tier in a public subnet, secured only by a resource-based policy",
+        "A NAT gateway placed inside the database tier's private subnet, granting all three tiers full inbound and outbound internet access",
+        "An internet gateway attached directly to the database tier's route table, blocked only by an empty security group"
+      ],
+      correct: 1,
+      explain: "Standard segmentation: public subnet + IGW route for the web tier, private subnets for app/db, NAT gateway (sitting in a public subnet) for outbound-only app-tier access, and zero IGW/NAT route at all for the database tier."
+    },
+    {
+      task: "TASK 1.3 · DATA SECURITY",
+      stem: "A Lambda execution role must decrypt objects using one specific AWS KMS customer managed key — without broad kms:Decrypt rights across the account. What actually enforces this?",
+      options: [
+        "An IAM policy granting kms:Decrypt on '*', relying on the account's default key policy for restriction",
+        "An IAM policy scoping kms:Decrypt to that key's ARN, AND a KMS key policy that also grants the role (or delegates via the account) permission to use the key — both must allow the action",
+        "Only the KMS key policy matters; IAM policies aren't evaluated for KMS actions",
+        "Only the IAM policy matters; KMS key policies are advisory, not enforced",
+        "AWS Certificate Manager should replace KMS here, since ACM better supports resource-scoped Lambda permissions"
+      ],
+      correct: 1,
+      explain: "KMS is a well-known exception where BOTH the identity-based policy and the resource-based key policy must permit the action — an allow on just one side isn't enough."
+    },
+    {
+      task: "TASK 1.3 · DATA SECURITY",
+      stem: "For TLS termination at an Application Load Balancer, which statement about AWS Certificate Manager (ACM) is accurate?",
+      options: [
+        "ACM certificates can be exported as private keys for use on EC2 instances outside integrated services",
+        "ACM public certificates for integrated services (ALB, CloudFront, API Gateway) are provided at no additional cost and can be configured for automatic renewal",
+        "ACM only supports certificates for Amazon S3 static website hosting",
+        "ACM requires manual renewal every 90 days regardless of certificate type",
+        "ACM certificates work only with Classic Load Balancers, not Application Load Balancers"
+      ],
+      correct: 1,
+      explain: "ACM public certs for AWS-integrated services are free and auto-renew as long as domain validation holds. Private keys for ACM-issued public certificates specifically cannot be exported for use outside those integrated services."
+    },
+    {
+      task: "TASK 1.3 · DATA SECURITY",
+      stem: "Compliance requires 7-year retention of database backups, minimized storage cost, and proof that backups can't be deleted early — even by an account administrator. Which approach satisfies this?",
+      options: [
+        "Amazon S3 Standard with versioning enabled and no lifecycle policy",
+        "AWS Backup with a backup vault under a Vault Lock policy in compliance mode, with lifecycle rules transitioning backups to colder storage over time",
+        "EBS snapshots alone, with no additional configuration",
+        "IAM policies alone, since IAM permissions can never be bypassed by any principal",
+        "S3 Object Lock in governance mode only, since compliance mode is deprecated"
+      ],
+      correct: 1,
+      explain: "AWS Backup Vault Lock in compliance mode is specifically designed so that not even the root user can delete or shorten retention — unlike governance mode, which privileged admins can still override. Lifecycle rules handle the cost side by tiering to colder storage."
+    }
+  ];
+
+  let current = 0;
+  let score = 0;
+  let selected = null;
+  let answered = false;
+
+  const qNumEl = document.getElementById('qNum');
+  const qTotalEl = document.getElementById('qTotal');
+  const rulerEl = document.getElementById('ruler');
+  const cardEl = document.getElementById('quizCard');
+  const scoreEl = document.getElementById('scoreValue');
+
+  qTotalEl.textContent = questions.length;
+
+  function renderRuler() {
+    rulerEl.innerHTML = '';
+    questions.forEach((_, i) => {
+      const t = document.createElement('div');
+      t.className = 'tick' + (i < current ? ' done' : i === current ? ' current' : '');
+      rulerEl.appendChild(t);
+    });
+  }
+
+  function letter(i) { return String.fromCharCode(65 + i); }
+
+  function renderQuestion() {
+    selected = null;
+    answered = false;
+    qNumEl.textContent = current + 1;
+    renderRuler();
+
+    const q = questions[current];
+    let html = `<div class="q-task">${q.task}</div><p class="q-stem">${q.stem}</p><div class="options" id="optionsRow">`;
+    q.options.forEach((opt, i) => {
+      html += `<button class="option" data-i="${i}">
+                 <span class="badge">${letter(i)}</span>
+                 <span>${opt}</span>
+               </button>`;
+    });
+    html += `</div><div class="explain" id="explainBox"></div>
+             <div class="action-row"><button class="btn" id="actionBtn" disabled>Check answer</button></div>`;
+    cardEl.innerHTML = html;
+
+    document.querySelectorAll('.option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (answered) return;
+        document.querySelectorAll('.option').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selected = parseInt(btn.dataset.i, 10);
+        document.getElementById('actionBtn').disabled = false;
+      });
+    });
+
+    document.getElementById('actionBtn').addEventListener('click', onAction);
+  }
+
+  function onAction() {
+    if (!answered) {
+      lockAndReveal();
+    } else {
+      current++;
+      if (current >= questions.length) {
+        renderResults();
+      } else {
+        renderQuestion();
+      }
+    }
+  }
+
+  function lockAndReveal() {
+    answered = true;
+    const q = questions[current];
+    const isRight = selected === q.correct;
+    if (isRight) score++;
+    scoreEl.textContent = `${score} / ${questions.length}`;
+
+    document.querySelectorAll('.option').forEach((btn, i) => {
+      btn.classList.add('locked');
+      if (i === q.correct) btn.classList.add('correct');
+      else if (i === selected) btn.classList.add('incorrect');
+    });
+
+    const box = document.getElementById('explainBox');
+    box.classList.add('show', isRight ? 'right' : 'wrong');
+    box.innerHTML = `<span class="tag">${isRight ? 'CORRECT' : 'INCORRECT'}</span>${q.explain}`;
+
+    const actionBtn = document.getElementById('actionBtn');
+    actionBtn.textContent = current === questions.length - 1 ? 'See results' : 'Next question';
+    actionBtn.disabled = false;
+  }
+
+  function renderResults() {
+    current = questions.length;
+    renderRuler();
+    qNumEl.textContent = questions.length;
+    const pct = Math.round((score / questions.length) * 100);
+    let verdict;
+    if (pct === 100) verdict = "Clean sweep on Domain 1.";
+    else if (pct >= 80) verdict = "Strong. Revisit the SG-vs-NACL and KMS dual-policy items if you missed them.";
+    else if (pct >= 50) verdict = "Solid base — go back over IAM/SCP evaluation order and the network segmentation pattern.";
+    else verdict = "Worth a full pass over Domain 1's three tasks before testing again.";
+
+    cardEl.innerHTML = `
+      <div class="results">
+        <div class="big-score">${score}<span> / ${questions.length}</span></div>
+        <div class="verdict">${verdict} (${pct}%)</div>
+        <button class="btn" id="restartBtn">Restart drill</button>
+      </div>`;
+    document.getElementById('restartBtn').addEventListener('click', () => {
+      current = 0; score = 0;
+      scoreEl.textContent = `0 / ${questions.length}`;
+      renderQuestion();
+    });
+  }
+
+  renderQuestion();
+</script>

@@ -1,0 +1,1353 @@
+{
+  "metadata": {
+    "title": "Acme - Build faster, ship smarter",
+    "description": "The modern platform for building exceptional products. Streamline your workflow, collaborate seamlessly, and deliver outstanding results."
+  },
+  "nav": {
+    "features": "Features",
+    "pricing": "Pricing",
+    "about": "About",
+    "login": "Login",
+    "signUp": "Sign Up",
+    "dashboard": "Dashboard",
+    "toggleMenu": "Toggle menu"
+  },
+  "hero": {
+    "badge": "New",
+    "badgeText": "CertDrills",
+    "titleBuild": "Build",
+    "titleFaster": "faster",
+    "titleShip": ", ship",
+    "titleSmarter": "smarter",
+    "description": "The modern platform for building exceptional products. Streamline your workflow, collaborate seamlessly, and deliver outstanding results.",
+    "cta": "Get Started",
+    "watchDemo": "Watch Demo",
+    "socialProof": "Trusted by {count}+ developers and teams worldwide"
+  },
+  "features": {
+    "title": "Everything you need to succeed",
+    "description": "Powerful features designed to help you build, launch, and scale your products faster than ever.",
+    "items": {
+      "lightningFast": {
+        "title": "Lightning Fast",
+        "description": "Optimized performance that keeps your application running at peak speed, no matter the scale."
+      },
+      "enterpriseSecurity": {
+        "title": "Enterprise Security",
+        "description": "Bank-grade security with end-to-end encryption and compliance with industry standards."
+      },
+      "advancedAnalytics": {
+        "title": "Advanced Analytics",
+        "description": "Gain deep insights with real-time analytics and customizable dashboards."
+      },
+      "teamCollaboration": {
+        "title": "Team Collaboration",
+        "description": "Work together seamlessly with built-in collaboration tools and real-time updates."
+      },
+      "scalableInfrastructure": {
+        "title": "Scalable Infrastructure",
+        "description": "Grow without limits. Our infrastructure scales automatically with your needs."
+      },
+      "support": {
+        "title": "24/7 Support",
+        "description": "Round-the-clock support from our expert team to help you succeed."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Simple, transparent pricing",
+    "description": "Choose the plan that's right for you. All plans include a 14-day free trial.",
+    "mostPopular": "Most Popular",
+    "perMonth": "/month",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "description": "Perfect for side projects and small teams getting started.",
+        "cta": "Get Started",
+        "features": {
+          "teamMembers": "Up to 3 team members",
+          "analytics": "Basic analytics",
+          "storage": "1 GB storage",
+          "support": "Email support",
+          "api": "API access"
+        }
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "For growing teams that need more power and flexibility.",
+        "cta": "Start Free Trial",
+        "features": {
+          "teamMembers": "Up to 10 team members",
+          "analytics": "Advanced analytics",
+          "storage": "10 GB storage",
+          "support": "Priority support",
+          "api": "API access",
+          "integrations": "Custom integrations",
+          "security": "Advanced security"
+        }
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "For large organizations with custom needs and requirements.",
+        "cta": "Contact Sales",
+        "features": {
+          "teamMembers": "Unlimited team members",
+          "analytics": "Custom analytics",
+          "storage": "Unlimited storage",
+          "support": "24/7 dedicated support",
+          "api": "API access",
+          "integrations": "Custom integrations",
+          "security": "Advanced security",
+          "sla": "SLA guarantee",
+          "contracts": "Custom contracts"
+        }
+      }
+    }
+  },
+  "about": {
+    "title": "About Us",
+    "subtitle": "We're on a mission to help teams build better products, faster.",
+    "mission": {
+      "title": "Our Mission",
+      "paragraph1": "We believe that building great products shouldn't be complicated. Our platform empowers teams of all sizes to collaborate effectively, ship faster, and focus on what matters most — creating value for their users.",
+      "paragraph2": "Founded in 2024, we've helped thousands of teams streamline their workflows and deliver exceptional results. Our commitment to simplicity and developer experience drives everything we do."
+    },
+    "values": {
+      "title": "Our Values",
+      "simplicityFirst": {
+        "title": "Simplicity First",
+        "description": "We remove complexity so you can focus on building."
+      },
+      "developerExperience": {
+        "title": "Developer Experience",
+        "description": "Tools that developers actually enjoy using."
+      },
+      "customerSuccess": {
+        "title": "Customer Success",
+        "description": "Your success is our success. We're here to help."
+      },
+      "continuousImprovement": {
+        "title": "Continuous Improvement",
+        "description": "We ship fast, learn faster, and never stop improving."
+      }
+    },
+    "stats": {
+      "activeUsers": "Active Users",
+      "companies": "Companies",
+      "uptimeSla": "Uptime SLA",
+      "support": "Support"
+    }
+  },
+  "cta": {
+    "title": "Ready to get started?",
+    "description": "Join thousands of teams already using our platform to build amazing products. Start your free trial today.",
+    "primaryButton": "Start Free Trial",
+    "secondaryButton": "Contact Sales",
+    "disclaimer": "No credit card required · 14-day free trial · Cancel anytime"
+  },
+  "footer": {
+    "description": "Building the future of product development. Empowering teams to create exceptional experiences.",
+    "copyright": "Acme Inc. All rights reserved.",
+    "madeWith": "Made with ❤️ for developers",
+    "groups": {
+      "product": {
+        "title": "Product",
+        "features": "Features",
+        "pricing": "Pricing",
+        "integrations": "Integrations",
+        "changelog": "Changelog"
+      },
+      "company": {
+        "title": "Company",
+        "about": "About",
+        "blog": "Blog",
+        "careers": "Careers",
+        "contact": "Contact"
+      },
+      "resources": {
+        "title": "Resources",
+        "documentation": "Documentation",
+        "helpCenter": "Help Center",
+        "community": "Community",
+        "templates": "Templates"
+      },
+      "legal": {
+        "title": "Legal",
+        "privacy": "Privacy",
+        "terms": "Terms",
+        "cookiePolicy": "Cookie Policy"
+      }
+    },
+    "social": {
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "linkedin": "LinkedIn"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your account to continue",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign in",
+      "submitting": "Signing in...",
+      "orContinue": "Or continue with",
+      "noAccount": "Don't have an account?",
+      "signUpLink": "Sign up",
+      "backHome": "Back to Home",
+      "usePassword": "Sign in with password",
+      "useMagicLink": "Sign in with magic link",
+      "magicLinkDescription": "We'll send you a link to sign in - no password needed.",
+      "magicLinkSubmit": "Send magic link",
+      "magicLinkSubmitting": "Sending...",
+      "magicLinkSent": "Check your email",
+      "magicLinkSentDescription": "We've sent a magic link to {email}. Click the link in the email to sign in.",
+      "magicLinkResend": "Didn't receive the email? Click to resend."
+    },
+    "errors": {
+      "default": "An error occurred. Please try again.",
+      "NETWORK_ERROR": "Unable to reach the server. Please try again in a moment.",
+      "PASSWORD_COMPROMISED": "This password has been found in a data breach. Please choose a different password.",
+      "INVALID_EMAIL_OR_PASSWORD": "Invalid email or password.",
+      "USER_ALREADY_EXISTS": "An account with this email already exists.",
+      "EMAIL_NOT_VERIFIED": "Please verify your email address first.",
+      "INVALID_TOKEN": "Invalid or expired token.",
+      "TOO_MANY_REQUESTS": "Too many requests. Please try again later.",
+      "BANNED_USER": "Your account has been banned. Please contact support for assistance.",
+      "WEB_LOGIN_FORBIDDEN": "This account does not have access to the web app. Please use the admin portal."
+    },
+    "signup": {
+      "title": "Create an account",
+      "subtitle": "Get started with your free account today",
+      "name": "Full Name",
+      "namePlaceholder": "John Doe",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "passwordHint": "Must be at least 8 characters",
+      "confirmPassword": "Confirm Password",
+      "submit": "Create account",
+      "submitting": "Creating account...",
+      "orContinue": "Or continue with",
+      "hasAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "backHome": "Back to Home",
+      "signIn": "Sign in",
+      "usePassword": "Sign up with password",
+      "useMagicLink": "Sign up with magic link",
+      "magicLinkDescription": "We'll send you a link to create your account - no password needed.",
+      "magicLinkSubmit": "Send signup link",
+      "magicLinkSubmitting": "Sending...",
+      "magicLinkSent": "Check your email",
+      "magicLinkSentDescription": "We've sent a signup link to {email}. Click the link in the email to create your account.",
+      "magicLinkTryAgain": "Try a different email"
+    },
+    "forgotPassword": {
+      "title": "Forgot your password?",
+      "subtitle": "Enter your email and we'll send you a reset link",
+      "email": "Email",
+      "emailPlaceholder": "you@example.com",
+      "submit": "Send reset link",
+      "submitting": "Sending...",
+      "success": "Password reset email sent! Check your inbox.",
+      "error": "Failed to send reset email",
+      "rememberPassword": "Remember your password?",
+      "backToLogin": "Back to login",
+      "backHome": "Back to Home"
+    },
+    "resetPassword": {
+      "title": "Reset your password",
+      "subtitle": "Enter your new password below",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "passwordHint": "Must be at least 8 characters",
+      "submit": "Reset password",
+      "submitting": "Resetting...",
+      "success": "Password reset successfully! You can now sign in.",
+      "error": "Failed to reset password",
+      "invalidToken": "Invalid or expired reset link",
+      "rememberPassword": "Remember your password?",
+      "backToLogin": "Back to login",
+      "backHome": "Back to Home"
+    }
+  },
+  "projects": "Projects",
+  "create": "Create",
+  "dashboard": {
+    "title": "Dashboard",
+    "welcomeBack": "Welcome back, {name}!",
+    "welcomeGeneric": "Welcome! Here's an overview of your account.",
+    "loading": "Loading...",
+    "nav": {
+      "overview": "Overview",
+      "analytics": "Analytics",
+      "chat": "Chat",
+      "settings": "Settings",
+      "billing": "Billing Portal",
+      "userManagement": "User Management",
+      "admin": "Admin Panel",
+      "exams": "Exams",
+      "attempts": "Attempt history"
+    },
+    "signOut": "Sign out",
+    "topNav": {
+      "searchPlaceholder": "Search anything...",
+      "notifications": "Notifications",
+      "menu": "Menu",
+      "appSwitcher": "App Switcher",
+      "organizationSwitcher": "Organization"
+    },
+    "stats": {
+      "totalUsers": "Total Users",
+      "totalUsersChange": "+12% from last month",
+      "activeProjects": "Active Projects",
+      "activeProjectsChange": "+3 new this week",
+      "revenue": "Revenue",
+      "revenueChange": "+8% from last month",
+      "conversionRate": "Conversion Rate",
+      "conversionRateChange": "+0.5% from last week"
+    },
+    "recentActivity": {
+      "title": "Recent Activity",
+      "description": "Your latest updates and notifications",
+      "placeholder": "Dashboard content coming soon. This is a placeholder for your main dashboard widgets, charts, and data visualizations."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account and preferences.",
+    "tabs": {
+      "profile": "Profile",
+      "security": "Security",
+      "accounts": "Accounts",
+      "privacy": "Privacy"
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "Manage your profile information",
+      "personalInfo": "Personal Information",
+      "addressInfo": "Address",
+      "avatar": "Profile Picture",
+      "avatarHint": "Click to upload a new picture (max 500KB)",
+      "invalidFileType": "Please select an image file",
+      "fileTooLarge": "Image must be less than 500KB",
+      "name": "Display Name",
+      "namePlaceholder": "Enter your name",
+      "imageUrl": "Avatar URL",
+      "imageUrlPlaceholder": "https://example.com/avatar.jpg",
+      "email": "Email Address",
+      "emailHint": "Your email cannot be changed here. Use the email change option in the security section.",
+      "phone": "Phone Number",
+      "phonePlaceholder": "+1 234 567 8900",
+      "street": "Street",
+      "streetPlaceholder": "Enter your street name",
+      "number": "Number",
+      "numberPlaceholder": "123",
+      "zipcode": "Postal Code",
+      "zipcodePlaceholder": "12345",
+      "town": "City",
+      "townPlaceholder": "Enter your city",
+      "country": "Country",
+      "countryPlaceholder": "Select a country",
+      "countrySearchPlaceholder": "Search country...",
+      "countryNotFound": "No country found.",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "success": "Profile updated successfully!",
+      "error": "Failed to update profile"
+    },
+    "emailChange": {
+      "title": "Change Email",
+      "description": "Update your email address. A verification link will be sent to your new email.",
+      "currentEmail": "Current Email",
+      "newEmail": "New Email Address",
+      "newEmailPlaceholder": "Enter your new email",
+      "hint": "You will need to verify your new email address before the change takes effect.",
+      "submit": "Send verification",
+      "sending": "Sending...",
+      "success": "Verification email sent! Check your new email inbox.",
+      "error": "Failed to send verification email",
+      "sameEmail": "New email must be different from current email",
+      "pendingVerification": "A verification email has been sent. Please check your inbox."
+    },
+    "changePassword": {
+      "title": "Change Password",
+      "description": "Update your password to keep your account secure",
+      "currentPassword": "Current Password",
+      "currentPasswordPlaceholder": "Enter your current password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter your new password",
+      "confirmPassword": "Confirm New Password",
+      "confirmPasswordPlaceholder": "Confirm your new password",
+      "submit": "Update password",
+      "submitting": "Updating...",
+      "success": "Password updated successfully!",
+      "error": "Failed to update password"
+    },
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "description": "Add an extra layer of security to your account using an authenticator app",
+      "enabled": "Two-factor authentication is enabled",
+      "enabledDescription": "Your account is protected with an authenticator app.",
+      "disabled": "Two-factor authentication is disabled",
+      "disabledDescription": "Enable two-factor authentication to add an extra layer of security.",
+      "enableButton": "Enable 2FA",
+      "disableButton": "Disable 2FA",
+      "setupTitle": "Set up Two-Factor Authentication",
+      "setupDescription": "Enter your password to continue with the setup.",
+      "enterPassword": "Password",
+      "passwordPlaceholder": "Enter your password",
+      "continue": "Continue",
+      "cancel": "Cancel",
+      "scanQrCode": "Scan QR Code",
+      "scanDescription": "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)",
+      "manualEntry": "Or enter this code manually:",
+      "secretCopied": "Secret copied to clipboard",
+      "verificationCode": "Verification Code",
+      "verify": "Verify & Enable",
+      "verifyError": "Invalid verification code",
+      "enableSuccess": "Two-factor authentication enabled successfully!",
+      "enableError": "Failed to enable two-factor authentication",
+      "backupCodesTitle": "Backup Codes",
+      "backupCodesDescription": "Save these backup codes in a secure place. You can use them to access your account if you lose your authenticator device.",
+      "backupCodesWarning": "Each code can only be used once. Store them securely.",
+      "downloadBackupCodes": "Download codes",
+      "backupCodesDownloaded": "Backup codes downloaded",
+      "regenerateBackupCodes": "Regenerate backup codes",
+      "regeneratePrompt": "Enter your password to generate new backup codes. This will invalidate your existing codes.",
+      "regenerateSuccess": "Backup codes regenerated successfully!",
+      "regenerateError": "Failed to regenerate backup codes",
+      "done": "Done",
+      "disableTitle": "Disable Two-Factor Authentication",
+      "disableDescription": "Enter your password to disable two-factor authentication.",
+      "disableWarning": "Disabling two-factor authentication will make your account less secure.",
+      "disableConfirm": "Disable 2FA",
+      "disableSuccess": "Two-factor authentication disabled",
+      "disableError": "Failed to disable two-factor authentication"
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Sign in securely without a password using biometrics or security keys",
+      "notSupported": "Passkeys are not supported on this device or browser.",
+      "noPasskeys": "No passkeys registered yet. Add a passkey for passwordless sign-in.",
+      "unnamedPasskey": "Unnamed passkey",
+      "addedOn": "Added on {date}",
+      "unknownDate": "Unknown date",
+      "addPasskey": "Add passkey",
+      "addTitle": "Register a new passkey",
+      "addDescription": "You will be prompted to use your device's biometric authentication or security key.",
+      "passkeyName": "Passkey name (optional)",
+      "passkeyNamePlaceholder": "e.g., MacBook Touch ID, YubiKey",
+      "passkeyNameHint": "Give your passkey a name to identify it later.",
+      "register": "Register passkey",
+      "cancel": "Cancel",
+      "addSuccess": "Passkey registered successfully!",
+      "addError": "Failed to register passkey",
+      "deleteTitle": "Delete Passkey",
+      "deleteDescription": "Are you sure you want to delete the passkey \"{name}\"? You won't be able to use it to sign in anymore.",
+      "deleteConfirm": "Delete passkey",
+      "deleteSuccess": "Passkey deleted successfully",
+      "deleteError": "Failed to delete passkey"
+    },
+    "sessions": {
+      "title": "Active Sessions",
+      "description": "Manage devices where you're currently signed in",
+      "noSessions": "No active sessions found.",
+      "currentSession": "Current",
+      "revokeAll": "Sign out all other devices ({count})",
+      "revokeTitle": "Sign out device",
+      "revokeDescription": "Are you sure you want to sign out the session on {device}?",
+      "revokeConfirm": "Sign out",
+      "revokeSuccess": "Session revoked successfully",
+      "revokeError": "Failed to revoke session",
+      "revokeAllTitle": "Sign out all other devices",
+      "revokeAllDescription": "This will sign you out of {count} other device(s). You will remain signed in on this device.",
+      "revokeAllConfirm": "Sign out all",
+      "revokeAllSuccess": "All other sessions revoked",
+      "revokeAllError": "Failed to revoke sessions",
+      "cancel": "Cancel"
+    },
+    "linkedAccounts": {
+      "title": "Linked Accounts",
+      "description": "Connect your account with social providers for easier sign-in",
+      "connected": "Connected",
+      "link": "Connect",
+      "unlink": "Disconnect",
+      "linkError": "Failed to connect account",
+      "unlinkTitle": "Disconnect Account",
+      "unlinkDescription": "Are you sure you want to disconnect your {provider} account? You won't be able to sign in with this provider unless you connect it again.",
+      "unlinkConfirm": "Disconnect",
+      "unlinkSuccess": "Account disconnected successfully",
+      "unlinkError": "Failed to disconnect account",
+      "cancel": "Cancel"
+    },
+    "dangerZone": "Danger Zone",
+    "deleteAccount": {
+      "title": "Delete Account",
+      "description": "Permanently delete your account and all associated data.",
+      "warning": "This action cannot be undone. All your data will be permanently deleted, including your profile, settings, and any content you have created.",
+      "confirmationLabel": "Type \"{code}\" to confirm deletion",
+      "confirmationPlaceholder": "Enter the code",
+      "button": "Delete my account",
+      "buttonCountdown": "Delete Account ({seconds}s)",
+      "dialogTitle": "Are you absolutely sure?",
+      "dialogDescription": "This will permanently delete your account. Please confirm by entering the code below.",
+      "cancel": "Cancel",
+      "confirmButton": "Yes, delete my account",
+      "deleting": "Deleting...",
+      "success": "Account deleted successfully.",
+      "error": "Failed to delete account"
+    },
+    "dataExport": {
+      "title": "Data export",
+      "description": "Create a JSON export of your profile, sessions, billing history, notifications, vouchers, discounts, and audit references. Sensitive tokens and password hashes are redacted.",
+      "loading": "Loading export requests...",
+      "empty": "No data exports requested yet.",
+      "requestButton": "Request data export",
+      "requesting": "Generating export...",
+      "refreshButton": "Refresh",
+      "downloadButton": "Download JSON",
+      "cancelButton": "Cancel",
+      "success": "Data export is ready to download.",
+      "failed": "Failed to generate data export",
+      "loadFailed": "Failed to load data exports",
+      "cancelSuccess": "Data export cancelled",
+      "cancelFailed": "Failed to cancel data export",
+      "createdAt": "Requested {date}",
+      "createdUnknown": "Request date unknown",
+      "status": {
+        "pending": "Pending",
+        "ready": "Ready",
+        "downloaded": "Downloaded",
+        "expired": "Expired",
+        "failed": "Failed"
+      }
+    }
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "Track your performance and growth metrics.",
+    "dashboard": {
+      "title": "Analytics Dashboard",
+      "description": "Visualize your data and track key metrics",
+      "placeholder": "Analytics charts and graphs coming soon. Integrate your preferred analytics library (Recharts, Chart.js, etc.)"
+    }
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "select": "Select language",
+    "en": "English",
+    "nl": "Dutch",
+    "fr": "French"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try again",
+    "orContinueWith": "Or continue with",
+    "backToHome": "Back to Home"
+  },
+  "emails": {
+    "verification": {
+      "subject": "Verify your email address",
+      "preview": "Verify your email address",
+      "heading": "Verify your email",
+      "subheading": "Please confirm your email address to continue",
+      "greeting": "Hello {name},",
+      "intro": "Thank you for signing up for {appName}! To complete your registration, please verify your email address by clicking the button below.",
+      "securityNote": "This helps us ensure that we can reach you and keep your account secure.",
+      "button": "Verify Email Address",
+      "linkFallback": "If the button above doesn't work, you can also copy and paste this link into your browser:",
+      "expiryNote": "This verification link will expire in {hours} hours. If you didn't create an account with us, you can safely ignore this email.",
+      "securityLabel": "Security Note:",
+      "footer": "If you're having trouble with email verification, please contact our support team.",
+      "copyright": "© {year} {appName}. All rights reserved."
+    },
+    "passwordReset": {
+      "subject": "Reset your password",
+      "preview": "Reset your password",
+      "heading": "Reset your password",
+      "subheading": "We received a request to reset your password",
+      "greeting": "Hello {name},",
+      "intro": "We received a request to reset your password for your {appName} account. Click the button below to create a new password.",
+      "securityNote": "If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.",
+      "button": "Reset Password",
+      "linkFallback": "If the button above doesn't work, you can also copy and paste this link into your browser:",
+      "expiryNote": "This password reset link will expire in {hours} hour(s). For your security, do not share this link with anyone.",
+      "securityLabel": "Security Note:",
+      "footer": "If you didn't request this password reset, please contact our support team immediately.",
+      "copyright": "© {year} {appName}. All rights reserved."
+    },
+    "passwordResetConfirmation": {
+      "subject": "Your password has been changed",
+      "preview": "Your password was successfully changed",
+      "heading": "Password changed",
+      "subheading": "Your password has been successfully updated",
+      "greeting": "Hello {name},",
+      "intro": "This email confirms that the password for your {appName} account has been successfully changed.",
+      "securityNote": "If you did not make this change, please reset your password immediately and contact our support team.",
+      "timestamp": "This change was made on {date}.",
+      "securityLabel": "Security Note:",
+      "footer": "For your security, we recommend using a unique password that you don't use for other accounts.",
+      "copyright": "© {year} {appName}. All rights reserved."
+    },
+    "magicLink": {
+      "subject": "Sign in to your account",
+      "preview": "Click link to sign in to your account",
+      "heading": "Sign in to your account",
+      "subheading": "Click the button below to sign in",
+      "greeting": "Hello,",
+      "intro": "We received a request to sign in to your {appName} account using your email address ({email}).",
+      "securityNote": "Click the button below to sign in securely.",
+      "button": "Sign In",
+      "linkFallback": "Or copy and paste this link into your browser:",
+      "expiryNote": "This link will expire in {minutes} minutes.",
+      "securityLabel": "Security Note:",
+      "notRequested": "If you didn't request this link, you can safely ignore this email.",
+      "footer": "This is an automated message. Please do not reply.",
+      "copyright": "© {year} {appName}. All rights reserved."
+    },
+    "discount": {
+      "subject": "You've received a special discount!",
+      "preview": "Use your exclusive discount code",
+      "heading": "Special Discount for You!",
+      "subheading": "We're excited to offer you a special discount",
+      "greeting": "Hi {name},",
+      "intro": "We're excited to offer you a special discount!",
+      "discountCodeLabel": "Discount Code:",
+      "discountValue": "{value}% off",
+      "validFrom": "Valid from:",
+      "validUntil": "Valid until:",
+      "maxUses": "Maximum uses:",
+      "unlimitedUses": "Unlimited uses",
+      "useCode": "Use this code at checkout to apply your discount.",
+      "thankYou": "Thank you for being a valued customer!",
+      "footer": "If you have any questions, please contact our support team.",
+      "copyright": "© {year} {appName}. All rights reserved."
+    }
+  },
+  "admin": {
+    "title": "SuperAdmin Panel",
+    "description": "Manage users, roles, and system settings.",
+    "nav": {
+      "overview": "Overview",
+      "users": "Users",
+      "billing": "Billing",
+      "notifications": "Notifications",
+      "discounts": "Discounts"
+    },
+    "dashboard": {
+      "stats": {
+        "totalUsers": "Total Users",
+        "totalBannedUsers": "Total Banned Users",
+        "totalCompletedPurchases": "Total Completed Purchases",
+        "totalPendingPurchases": "Total Pending Purchases",
+        "totalFailedPurchases": "Total Failed Purchases",
+        "totalRefundedPurchases": "Total Refunded Purchases",
+        "totalUsageTransactions": "Total Usage Transactions",
+        "totalBonusTransactions": "Total Bonus Transactions",
+        "totalPurchaseTransactions": "Total Purchase Transactions",
+        "totalRefundTransactions": "Total Refund Transactions"
+      },
+      "transactionsChart": {
+        "title": "Total Transactions",
+        "description": "Track transaction volume over time",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "transactions": "Transactions"
+      },
+      "creditsConsumedChart": {
+        "title": "Total Credits Consumed",
+        "description": "Track credit usage over time",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "creditsConsumed": "Credits Consumed"
+      }
+    },
+    "backToPortal": "Back to Portal",
+    "impersonation": {
+      "active": "You are currently impersonating {email}",
+      "stop": "Stop Impersonating",
+      "stopped": "Impersonation stopped. Redirecting...",
+      "stopError": "Failed to stop impersonation.",
+      "adminUrlMissing": "Admin app URL is not configured. Please open the admin app manually."
+    },
+    "users": {
+      "title": "User Management",
+      "description": "View and manage all users in the system.",
+      "searchPlaceholder": "Search by email...",
+      "search": "Search",
+      "loading": "Loading users...",
+      "noUsers": "No users found.",
+      "openMenu": "Open menu",
+      "viewUserDetails": "View user details",
+      "stats": {
+        "totalUsers": "Total Users",
+        "adminVsUser": "Admin vs User",
+        "admin": "admin",
+        "admins": "admins",
+        "user": "user",
+        "users": "users",
+        "bannedUsers": "Banned Users"
+      },
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "status": {
+        "verified": "Verified",
+        "unverified": "Unverified",
+        "banned": "Banned"
+      },
+      "actions": {
+        "title": "Actions",
+        "makeAdmin": "Make Admin",
+        "removeAdmin": "Remove Admin",
+        "ban": "Ban User",
+        "unban": "Unban User",
+        "impersonate": "Impersonate",
+        "revokeSessions": "Revoke All Sessions"
+      },
+      "banDialog": {
+        "trigger": "Ban User",
+        "title": "Ban User",
+        "description": "Are you sure you want to ban {name}? They will no longer be able to access the system.",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Enter the reason for banning this user...",
+        "expiryLabel": "Ban Expiry Date (optional)",
+        "expiryPlaceholder": "Pick a date",
+        "timeLabel": "Expiry Time",
+        "secretLabel": "Admin Secret Key",
+        "secretPlaceholder": "Enter admin secret",
+        "secretHint": "This safeguards against accidental bans. Share this key only with trusted admins.",
+        "cancel": "Cancel",
+        "banUser": "Ban User",
+        "banning": "Banning..."
+      },
+      "pagination": {
+        "showing": "Showing {from} to {to} of {total} users",
+        "page": "Page {current} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      }
+    },
+    "userDetail": {
+      "title": "User Details",
+      "backToUsers": "Back to Users",
+      "role": "Role",
+      "status": "Status",
+      "createdAt": "Created",
+      "userId": "User ID"
+    },
+    "success": {
+      "roleUpdated": "User role updated successfully.",
+      "userBanned": "User has been banned.",
+      "userUnbanned": "User has been unbanned.",
+      "impersonating": "Now impersonating user. Redirecting...",
+      "sessionsRevoked": "All user sessions have been revoked."
+    },
+    "errors": {
+      "fetchFailed": "Failed to fetch users.",
+      "roleUpdateFailed": "Failed to update user role.",
+      "banFailed": "Failed to ban user.",
+      "unbanFailed": "Failed to unban user.",
+      "impersonateFailed": "Failed to impersonate user.",
+      "revokeSessionsFailed": "Failed to revoke user sessions.",
+      "invalidBanSecret": "Invalid admin secret."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Send notifications to all users in the system.",
+      "sendToAll": {
+        "title": "Send Notification to All Users",
+        "description": "This will send a notification to every user in the system. Provide translations for each language.",
+        "success": "Notification sent to {count} users successfully.",
+        "error": "Failed to send notification. Please try again.",
+        "form": {
+          "title": "Title",
+          "titlePlaceholder": "Enter notification title",
+          "message": "Message",
+          "messagePlaceholder": "Enter notification message",
+          "type": "Type",
+          "typeDescription": "Visual appearance of the notification",
+          "types": {
+            "info": "Info",
+            "success": "Success",
+            "warning": "Warning",
+            "error": "Error"
+          },
+          "category": "Category",
+          "categoryDescription": "Logical grouping for the notification",
+          "categories": {
+            "security": "Security",
+            "account": "Account",
+            "billing": "Billing",
+            "usage": "Usage",
+            "system": "System"
+          },
+          "showAsBanner": "Show as Banner",
+          "showAsBannerDescription": "Display this notification as a banner at the top of the portal until it expires",
+          "bannerExpiresAt": "Banner Expiry Date",
+          "bannerExpiresAtPlaceholder": "Pick a date",
+          "bannerExpiresAtDescription": "Banner will be hidden after this date and time",
+          "bannerTime": "Expiry Time",
+          "submit": "Send to All Users",
+          "sending": "Sending..."
+        }
+      },
+      "history": {
+        "title": "Notification History",
+        "description": "View all notifications sent to users in the system.",
+        "loading": "Loading notifications...",
+        "noNotifications": "No notifications found.",
+        "table": {
+          "createdAt": "Created At",
+          "title": "Title",
+          "message": "Message",
+          "type": "Type",
+          "category": "Category",
+          "banner": "Banner",
+          "yes": "Yes",
+          "no": "No",
+          "expiresAt": "Expires At"
+        },
+        "types": {
+          "info": "Info",
+          "success": "Success",
+          "warning": "Warning",
+          "error": "Error"
+        },
+        "categories": {
+          "security": "Security",
+          "account": "Account",
+          "billing": "Billing",
+          "usage": "Usage",
+          "system": "System"
+        }
+      }
+    },
+    "billing": {
+      "title": "Billing Overview",
+      "description": "View revenue, purchases, and credit usage across all users.",
+      "stats": {
+        "totalPurchases": "Total Purchases",
+        "totalPurchasesDescription": "All completed purchases",
+        "totalCreditsPurchased": "Total Credits Received",
+        "totalCreditsPurchasedDescription": "All credits received by users (purchased + bonus)",
+        "totalCreditsConsumed": "Total Credits Consumed",
+        "totalCreditsConsumedDescription": "All credits used by users",
+        "totalRevenue": "Total Revenue",
+        "totalRevenueDescription": "Total revenue from all purchases",
+        "totalAvailableCredits": "Total Available Credits",
+        "totalAvailableCreditsDescription": "Total credits currently available across all users"
+      },
+      "revenueChart": {
+        "title": "Total Revenue",
+        "description": "Track revenue trends across different time periods",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "revenue": "Revenue",
+        "purchases": "Purchases"
+      },
+      "transactions": {
+        "title": "All Transactions",
+        "description": "Credit transactions across all users",
+        "descriptionAllUsers": "Credit transactions across all users",
+        "descriptionForUser": "Credit transactions for user {userName}",
+        "searchPlaceholder": "Search by user email...",
+        "search": "Search",
+        "loading": "Loading transactions...",
+        "noTransactions": "No transactions found.",
+        "table": {
+          "user": "User",
+          "type": "Type",
+          "amount": "Amount",
+          "balance": "Balance",
+          "description": "Description",
+          "date": "Date"
+        },
+        "pagination": {
+          "showing": "Showing {from} to {to} of {total} transactions",
+          "page": "Page {current} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
+      },
+      "purchases": {
+        "title": "All Purchases",
+        "description": "Credit package purchases across all users",
+        "descriptionAllUsers": "Credit purchases across all users",
+        "descriptionForUser": "Credit purchases for user {userName}",
+        "searchPlaceholder": "Search by user email...",
+        "search": "Search",
+        "loading": "Loading purchases...",
+        "noPurchases": "No purchases found.",
+        "bonus": "bonus",
+        "table": {
+          "user": "User",
+          "package": "Package",
+          "credits": "Credits",
+          "amount": "Amount",
+          "status": "Status",
+          "date": "Date"
+        },
+        "pagination": {
+          "showing": "Showing {from} to {to} of {total} purchases",
+          "page": "Page {current} of {total}",
+          "previous": "Previous",
+          "next": "Next"
+        }
+      },
+      "errors": {
+        "fetchFailed": "Failed to fetch billing data.",
+        "statsFetchFailed": "Failed to fetch billing statistics.",
+        "revenueFetchFailed": "Failed to fetch revenue data.",
+        "transactionsFetchFailed": "Failed to fetch transactions.",
+        "purchasesFetchFailed": "Failed to fetch purchases."
+      }
+    },
+    "discounts": {
+      "title": "Discount Codes",
+      "description": "Create and manage discount codes for your users.",
+      "create": "Create Discount",
+      "edit": "Edit Discount",
+      "delete": "Delete Discount",
+      "deleteConfirm": "Are you sure you want to delete discount \"{code}\"?",
+      "searchPlaceholder": "Search by discount code...",
+      "filter": "Filter by status",
+      "filterAll": "All Status",
+      "filterActive": "Active",
+      "filterInactive": "Inactive",
+      "filterExpired": "Expired",
+      "loading": "Loading discounts...",
+      "noDiscounts": "No discounts found.",
+      "success": {
+        "created": "Discount created successfully",
+        "updated": "Discount updated successfully",
+        "deleted": "Discount deleted successfully"
+      },
+      "error": "Failed to load discounts",
+      "form": {
+        "code": "Discount Code",
+        "codePlaceholder": "Enter discount code",
+        "codeHint": "Unique code users will enter at checkout",
+        "type": "Discount Type",
+        "typeDescription": "How discount is applied",
+        "types": {
+          "percentage": "Percentage",
+          "fixed": "Fixed Amount"
+        },
+        "value": "Discount Value",
+        "valuePlaceholder": "Enter discount value",
+        "valueHint": "Percentage (e.g., 10) or fixed amount (e.g., 5.00)",
+        "startDate": "Start Date",
+        "startDatePlaceholder": "Pick a start date",
+        "endDate": "End Date",
+        "endDatePlaceholder": "Pick an end date",
+        "maxUses": "Maximum Uses",
+        "maxUsesPlaceholder": "Enter maximum uses",
+        "maxUsesHint": "Leave empty for unlimited uses",
+        "users": "Assign to Users",
+        "usersDescription": "Leave empty to make discount available to all users",
+        "usersPlaceholder": "Select users...",
+        "submit": "Create Discount",
+        "submitting": "Creating...",
+        "update": "Update Discount",
+        "updating": "Updating...",
+        "cancel": "Cancel"
+      },
+      "table": {
+        "code": "Code",
+        "type": "Type",
+        "value": "Value",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "uses": "Uses",
+        "maxUses": "Max Uses",
+        "status": "Status",
+        "users": "Users",
+        "actions": "Actions"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "expired": "Expired"
+      },
+      "types": {
+        "percentage": "Percentage",
+        "fixed": "Fixed"
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "loading": "Loading notifications...",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read",
+    "delete": "Delete notification",
+    "welcome": {
+      "title": "Welcome to {appName}!",
+      "message": "We're excited to have you on board. Explore our features and start building something amazing."
+    },
+    "newLogin": {
+      "title": "New login detected",
+      "message": "A new login was detected from {device} at {ipAddress}. If this wasn't you, please change your password immediately."
+    },
+    "passwordChanged": {
+      "title": "Password changed",
+      "message": "Your password has been changed successfully. If you didn't make this change, please contact support immediately."
+    },
+    "passwordChangeRequired": {
+      "title": "Password change required",
+      "message": "For security reasons, please update your password."
+    },
+    "twoFactorEnabled": {
+      "title": "Two-factor authentication enabled",
+      "message": "Two-factor authentication has been enabled on your account. Your account is now more secure."
+    },
+    "twoFactorDisabled": {
+      "title": "Two-factor authentication disabled",
+      "message": "Two-factor authentication has been disabled on your account. Consider re-enabling it for better security."
+    },
+    "passkeyAdded": {
+      "title": "New passkey added",
+      "message": "A new passkey \"{passkeyName}\" has been added to your account."
+    },
+    "passkeyRemoved": {
+      "title": "Passkey removed",
+      "message": "The passkey \"{passkeyName}\" has been removed from your account."
+    },
+    "emailChanged": {
+      "title": "Email address changed",
+      "message": "Your email address has been changed to {newEmail}. If you didn't make this change, please contact support immediately."
+    },
+    "emailVerified": {
+      "title": "Email verified",
+      "message": "Your email address has been verified successfully."
+    },
+    "profileUpdated": {
+      "title": "Profile updated",
+      "message": "Your profile information has been updated successfully."
+    },
+    "paymentSuccess": {
+      "title": "Payment successful",
+      "message": "Your payment of {amount} was processed successfully.",
+      "titleWithInvoice": "Payment successful",
+      "messageWithInvoice": "Your payment of {amount} was processed successfully. Invoice: {invoiceId}"
+    },
+    "paymentFailed": {
+      "title": "Payment failed",
+      "message": "Your payment of {amount} failed. Please update your payment method and try again."
+    },
+    "invoiceReady": {
+      "title": "New invoice available",
+      "message": "Your invoice {invoiceId} for {amount} is now available."
+    },
+    "subscriptionCanceled": {
+      "title": "Subscription canceled",
+      "message": "Your subscription has been canceled and will end on {endDate}."
+    },
+    "subscriptionRenewed": {
+      "title": "Subscription renewed",
+      "message": "Your {planName} subscription has been renewed for {amount}."
+    },
+    "usageLimitWarning": {
+      "title": "Usage limit warning",
+      "message": "You've used {percentage}% of your {resourceType} limit. Consider upgrading your plan."
+    },
+    "usageLimitReached": {
+      "title": "Usage limit reached",
+      "message": "You've reached your {resourceType} limit. Upgrade your plan to continue using this feature."
+    },
+    "scheduledMaintenance": {
+      "title": "Scheduled maintenance",
+      "message": "We'll be performing scheduled maintenance on {startTime} for approximately {duration}. Some features may be temporarily unavailable."
+    },
+    "newFeature": {
+      "title": "New feature available",
+      "message": "Check out our new feature: {featureName}. {description}"
+    },
+    "systemUpdate": {
+      "title": "System update",
+      "message": "{updateDetails}"
+    },
+    "creditsAdded": {
+      "title": "Credits added to your account",
+      "message": "{amount} credits have been added to your account. Your new balance will be updated shortly."
+    },
+    "lowCreditWarning": {
+      "title": "Low credit balance",
+      "message": "Your credit balance is running low ({balance} credits remaining). Consider purchasing more credits to continue using premium features."
+    },
+    "creditPurchaseSuccess": {
+      "title": "Credit purchase successful",
+      "message": "Successfully purchased {credits} credits for €{amount} (incl VAT). Your credits are now available for use."
+    }
+  },
+  "emailVerification": {
+    "alertMessage": "Please verify your email address to access all features.",
+    "verifyButton": "Verify Email",
+    "pageTitle": "Verify Email",
+    "pageHeading": "Verify your email",
+    "pageDescription": "A verification email was sent to your inbox. Please check your email and click the verification link.",
+    "resendButton": "Resend verification email",
+    "dialogHint": "This dialog will remain open until you verify your email address.",
+    "sending": "Sending...",
+    "emailSent": "Verification email sent successfully! Please check your inbox.",
+    "emailError": "Failed to send verification email. Please try again.",
+    "verified": {
+      "title": "Email Verified",
+      "heading": "Email verified",
+      "description": "Your email has been verified successfully.",
+      "button": "Go to dashboard"
+    }
+  },
+  "creditPricing": {
+    "title": "Simple Credit Packages",
+    "description": "Choose the credit package that fits your needs. Credits never expire.",
+    "mostPopular": "Most Popular",
+    "packages": {
+      "starter": {
+        "name": "Starter",
+        "description": "Perfect for getting started with our platform.",
+        "cta": "Buy Starter"
+      },
+      "advanced": {
+        "name": "Advanced",
+        "description": "Best value with bonus credits included.",
+        "cta": "Buy Advanced"
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "Maximum credits with the biggest bonus.",
+        "cta": "Buy Pro"
+      }
+    },
+    "features": {
+      "credits": "{count} credits",
+      "bonus": "+{count} bonus credits",
+      "total": "{count} total credits",
+      "noExpiry": "Never expires",
+      "instantActivation": "Instant activation"
+    }
+  },
+  "buyCredits": {
+    "title": "Buy Credits",
+    "subtitle": "Purchase credits to unlock premium features and services.",
+    "processing": "Processing...",
+    "currentBalance": {
+      "title": "Your Current Balance",
+      "description": "Available credits in your account",
+      "credits": "credits"
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "step1": {
+        "title": "1. Choose Your Package",
+        "description": "Select the credit package that best fits your needs. Larger packages include bonus credits."
+      },
+      "step2": {
+        "title": "2. Complete Payment",
+        "description": "Securely pay via credit card, debit card, or other payment methods."
+      },
+      "step3": {
+        "title": "3. Start Using Credits",
+        "description": "Credits are instantly added to your account and never expire."
+      }
+    },
+    "errors": {
+      "notAuthenticated": "Please sign in to purchase credits",
+      "checkoutFailed": "Failed to initiate checkout. Please try again.",
+      "purchaseFailed": "Purchase failed. Please try again."
+    }
+  },
+  "billing": {
+    "title": "Billing Portal",
+    "description": "Manage your credits, view purchase history, and track usage.",
+    "checkout": {
+      "successTitle": "Payment received",
+      "successDescription": "Your credits will appear once payment processing completes.",
+      "cancelTitle": "Checkout canceled",
+      "cancelDescription": "No credits were purchased."
+    },
+    "portal": {
+      "button": "Manage billing",
+      "loading": "Opening billing portal...",
+      "loginRequired": "Please login to manage billing",
+      "noUrl": "Customer portal URL not available",
+      "failed": "Failed to open customer portal"
+    },
+    "stats": {
+      "available": "Total Available Credits",
+      "availableDescription": "Credits ready to use",
+      "purchased": "Total Purchased",
+      "purchasedDescription": "All-time credits purchased",
+      "used": "Total Credits Consumed",
+      "usedDescription": "All-time credits spent",
+      "total": "Total Credits Received"
+    },
+    "purchases": {
+      "title": "Purchase History",
+      "description": "Your credit package purchases",
+      "empty": "No purchases yet. Buy credits to get started!",
+      "buyNow": "Buy Credits",
+      "bonus": "bonus",
+      "table": {
+        "package": "Package",
+        "credits": "Credits",
+        "amount": "Amount",
+        "status": "Status",
+        "date": "Date"
+      }
+    },
+    "transactions": {
+      "title": "Transaction History",
+      "description": "Recent credit activity",
+      "empty": "No transactions yet.",
+      "table": {
+        "type": "Type",
+        "amount": "Amount",
+        "balance": "Balance",
+        "description": "Description",
+        "date": "Date"
+      },
+      "types": {
+        "purchase": "Purchase",
+        "usage": "Usage",
+        "refund": "Refund",
+        "bonus": "Bonus",
+        "admin_adjustment": "Admin Adjustment",
+        "voucher": "Voucher"
+      }
+    },
+    "vouchers": {
+      "title": "Redeem Voucher",
+      "description": "Redeem a voucher code to add credits to your account.",
+      "success": "Voucher redeemed successfully. {credits} credits were added.",
+      "error": "Failed to redeem voucher. Please try again.",
+      "form": {
+        "code": "Voucher Code",
+        "codePlaceholder": "Enter your voucher code",
+        "submit": "Redeem Voucher",
+        "redeeming": "Redeeming..."
+      }
+    },
+    "subscription": {
+      "description": "Choose a subscription plan to continue.",
+      "currentTitle": "Current subscription",
+      "managedThroughPortal": "Your subscription is managed through the billing portal.",
+      "noActive": "No active subscription yet. Choose a plan below to get started.",
+      "planLabel": "Plan",
+      "statusLabel": "Status",
+      "renewsLabel": "Renews",
+      "unknownPeriod": "Unknown",
+      "upgrade": "Upgrade",
+      "mostPopular": "Most popular",
+      "planDescription": "Recurring SaaS access billed every {interval}",
+      "choosePlan": "Choose {plan}",
+      "discount": {
+        "label": "Discount code",
+        "placeholder": "Enter discount code",
+        "apply": "Apply",
+        "applied": "Discount {code} applied",
+        "appliedDescription": "Discount code {code} will be sent with your next subscription checkout."
+      },
+      "history": {
+        "title": "Subscription invoices",
+        "description": "Your subscription payments and downloadable invoices.",
+        "empty": "No subscription payments yet.",
+        "downloadInvoice": "Download invoice",
+        "invoiceDownloaded": "Invoice opened successfully",
+        "invoiceUnavailable": "Invoice URL not available",
+        "invoiceFailed": "Failed to download invoice",
+        "table": {
+          "plan": "Plan",
+          "amount": "Amount",
+          "exclVat": "excl. VAT: €{amount}",
+          "status": "Status",
+          "date": "Date",
+          "invoice": "Invoice",
+          "notAvailable": "N/A"
+        }
+      },
+      "checkout": {
+        "successDescription": "Subscription checkout completed. Your subscription will update once payment processing completes.",
+        "cancelDescription": "Subscription checkout was canceled.",
+        "portal": {
+          "button": "Customer portal",
+          "loading": "Opening customer portal...",
+          "noUrl": "Customer portal URL not available",
+          "failed": "Failed to open customer portal"
+        }
+      }
+    }
+  },
+  "chat": {
+    "title": "AI Chat",
+    "subtitle": "Ask me anything and I'll help you.",
+    "placeholder": "Type your message...",
+    "send": "Send",
+    "sending": "Sending...",
+    "thinking": "Thinking...",
+    "error": "Failed to send message. Please try again.",
+    "empty": "Start a conversation by typing a message below.",
+    "you": "You",
+    "assistant": "Assistant",
+    "buyCredits": "Buy credits",
+    "insufficientCredits": "Insufficient credits to send message."
+  },
+  "breadcrumb": {
+    "overview": "Overview",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "analytics": "Analytics",
+    "billing": "Billing",
+    "purchase": "Purchase",
+    "chat": "Chat",
+    "admin": "Admin",
+    "users": "Users",
+    "notifications": "Notifications",
+    "projects": "Projects",
+    "discounts": "Discounts",
+    "vouchers": "Vouchers",
+    "logs": "Logs",
+    "exams": "Exams",
+    "start": "Start",
+    "results": "Results",
+    "profile": "Profile",
+    "attempts": "Attempts"
+  },
+  "creditProgressBar": {
+    "creditsOf": "{current} of {total} credits",
+    "credits": "Credits",
+    "topUp": "Top Up",
+    "upgrade": "Upgrade",
+    "loading": "Loading credits...",
+    "error": "Failed to load credits"
+  },
+  "subscriptionProgressBar": {
+    "label": "Subscription",
+    "upgrade": "Upgrade"
+  }
+}

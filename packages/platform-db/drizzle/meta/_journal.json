@@ -1,0 +1,188 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1777209742015,
+      "tag": "0000_initial_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777210168221,
+      "tag": "0001_add_payment_webhook_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777211840464,
+      "tag": "0002_add_credits_granted_marker",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777225629953,
+      "tag": "0003_add_payment_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777227422083,
+      "tag": "0004_unique_discount_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777278670902,
+      "tag": "0005_add_audit_entries",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777334400000,
+      "tag": "0006_add_subscription_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777420800000,
+      "tag": "0007_phase9_credit_usage_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777507200000,
+      "tag": "0008_add_subscription_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777593600000,
+      "tag": "0009_add_checkout_intents",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777680000000,
+      "tag": "0010_add_user_data_exports",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777766400000,
+      "tag": "0011_webhook_observability",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777852800000,
+      "tag": "0012_auth_identity_uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777939200000,
+      "tag": "0013_provider_neutral_billing_identifiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778025600000,
+      "tag": "0014_admin_billing_dashboard_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778112000000,
+      "tag": "0015_add_voucher_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778198400000,
+      "tag": "0016_jobs_email_queue_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778284800000,
+      "tag": "0017_application_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778371200000,
+      "tag": "0018_add_certdrill_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785283200000,
+      "tag": "0019_certdrill_exam_modes_adaptive_practice",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785369600000,
+      "tag": "0020_certdrill_certification_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785456000000,
+      "tag": "0021_certdrill_question_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0022_certdrill_certification_logo",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785628800000,
+      "tag": "0023_certdrill_vendors",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785715200000,
+      "tag": "0024_certdrill_category_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785801600000,
+      "tag": "0025_certdrill_review_queue",
+      "breakpoints": true
+    }
+  ]
+}

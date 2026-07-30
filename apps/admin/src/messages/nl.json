@@ -1,0 +1,1581 @@
+{
+  "metadata": {
+    "title": "Acme - Bouw sneller, lever slimmer",
+    "description": "Het moderne platform voor het bouwen van uitzonderlijke producten. Stroomlijn je workflow, werk naadloos samen en lever uitstekende resultaten."
+  },
+  "nav": {
+    "features": "Functies",
+    "pricing": "Prijzen",
+    "about": "Over ons",
+    "login": "Inloggen",
+    "signUp": "Registreren",
+    "dashboard": "Dashboard",
+    "toggleMenu": "Menu openen"
+  },
+  "hero": {
+    "badge": "Nieuw",
+    "badgeText": "Singletenant - Hono - Admin",
+    "titleBuild": "Bouw",
+    "titleFaster": "sneller",
+    "titleShip": ", lever",
+    "titleSmarter": "slimmer",
+    "description": "Het moderne platform voor het bouwen van uitzonderlijke producten. Stroomlijn je workflow, werk naadloos samen en lever uitstekende resultaten.",
+    "cta": "Aan de slag",
+    "watchDemo": "Bekijk demo",
+    "socialProof": "Vertrouwd door {count}+ ontwikkelaars en teams wereldwijd"
+  },
+  "features": {
+    "title": "Alles wat je nodig hebt om te slagen",
+    "description": "Krachtige functies ontworpen om je te helpen producten sneller dan ooit te bouwen, lanceren en schalen.",
+    "items": {
+      "lightningFast": {
+        "title": "Razendsnel",
+        "description": "Geoptimaliseerde prestaties die je applicatie op topsnelheid houden, ongeacht de schaal."
+      },
+      "enterpriseSecurity": {
+        "title": "Enterprise Beveiliging",
+        "description": "Beveiliging op bankniveau met end-to-end encryptie en naleving van industriestandaarden."
+      },
+      "advancedAnalytics": {
+        "title": "Geavanceerde Analyses",
+        "description": "Verkrijg diepgaande inzichten met realtime analyses en aanpasbare dashboards."
+      },
+      "teamCollaboration": {
+        "title": "Team Samenwerking",
+        "description": "Werk naadloos samen met ingebouwde samenwerkingstools en realtime updates."
+      },
+      "scalableInfrastructure": {
+        "title": "Schaalbare Infrastructuur",
+        "description": "Groei zonder grenzen. Onze infrastructuur schaalt automatisch met jouw behoeften."
+      },
+      "support": {
+        "title": "24/7 Ondersteuning",
+        "description": "Ondersteuning dag en nacht van ons expertteam om je te helpen slagen."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Eenvoudige, transparante prijzen",
+    "description": "Kies het plan dat bij je past. Alle plannen bevatten een gratis proefperiode van 14 dagen.",
+    "mostPopular": "Meest populair",
+    "perMonth": "/maand",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "description": "Perfect voor hobbyprojecten en kleine teams die net beginnen.",
+        "cta": "Aan de slag",
+        "features": {
+          "teamMembers": "Tot 3 teamleden",
+          "analytics": "Basis analyses",
+          "storage": "1 GB opslag",
+          "support": "E-mail ondersteuning",
+          "api": "API toegang"
+        }
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "Voor groeiende teams die meer kracht en flexibiliteit nodig hebben.",
+        "cta": "Start gratis proefperiode",
+        "features": {
+          "teamMembers": "Tot 10 teamleden",
+          "analytics": "Geavanceerde analyses",
+          "storage": "10 GB opslag",
+          "support": "Prioriteitsondersteuning",
+          "api": "API toegang",
+          "integrations": "Aangepaste integraties",
+          "security": "Geavanceerde beveiliging"
+        }
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "Voor grote organisaties met aangepaste behoeften en vereisten.",
+        "cta": "Neem contact op",
+        "features": {
+          "teamMembers": "Onbeperkt teamleden",
+          "analytics": "Aangepaste analyses",
+          "storage": "Onbeperkte opslag",
+          "support": "24/7 toegewijde ondersteuning",
+          "api": "API toegang",
+          "integrations": "Aangepaste integraties",
+          "security": "Geavanceerde beveiliging",
+          "sla": "SLA garantie",
+          "contracts": "Aangepaste contracten"
+        }
+      }
+    }
+  },
+  "about": {
+    "title": "Over Ons",
+    "subtitle": "We hebben een missie om teams te helpen betere producten te bouwen, sneller.",
+    "mission": {
+      "title": "Onze Missie",
+      "paragraph1": "Wij geloven dat het bouwen van geweldige producten niet ingewikkeld hoeft te zijn. Ons platform stelt teams van alle groottes in staat om effectief samen te werken, sneller te leveren en te focussen op wat het belangrijkst is — waarde creëren voor hun gebruikers.",
+      "paragraph2": "Opgericht in 2024, hebben we duizenden teams geholpen hun workflows te stroomlijnen en uitzonderlijke resultaten te leveren. Onze toewijding aan eenvoud en ontwikkelaarservaring drijft alles wat we doen."
+    },
+    "values": {
+      "title": "Onze Waarden",
+      "simplicityFirst": {
+        "title": "Eenvoud Eerst",
+        "description": "We verwijderen complexiteit zodat jij je kunt focussen op bouwen."
+      },
+      "developerExperience": {
+        "title": "Ontwikkelaarservaring",
+        "description": "Tools waar ontwikkelaars echt van genieten."
+      },
+      "customerSuccess": {
+        "title": "Klantsucces",
+        "description": "Jouw succes is ons succes. We zijn er om te helpen."
+      },
+      "continuousImprovement": {
+        "title": "Continue Verbetering",
+        "description": "We leveren snel, leren sneller en stoppen nooit met verbeteren."
+      }
+    },
+    "stats": {
+      "activeUsers": "Actieve Gebruikers",
+      "companies": "Bedrijven",
+      "uptimeSla": "Uptime SLA",
+      "support": "Ondersteuning"
+    }
+  },
+  "cta": {
+    "title": "Klaar om te beginnen?",
+    "description": "Sluit je aan bij duizenden teams die ons platform al gebruiken om geweldige producten te bouwen. Start vandaag nog je gratis proefperiode.",
+    "primaryButton": "Start gratis proefperiode",
+    "secondaryButton": "Neem contact op",
+    "disclaimer": "Geen creditcard nodig · 14 dagen gratis proefperiode · Altijd opzegbaar"
+  },
+  "footer": {
+    "description": "De toekomst van productontwikkeling bouwen. Teams in staat stellen om uitzonderlijke ervaringen te creëren.",
+    "copyright": "Acme Inc. Alle rechten voorbehouden.",
+    "madeWith": "Gemaakt met ❤️ voor ontwikkelaars",
+    "groups": {
+      "product": {
+        "title": "Product",
+        "features": "Functies",
+        "pricing": "Prijzen",
+        "integrations": "Integraties",
+        "changelog": "Changelog"
+      },
+      "company": {
+        "title": "Bedrijf",
+        "about": "Over ons",
+        "blog": "Blog",
+        "careers": "Vacatures",
+        "contact": "Contact"
+      },
+      "resources": {
+        "title": "Bronnen",
+        "documentation": "Documentatie",
+        "helpCenter": "Helpcentrum",
+        "community": "Community",
+        "templates": "Sjablonen"
+      },
+      "legal": {
+        "title": "Juridisch",
+        "privacy": "Privacy",
+        "terms": "Voorwaarden",
+        "cookiePolicy": "Cookiebeleid"
+      }
+    },
+    "social": {
+      "github": "GitHub",
+      "twitter": "Twitter",
+      "linkedin": "LinkedIn"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welkom terug",
+      "subtitle": "Log in op je account om verder te gaan",
+      "email": "E-mail",
+      "emailPlaceholder": "jij@voorbeeld.nl",
+      "password": "Wachtwoord",
+      "passwordPlaceholder": "••••••••",
+      "totpCode": "Authenticatiecode",
+      "totpCodePlaceholder": "000000",
+      "rememberMe": "Onthoud mij",
+      "forgotPassword": "Wachtwoord vergeten?",
+      "submit": "Inloggen",
+      "submitting": "Bezig met inloggen...",
+      "orContinue": "Of ga verder met",
+      "noAccount": "Nog geen account?",
+      "signUpLink": "Registreren",
+      "backHome": "Terug naar Home",
+      "usePassword": "Inloggen met wachtwoord",
+      "useMagicLink": "Inloggen met magische link",
+      "magicLinkDescription": "We sturen je een link om in te loggen - geen wachtwoord nodig.",
+      "magicLinkSubmit": "Stuur magische link",
+      "magicLinkSubmitting": "Versturen...",
+      "magicLinkSent": "Controleer je e-mail",
+      "magicLinkSentDescription": "We hebben een magische link gestuurd naar {email}. Klik op de link in de e-mail om in te loggen.",
+      "magicLinkResend": "E-mail niet ontvangen? Klik om opnieuw te versturen."
+    },
+    "errors": {
+      "default": "Er is een fout opgetreden. Probeer het opnieuw.",
+      "PASSWORD_COMPROMISED": "Dit wachtwoord is gevonden in een datalek. Kies een ander wachtwoord.",
+      "INVALID_EMAIL_OR_PASSWORD": "Ongeldig e-mailadres of wachtwoord.",
+      "USER_ALREADY_EXISTS": "Er bestaat al een account met dit e-mailadres.",
+      "EMAIL_NOT_VERIFIED": "Verifieer eerst je e-mailadres.",
+      "INVALID_TOKEN": "Ongeldige of verlopen token.",
+      "TOO_MANY_REQUESTS": "Te veel verzoeken. Probeer het later opnieuw.",
+      "BANNED_USER": "Uw account is geblokkeerd. Neem contact op met de ondersteuning voor hulp."
+    },
+    "signup": {
+      "title": "Account aanmaken",
+      "subtitle": "Begin vandaag nog met je gratis account",
+      "name": "Volledige naam",
+      "namePlaceholder": "Jan Jansen",
+      "email": "E-mail",
+      "emailPlaceholder": "jij@voorbeeld.nl",
+      "password": "Wachtwoord",
+      "passwordPlaceholder": "••••••••",
+      "passwordHint": "Minimaal 8 tekens",
+      "confirmPassword": "Bevestig wachtwoord",
+      "submit": "Account aanmaken",
+      "submitting": "Account aanmaken...",
+      "orContinue": "Of ga verder met",
+      "hasAccount": "Heb je al een account?",
+      "signInLink": "Inloggen",
+      "backHome": "Terug naar Home",
+      "signIn": "Inloggen",
+      "usePassword": "Aanmelden met wachtwoord",
+      "useMagicLink": "Aanmelden met magische link",
+      "magicLinkDescription": "We sturen je een link om je account aan te maken - geen wachtwoord nodig.",
+      "magicLinkSubmit": "Aanmeldlink versturen",
+      "magicLinkSubmitting": "Versturen...",
+      "magicLinkSent": "Controleer je e-mail",
+      "magicLinkSentDescription": "We hebben een aanmeldlink gestuurd naar {email}. Klik op de link in de e-mail om je account aan te maken.",
+      "magicLinkTryAgain": "Probeer een ander e-mailadres"
+    },
+    "forgotPassword": {
+      "title": "Wachtwoord vergeten?",
+      "subtitle": "Vul je e-mail in en we sturen je een resetlink",
+      "email": "E-mail",
+      "emailPlaceholder": "jij@voorbeeld.nl",
+      "submit": "Resetlink versturen",
+      "submitting": "Verzenden...",
+      "success": "Wachtwoord reset e-mail verzonden! Controleer je inbox.",
+      "error": "Kon reset e-mail niet verzenden",
+      "rememberPassword": "Wachtwoord toch onthouden?",
+      "backToLogin": "Terug naar inloggen",
+      "backHome": "Terug naar Home"
+    },
+    "resetPassword": {
+      "title": "Wachtwoord resetten",
+      "subtitle": "Voer hieronder je nieuwe wachtwoord in",
+      "newPassword": "Nieuw wachtwoord",
+      "confirmPassword": "Bevestig wachtwoord",
+      "passwordHint": "Minimaal 8 tekens",
+      "submit": "Wachtwoord resetten",
+      "submitting": "Resetten...",
+      "success": "Wachtwoord succesvol gereset! Je kunt nu inloggen.",
+      "error": "Kon wachtwoord niet resetten",
+      "invalidToken": "Ongeldige of verlopen resetlink",
+      "rememberPassword": "Wachtwoord toch onthouden?",
+      "backToLogin": "Terug naar inloggen",
+      "backHome": "Terug naar Home"
+    }
+  },
+  "projects": "Projecten",
+  "create": "Maken",
+  "dashboard": {
+    "title": "Dashboard",
+    "welcomeBack": "Welkom terug, {name}!",
+    "welcomeGeneric": "Welkom! Hier is een overzicht van je account.",
+    "loading": "Laden...",
+    "nav": {
+      "overview": "Overzicht",
+      "analytics": "Analyses",
+      "chat": "Chat",
+      "settings": "Instellingen",
+      "billing": "Facturatieportaal",
+      "userManagement": "Gebruikersbeheer",
+      "admin": "Admin Paneel"
+    },
+    "signOut": "Uitloggen",
+    "topNav": {
+      "searchPlaceholder": "Zoek iets...",
+      "notifications": "Meldingen",
+      "menu": "Menu",
+      "appSwitcher": "App Wisselaar",
+      "organizationSwitcher": "Organisatie"
+    },
+    "stats": {
+      "totalUsers": "Totaal Gebruikers",
+      "totalUsersChange": "+12% sinds vorige maand",
+      "activeProjects": "Actieve Projecten",
+      "activeProjectsChange": "+3 nieuw deze week",
+      "revenue": "Omzet",
+      "revenueChange": "+8% sinds vorige maand",
+      "conversionRate": "Conversieratio",
+      "conversionRateChange": "+0,5% sinds vorige week"
+    },
+    "recentActivity": {
+      "title": "Recente Activiteit",
+      "description": "Je laatste updates en meldingen",
+      "placeholder": "Dashboard inhoud komt binnenkort. Dit is een tijdelijke aanduiding voor je belangrijkste dashboard widgets, grafieken en datavisualisaties."
+    }
+  },
+  "settings": {
+    "title": "Instellingen",
+    "subtitle": "Beheer je account en voorkeuren.",
+    "tabs": {
+      "profile": "Profiel",
+      "security": "Beveiliging",
+      "accounts": "Accounts"
+    },
+    "profile": {
+      "title": "Profiel",
+      "description": "Beheer je profielinformatie",
+      "personalInfo": "Persoonlijke Informatie",
+      "addressInfo": "Adres",
+      "avatar": "Profielfoto",
+      "avatarHint": "Klik om een nieuwe foto te uploaden (max 500KB)",
+      "invalidFileType": "Selecteer een afbeeldingsbestand",
+      "fileTooLarge": "Afbeelding moet kleiner zijn dan 500KB",
+      "name": "Weergavenaam",
+      "namePlaceholder": "Voer je naam in",
+      "imageUrl": "Avatar URL",
+      "imageUrlPlaceholder": "https://voorbeeld.com/avatar.jpg",
+      "email": "E-mailadres",
+      "emailHint": "Je e-mail kan hier niet worden gewijzigd. Gebruik de optie in de beveiligingssectie om je e-mail te wijzigen.",
+      "phone": "Telefoonnummer",
+      "phonePlaceholder": "+31 6 12345678",
+      "street": "Straat",
+      "streetPlaceholder": "Voer je straatnaam in",
+      "number": "Nummer",
+      "numberPlaceholder": "123",
+      "zipcode": "Postcode",
+      "zipcodePlaceholder": "1234 AB",
+      "town": "Plaats",
+      "townPlaceholder": "Voer je plaats in",
+      "country": "Land",
+      "countryPlaceholder": "Selecteer een land",
+      "countrySearchPlaceholder": "Zoek land...",
+      "countryNotFound": "Geen land gevonden.",
+      "save": "Wijzigingen opslaan",
+      "saving": "Opslaan...",
+      "success": "Profiel succesvol bijgewerkt!",
+      "error": "Kon profiel niet bijwerken"
+    },
+    "emailChange": {
+      "title": "E-mail wijzigen",
+      "description": "Werk je e-mailadres bij. Een verificatielink wordt naar je nieuwe e-mail gestuurd.",
+      "currentEmail": "Huidig e-mailadres",
+      "newEmail": "Nieuw e-mailadres",
+      "newEmailPlaceholder": "Voer je nieuwe e-mailadres in",
+      "hint": "Je moet je nieuwe e-mailadres verifiëren voordat de wijziging van kracht wordt.",
+      "submit": "Verstuur verificatie",
+      "sending": "Verzenden...",
+      "success": "Verificatie-e-mail verzonden! Controleer je nieuwe inbox.",
+      "error": "Kon verificatie-e-mail niet verzenden",
+      "sameEmail": "Nieuw e-mailadres moet verschillen van huidig e-mailadres",
+      "pendingVerification": "Er is een verificatie-e-mail verzonden. Controleer je inbox."
+    },
+    "changePassword": {
+      "title": "Wachtwoord wijzigen",
+      "description": "Werk je wachtwoord bij om je account veilig te houden",
+      "currentPassword": "Huidig wachtwoord",
+      "currentPasswordPlaceholder": "Voer je huidige wachtwoord in",
+      "newPassword": "Nieuw wachtwoord",
+      "newPasswordPlaceholder": "Voer je nieuwe wachtwoord in",
+      "confirmPassword": "Bevestig nieuw wachtwoord",
+      "confirmPasswordPlaceholder": "Bevestig je nieuwe wachtwoord",
+      "submit": "Wachtwoord bijwerken",
+      "submitting": "Bijwerken...",
+      "success": "Wachtwoord succesvol bijgewerkt!",
+      "error": "Kon wachtwoord niet bijwerken"
+    },
+    "twoFactor": {
+      "title": "Tweefactorauthenticatie",
+      "description": "Voeg een extra beveiligingslaag toe met een authenticator-app",
+      "enabled": "Tweefactorauthenticatie is ingeschakeld",
+      "enabledDescription": "Je account is beveiligd met een authenticator-app.",
+      "disabled": "Tweefactorauthenticatie is uitgeschakeld",
+      "disabledDescription": "Schakel tweefactorauthenticatie in voor extra beveiliging.",
+      "enableButton": "2FA inschakelen",
+      "disableButton": "2FA uitschakelen",
+      "setupTitle": "Tweefactorauthenticatie instellen",
+      "setupDescription": "Voer je wachtwoord in om door te gaan met de installatie.",
+      "enterPassword": "Wachtwoord",
+      "passwordPlaceholder": "Voer je wachtwoord in",
+      "continue": "Doorgaan",
+      "cancel": "Annuleren",
+      "scanQrCode": "Scan QR-code",
+      "scanDescription": "Scan deze QR-code met je authenticator-app (Google Authenticator, Authy, etc.)",
+      "manualEntry": "Of voer deze code handmatig in:",
+      "secretCopied": "Geheime code gekopieerd naar klembord",
+      "verificationCode": "Verificatiecode",
+      "verify": "Verifiëren & Inschakelen",
+      "verifyError": "Ongeldige verificatiecode",
+      "enableSuccess": "Tweefactorauthenticatie succesvol ingeschakeld!",
+      "enableError": "Kon tweefactorauthenticatie niet inschakelen",
+      "backupCodesTitle": "Back-upcodes",
+      "backupCodesDescription": "Bewaar deze back-upcodes op een veilige plek. Je kunt ze gebruiken om toegang te krijgen tot je account als je je authenticator verliest.",
+      "backupCodesWarning": "Elke code kan slechts één keer worden gebruikt. Bewaar ze veilig.",
+      "downloadBackupCodes": "Download codes",
+      "backupCodesDownloaded": "Back-upcodes gedownload",
+      "regenerateBackupCodes": "Back-upcodes opnieuw genereren",
+      "regeneratePrompt": "Voer je wachtwoord in om nieuwe back-upcodes te genereren. Dit maakt je bestaande codes ongeldig.",
+      "regenerateSuccess": "Back-upcodes succesvol opnieuw gegenereerd!",
+      "regenerateError": "Kon back-upcodes niet opnieuw genereren",
+      "done": "Klaar",
+      "disableTitle": "Tweefactorauthenticatie uitschakelen",
+      "disableDescription": "Voer je wachtwoord in om tweefactorauthenticatie uit te schakelen.",
+      "disableWarning": "Het uitschakelen van tweefactorauthenticatie maakt je account minder veilig.",
+      "disableConfirm": "2FA uitschakelen",
+      "disableSuccess": "Tweefactorauthenticatie uitgeschakeld",
+      "disableError": "Kon tweefactorauthenticatie niet uitschakelen"
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Log veilig in zonder wachtwoord met biometrie of beveiligingssleutels",
+      "notSupported": "Passkeys worden niet ondersteund op dit apparaat of browser.",
+      "noPasskeys": "Nog geen passkeys geregistreerd. Voeg een passkey toe voor inloggen zonder wachtwoord.",
+      "unnamedPasskey": "Naamloze passkey",
+      "addedOn": "Toegevoegd op {date}",
+      "unknownDate": "Onbekende datum",
+      "addPasskey": "Passkey toevoegen",
+      "addTitle": "Nieuwe passkey registreren",
+      "addDescription": "Je wordt gevraagd om de biometrische authenticatie of beveiligingssleutel van je apparaat te gebruiken.",
+      "passkeyName": "Passkey naam (optioneel)",
+      "passkeyNamePlaceholder": "bijv. MacBook Touch ID, YubiKey",
+      "passkeyNameHint": "Geef je passkey een naam om hem later te herkennen.",
+      "register": "Passkey registreren",
+      "cancel": "Annuleren",
+      "addSuccess": "Passkey succesvol geregistreerd!",
+      "addError": "Kon passkey niet registreren",
+      "deleteTitle": "Passkey verwijderen",
+      "deleteDescription": "Weet je zeker dat je de passkey \"{name}\" wilt verwijderen? Je kunt hem dan niet meer gebruiken om in te loggen.",
+      "deleteConfirm": "Passkey verwijderen",
+      "deleteSuccess": "Passkey succesvol verwijderd",
+      "deleteError": "Kon passkey niet verwijderen"
+    },
+    "sessions": {
+      "title": "Actieve sessies",
+      "description": "Beheer apparaten waarop je momenteel bent ingelogd",
+      "noSessions": "Geen actieve sessies gevonden.",
+      "currentSession": "Huidig",
+      "revokeAll": "Uitloggen op alle andere apparaten ({count})",
+      "revokeTitle": "Apparaat uitloggen",
+      "revokeDescription": "Weet je zeker dat je de sessie op {device} wilt beëindigen?",
+      "revokeConfirm": "Uitloggen",
+      "revokeSuccess": "Sessie succesvol beëindigd",
+      "revokeError": "Kon sessie niet beëindigen",
+      "revokeAllTitle": "Uitloggen op alle andere apparaten",
+      "revokeAllDescription": "Dit logt je uit op {count} andere apparaat/apparaten. Je blijft ingelogd op dit apparaat.",
+      "revokeAllConfirm": "Alles uitloggen",
+      "revokeAllSuccess": "Alle andere sessies beëindigd",
+      "revokeAllError": "Kon sessies niet beëindigen",
+      "cancel": "Annuleren"
+    },
+    "linkedAccounts": {
+      "title": "Gekoppelde accounts",
+      "description": "Koppel je account met sociale providers voor eenvoudiger inloggen",
+      "connected": "Verbonden",
+      "link": "Verbinden",
+      "unlink": "Ontkoppelen",
+      "linkError": "Kon account niet koppelen",
+      "unlinkTitle": "Account ontkoppelen",
+      "unlinkDescription": "Weet je zeker dat je je {provider} account wilt ontkoppelen? Je kunt dan niet meer met deze provider inloggen tenzij je hem opnieuw koppelt.",
+      "unlinkConfirm": "Ontkoppelen",
+      "unlinkSuccess": "Account succesvol ontkoppeld",
+      "unlinkError": "Kon account niet ontkoppelen",
+      "cancel": "Annuleren"
+    },
+    "dangerZone": "Gevarenzone",
+    "deleteAccount": {
+      "title": "Account verwijderen",
+      "description": "Verwijder je account en alle bijbehorende gegevens permanent.",
+      "warning": "Deze actie kan niet ongedaan worden gemaakt. Al je gegevens worden permanent verwijderd, inclusief je profiel, instellingen en alle content die je hebt gemaakt.",
+      "confirmationLabel": "Typ \"{code}\" om verwijdering te bevestigen",
+      "confirmationPlaceholder": "Voer de code in",
+      "button": "Verwijder mijn account",
+      "buttonCountdown": "Account verwijderen ({seconds}s)",
+      "dialogTitle": "Weet je het zeker?",
+      "dialogDescription": "Dit zal je account permanent verwijderen. Bevestig door de onderstaande code in te voeren.",
+      "cancel": "Annuleren",
+      "confirmButton": "Ja, verwijder mijn account",
+      "deleting": "Verwijderen...",
+      "success": "Account succesvol verwijderd.",
+      "error": "Kon account niet verwijderen"
+    }
+  },
+  "analytics": {
+    "title": "Analyses",
+    "subtitle": "Volg je prestaties en groeistatistieken.",
+    "dashboard": {
+      "title": "Analyse Dashboard",
+      "description": "Visualiseer je data en volg belangrijke statistieken",
+      "placeholder": "Analyse grafieken komen binnenkort. Integreer je favoriete analysebibliotheek (Recharts, Chart.js, etc.)"
+    }
+  },
+  "theme": {
+    "toggle": "Thema wisselen",
+    "light": "Licht",
+    "dark": "Donker",
+    "system": "Systeem"
+  },
+  "language": {
+    "select": "Selecteer taal",
+    "en": "Engels",
+    "nl": "Nederlands",
+    "fr": "Frans"
+  },
+  "common": {
+    "loading": "Laden...",
+    "error": "Er is iets misgegaan",
+    "retry": "Opnieuw proberen",
+    "orContinueWith": "Of ga verder met",
+    "backToHome": "Terug naar Home"
+  },
+  "emails": {
+    "verification": {
+      "subject": "Verifieer je e-mailadres",
+      "preview": "Verifieer je e-mailadres",
+      "heading": "Verifieer je e-mail",
+      "subheading": "Bevestig je e-mailadres om door te gaan",
+      "greeting": "Hallo {name},",
+      "intro": "Bedankt voor je registratie bij {appName}! Om je registratie te voltooien, verifieer je e-mailadres door op de onderstaande knop te klikken.",
+      "securityNote": "Dit helpt ons ervoor te zorgen dat we je kunnen bereiken en je account veilig houden.",
+      "button": "E-mailadres verifiëren",
+      "linkFallback": "Als de bovenstaande knop niet werkt, kun je ook de volgende link kopiëren en in je browser plakken:",
+      "expiryNote": "Deze verificatielink verloopt over {hours} uur. Als je geen account bij ons hebt aangemaakt, kun je deze e-mail veilig negeren.",
+      "securityLabel": "Beveiligingsmelding:",
+      "footer": "Als je problemen hebt met e-mailverificatie, neem dan contact op met ons supportteam.",
+      "copyright": "© {year} {appName}. Alle rechten voorbehouden."
+    },
+    "passwordReset": {
+      "subject": "Reset je wachtwoord",
+      "preview": "Reset je wachtwoord",
+      "heading": "Reset je wachtwoord",
+      "subheading": "We hebben een verzoek ontvangen om je wachtwoord te resetten",
+      "greeting": "Hallo {name},",
+      "intro": "We hebben een verzoek ontvangen om het wachtwoord voor je {appName}-account te resetten. Klik op de onderstaande knop om een nieuw wachtwoord aan te maken.",
+      "securityNote": "Als je geen wachtwoordreset hebt aangevraagd, kun je deze e-mail veilig negeren. Je wachtwoord blijft ongewijzigd.",
+      "button": "Wachtwoord resetten",
+      "linkFallback": "Als de bovenstaande knop niet werkt, kun je ook de volgende link kopiëren en in je browser plakken:",
+      "expiryNote": "Deze wachtwoordresetlink verloopt over {hours} uur. Deel deze link met niemand voor je veiligheid.",
+      "securityLabel": "Beveiligingsmelding:",
+      "footer": "Als je deze wachtwoordreset niet hebt aangevraagd, neem dan onmiddellijk contact op met ons supportteam.",
+      "copyright": "© {year} {appName}. Alle rechten voorbehouden."
+    },
+    "passwordResetConfirmation": {
+      "subject": "Je wachtwoord is gewijzigd",
+      "preview": "Je wachtwoord is succesvol gewijzigd",
+      "heading": "Wachtwoord gewijzigd",
+      "subheading": "Je wachtwoord is succesvol bijgewerkt",
+      "greeting": "Hallo {name},",
+      "intro": "Deze e-mail bevestigt dat het wachtwoord voor je {appName}-account succesvol is gewijzigd.",
+      "securityNote": "Als je deze wijziging niet hebt aangebracht, reset dan onmiddellijk je wachtwoord en neem contact op met ons supportteam.",
+      "timestamp": "Deze wijziging is gemaakt op {date}.",
+      "securityLabel": "Beveiligingsmelding:",
+      "footer": "Voor je veiligheid raden we aan een uniek wachtwoord te gebruiken dat je niet voor andere accounts gebruikt.",
+      "copyright": "© {year} {appName}. Alle rechten voorbehouden."
+    },
+    "magicLink": {
+      "subject": "Inloggen op je account",
+      "preview": "Klik op de link om in te loggen op je account",
+      "heading": "Inloggen op je account",
+      "subheading": "Klik op de onderstaande knop om in te loggen",
+      "greeting": "Hallo,",
+      "intro": "We hebben een verzoek ontvangen om in te loggen op je {appName}-account met je e-mailadres ({email}).",
+      "securityNote": "Klik op de onderstaande knop om veilig in te loggen.",
+      "button": "Inloggen",
+      "linkFallback": "Of kopieer en plak deze link in je browser:",
+      "expiryNote": "Deze link verloopt over {minutes} minuten.",
+      "securityLabel": "Beveiligingsmelding:",
+      "notRequested": "Als je deze link niet hebt aangevraagd, kun je deze e-mail veilig negeren.",
+      "footer": "Dit is een automatisch bericht. Gelieve niet te antwoorden.",
+      "copyright": "© {year} {appName}. Alle rechten voorbehouden."
+    },
+    "discount": {
+      "subject": "Je hebt een speciale korting ontvangen!",
+      "preview": "Gebruik je exclusieve kortingscode",
+      "heading": "Speciale Korting voor Jou!",
+      "subheading": "We zijn blij om je een speciale korting aan te bieden",
+      "greeting": "Hallo {name},",
+      "intro": "We zijn blij om je een speciale korting aan te bieden!",
+      "discountCodeLabel": "Kortingscode:",
+      "discountValue": "{value}% korting",
+      "validFrom": "Geldig vanaf:",
+      "validUntil": "Geldig tot:",
+      "maxUses": "Maximaal gebruik:",
+      "unlimitedUses": "Onbeperkt gebruik",
+      "useCode": "Gebruik deze code bij het afrekenen om je korting toe te passen.",
+      "thankYou": "Bedankt voor het zijn van een gewaardeerde klant!",
+      "footer": "Als je vragen hebt, neem dan contact op met ons supportteam.",
+      "copyright": "© {year} {appName}. Alle rechten voorbehouden."
+    }
+  },
+  "admin": {
+    "title": "Admin Paneel",
+    "description": "Beheer gebruikers, rollen en systeeminstellingen.",
+    "nav": {
+      "overview": "Overzicht",
+      "system": "Systeem",
+      "admins": "Admins",
+      "users": "Gebruikers",
+      "billing": "Facturatie",
+      "webhooks": "Webhooks",
+      "operations": "Operaties",
+      "notifications": "Meldingen",
+      "discounts": "Kortingscodes",
+      "vouchers": "Vouchers",
+      "logs": "Logs",
+      "certdrill": "CertDrill"
+    },
+    "system": {
+      "title": "Systeem",
+      "description": "Bekijk platformgezondheid, admin-toegang en operationele signalen.",
+      "health": {
+        "title": "API-gezondheid",
+        "ok": "Operationeel",
+        "unavailable": "Niet beschikbaar",
+        "description": "Status van het API-health endpoint."
+      },
+      "metrics": {
+        "totalUsers": "Totaal gebruikers",
+        "admins": "Admins",
+        "bannedUsers": "Geblokkeerde gebruikers"
+      },
+      "activity": {
+        "title": "Systeemactiviteit",
+        "description": "Hoofdtellers uit bestaande admin-statistieken.",
+        "thisMonthUsers": "Gebruikers deze maand",
+        "completedPurchases": "Voltooide aankopen",
+        "pendingPurchases": "Openstaande aankopen",
+        "usageTransactions": "Gebruikstransacties"
+      },
+      "logs": {
+        "title": "Logstreams",
+        "description": "Beschikbare API app- en auditlogbestanden.",
+        "app": "App-logs",
+        "audit": "Auditlogs"
+      }
+    },
+    "admins": {
+      "title": "Admin-accounts",
+      "description": "Bekijk geprivilegieerde admin-gebruikers in het systeem.",
+      "passwordUpdated": "Wachtwoord bijgewerkt. Nieuw wachtwoord gekopieerd naar klembord.",
+      "passwordUpdateFailed": "Kan wachtwoord niet instellen."
+    },
+    "backToPortal": "Terug naar Portaal",
+    "impersonation": {
+      "active": "Je bootst momenteel {email} na",
+      "stop": "Stop Nabootsen",
+      "stopped": "Nabootsen gestopt. Doorsturen...",
+      "stopError": "Kon nabootsen niet stoppen."
+    },
+    "users": {
+      "title": "Gebruikersbeheer",
+      "description": "Bekijk en beheer alle gebruikers in het systeem.",
+      "searchPlaceholder": "Zoek op e-mail...",
+      "search": "Zoeken",
+      "loading": "Gebruikers laden...",
+      "noUsers": "Geen gebruikers gevonden.",
+      "openMenu": "Menu openen",
+      "viewUserDetails": "Gebruikersdetails bekijken",
+      "stats": {
+        "totalUsers": "Totaal Gebruikers",
+        "adminVsUser": "Admin vs Gebruiker",
+        "admin": "admin",
+        "admins": "admins",
+        "user": "gebruiker",
+        "users": "gebruikers",
+        "bannedUsers": "Geblokkeerde Gebruikers"
+      },
+      "table": {
+        "name": "Naam",
+        "email": "E-mail",
+        "role": "Rol",
+        "status": "Status",
+        "actions": "Acties"
+      },
+      "status": {
+        "verified": "Geverifieerd",
+        "unverified": "Niet geverifieerd",
+        "banned": "Geblokkeerd"
+      },
+      "actions": {
+        "title": "Acties",
+        "makeAdmin": "Admin maken",
+        "removeAdmin": "Admin verwijderen",
+        "ban": "Gebruiker blokkeren",
+        "unban": "Gebruiker deblokkeren",
+        "impersonate": "Nabootsen",
+        "revokeSessions": "Alle sessies intrekken"
+      },
+      "roleChange": {
+        "reasonPrompt": "Voer een reden in voor deze rolwijziging. Dit wordt opgeslagen in het auditlogboek.",
+        "demoteConfirm": "Admin-toegang voor deze gebruiker verwijderen? Er moet minstens een actieve admin overblijven."
+      },
+      "banDialog": {
+        "trigger": "Gebruiker blokkeren",
+        "title": "Gebruiker blokkeren",
+        "description": "Weet je zeker dat je {name} wilt blokkeren? Ze hebben geen toegang meer tot het systeem.",
+        "reasonLabel": "Reden (optioneel)",
+        "reasonPlaceholder": "Voer de reden in voor het blokkeren van deze gebruiker...",
+        "expiryLabel": "Vervaldatum blokkering (optioneel)",
+        "expiryPlaceholder": "Kies een datum",
+        "timeLabel": "Vervaltijd",
+        "secretLabel": "Admingeheim",
+        "secretPlaceholder": "Voer het admingeheim in",
+        "secretHint": "Vereist voor gevoelige adminacties. Deel dit geheim alleen met vertrouwde beheerders.",
+        "cancel": "Annuleren",
+        "banUser": "Gebruiker blokkeren",
+        "banning": "Blokkeren..."
+      },
+      "pagination": {
+        "showing": "Toont {from} tot {to} van {total} gebruikers",
+        "page": "Pagina {current} van {total}",
+        "previous": "Vorige",
+        "next": "Volgende"
+      }
+    },
+    "userDetail": {
+      "title": "Gebruikersdetails",
+      "backToUsers": "Terug naar gebruikers",
+      "role": "Rol",
+      "status": "Status",
+      "createdAt": "Aangemaakt op",
+      "userId": "Gebruikers-ID"
+    },
+    "success": {
+      "roleUpdated": "Gebruikersrol succesvol bijgewerkt.",
+      "userBanned": "Gebruiker is geblokkeerd.",
+      "userUnbanned": "Gebruiker is gedeblokkeerd.",
+      "impersonating": "Je bootst nu de gebruiker na. Doorsturen...",
+      "sessionsRevoked": "Alle gebruikerssessies zijn ingetrokken."
+    },
+    "errors": {
+      "fetchFailed": "Kan gebruikers niet ophalen.",
+      "roleUpdateFailed": "Kan gebruikersrol niet bijwerken.",
+      "banFailed": "Kan gebruiker niet blokkeren.",
+      "unbanFailed": "Kan gebruiker niet deblokkeren.",
+      "impersonateFailed": "Kan gebruiker niet nabootsen.",
+      "revokeSessionsFailed": "Kan gebruikerssessies niet intrekken.",
+      "invalidBanSecret": "Ongeldig admingeheim."
+    },
+    "notifications": {
+      "title": "Meldingen",
+      "description": "Stuur meldingen naar alle gebruikers in het systeem.",
+      "sendToAll": {
+        "title": "Melding naar Alle Gebruikers Sturen",
+        "description": "Dit stuurt een melding naar elke gebruiker in het systeem. Geef vertalingen voor elke taal.",
+        "success": "Melding succesvol naar {count} gebruikers gestuurd.",
+        "skipped": "{count} overgeslagen.",
+        "error": "Kon melding niet verzenden. Probeer het opnieuw.",
+        "sendSelected": {
+          "title": "Melding naar Geselecteerde Gebruikers Sturen",
+          "description": "Dit stuurt een melding alleen naar geselecteerde gebruikers. Geef vertalingen voor elke taal."
+        },
+        "recipients": {
+          "label": "Ontvangers",
+          "description": "Kies of je elke gebruiker of alleen geselecteerde gebruikers wilt verwittigen.",
+          "allUsers": "Alle gebruikers",
+          "selectedUsers": "Geselecteerde gebruikers",
+          "placeholder": "Selecteer ontvangers...",
+          "searchPlaceholder": "Zoek gebruikers op naam of e-mail...",
+          "loadingMessage": "Zoeken...",
+          "emptyMessage": "Geen gebruikers gevonden",
+          "minSearchMessage": "Typ minstens 2 tekens om te zoeken",
+          "summary": "{count} ontvanger(s) geselecteerd",
+          "emptyError": "Selecteer minstens één ontvanger"
+        },
+        "form": {
+          "title": "Titel",
+          "titlePlaceholder": "Voer meldingstitel in",
+          "message": "Bericht",
+          "messagePlaceholder": "Voer meldingsbericht in",
+          "type": "Type",
+          "typeDescription": "Visuele weergave van de melding",
+          "types": {
+            "info": "Info",
+            "success": "Succes",
+            "warning": "Waarschuwing",
+            "error": "Fout"
+          },
+          "category": "Categorie",
+          "categoryDescription": "Logische groepering voor de melding",
+          "categories": {
+            "security": "Beveiliging",
+            "account": "Account",
+            "billing": "Facturering",
+            "usage": "Gebruik",
+            "system": "Systeem"
+          },
+          "showAsBanner": "Toon als banner",
+          "showAsBannerDescription": "Toon deze melding als banner bovenaan het portaal totdat deze verloopt",
+          "bannerExpiresAt": "Vervaldatum banner",
+          "bannerExpiresAtPlaceholder": "Kies een datum",
+          "bannerExpiresAtDescription": "Banner wordt verborgen na deze datum en tijd",
+          "bannerTime": "Vervaltijd",
+          "secret": "Admingeheim",
+          "secretPlaceholder": "Voer het admingeheim in",
+          "secretDescription": "Vereist om meldingen vanuit het adminpaneel te verzenden.",
+          "secretRequired": "Admingeheim is vereist",
+          "submit": "Naar Alle Gebruikers Sturen",
+          "submitSelected": "Naar Geselecteerde Gebruikers Sturen",
+          "sending": "Verzenden..."
+        }
+      },
+      "history": {
+        "title": "Meldingsgeschiedenis",
+        "description": "Bekijk alle meldingen die naar gebruikers in het systeem zijn verzonden.",
+        "loading": "Meldingen laden...",
+        "noNotifications": "Geen meldingen gevonden.",
+        "table": {
+          "createdAt": "Aangemaakt op",
+          "title": "Titel",
+          "message": "Bericht",
+          "type": "Type",
+          "category": "Categorie",
+          "banner": "Banner",
+          "yes": "Ja",
+          "no": "Nee",
+          "expiresAt": "Verloopt op"
+        },
+        "types": {
+          "info": "Info",
+          "success": "Succes",
+          "warning": "Waarschuwing",
+          "error": "Fout"
+        },
+        "categories": {
+          "security": "Beveiliging",
+          "account": "Account",
+          "billing": "Facturering",
+          "usage": "Gebruik",
+          "system": "Systeem"
+        }
+      }
+    },
+    "dashboard": {
+      "stats": {
+        "totalUsers": "Totaal Gebruikers",
+        "totalBannedUsers": "Totaal Geblokkeerde Gebruikers",
+        "totalCompletedPurchases": "Totaal Voltooide Aankopen",
+        "totalPendingPurchases": "Totaal Lopende Aankopen",
+        "totalFailedPurchases": "Totaal Mislukte Aankopen",
+        "totalRefundedPurchases": "Totaal Terugbetaalde Aankopen",
+        "totalUsageTransactions": "Totaal Verbruikstransacties",
+        "totalBonusTransactions": "Totaal Bonustransacties",
+        "totalPurchaseTransactions": "Totaal Aankooptransacties",
+        "totalRefundTransactions": "Totaal Terugbetalingstransacties"
+      },
+      "transactionsChart": {
+        "title": "Totaal Transacties",
+        "description": "Volg transactievolume over tijd",
+        "daily": "Dagelijks",
+        "weekly": "Wekelijks",
+        "monthly": "Maandelijks",
+        "yearly": "Jaarlijks",
+        "transactions": "Transacties"
+      },
+      "creditsConsumedChart": {
+        "title": "Totaal Verbruikte Credits",
+        "description": "Volg creditverbruik over tijd",
+        "daily": "Dagelijks",
+        "weekly": "Wekelijks",
+        "monthly": "Maandelijks",
+        "yearly": "Jaarlijks",
+        "creditsConsumed": "Verbruikte Credits"
+      }
+    },
+    "billing": {
+      "title": "Facturatie Overzicht",
+      "description": "Bekijk omzet, aankopen en creditverbruik voor alle gebruikers.",
+      "stats": {
+        "totalPurchases": "Totaal Aankopen",
+        "totalPurchasesDescription": "Alle voltooide aankopen",
+        "totalCreditsPurchased": "Totaal Ontvangen Credits",
+        "totalCreditsPurchasedDescription": "{purchased} gekochte credits + {bonus} bonuscredits",
+        "totalCreditsConsumed": "Totaal Verbruikte Credits",
+        "totalCreditsConsumedDescription": "Alle credits verbruikt door gebruikers",
+        "totalRevenue": "Totale Omzet",
+        "totalRevenueDescription": "Over {count} aankopen",
+        "totalAvailableCredits": "Totaal Beschikbare Credits",
+        "totalAvailableCreditsDescription": "Totaal credits momenteel beschikbaar voor alle gebruikers"
+      },
+      "revenueChart": {
+        "title": "Totale Omzet",
+        "description": "Volg omzettrends over verschillende perioden",
+        "daily": "Dagelijks",
+        "weekly": "Wekelijks",
+        "monthly": "Maandelijks",
+        "yearly": "Jaarlijks",
+        "revenue": "Omzet",
+        "purchases": "Aankopen"
+      },
+      "creditsDashboard": {
+        "unknownUser": "Onbekend",
+        "search": "Zoeken",
+        "searchPlaceholder": "Zoek op e-mail van gebruiker...",
+        "transactionsDescription": "Recente creditactiviteit voor alle gebruikers",
+        "tabs": {
+          "overview": "Overzicht",
+          "revenue": "Omzet",
+          "purchases": "Aankopen",
+          "ledger": "Creditlogboek",
+          "consumption": "Verbruik",
+          "activity": "Activiteit",
+          "refunds": "Terugbetalingen & aanpassingen"
+        },
+        "consumptionChart": {
+          "title": "Totaal verbruikte credits",
+          "description": "Volg creditgebruik over tijd",
+          "label": "Verbruikte credits"
+        },
+        "activityChart": {
+          "title": "Creditactiviteit",
+          "description": "Volg creditlogboekactiviteit over tijd",
+          "label": "Transacties"
+        },
+        "stats": {
+          "receivedBreakdown": "{purchased} gekocht · {bonus} aankoopbonus · {vouchers} voucher · {adjustments} admin-aanpassingen"
+        },
+        "purchases": {
+          "title": "Creditaankopen",
+          "description": "Creditaankopen voor alle gebruikers"
+        },
+        "pagination": {
+          "page": "Pagina {current} van {total}",
+          "previous": "Vorige",
+          "next": "Volgende"
+        },
+        "refund": {
+          "title": "Terugbetaalbare aankopen",
+          "description": "Voltooide creditaankopen die via de betalingsprovider kunnen worden terugbetaald.",
+          "empty": "Geen terugbetaalbare aankopen gevonden.",
+          "action": "Terugbetalen",
+          "refundablePurchases": "Terugbetaalbare aankopen",
+          "refundablePurchasesDescription": "Voltooide aankopen die kunnen worden terugbetaald.",
+          "refundCredits": "Terugbetaalde credits",
+          "refundCreditsDescription": "Credits teruggedraaid door terugbetalingen.",
+          "adminAdjustments": "Admin-aanpassingen",
+          "adminAdjustmentsDescription": "Handmatige logboekaanpassingen.",
+          "refundedPurchases": "Terugbetaalde aankopen",
+          "refundedPurchasesDescription": "Creditaankopen die al zijn terugbetaald.",
+          "ledgerDescription": "Terugbetalingen en admin-aanpassingen voor alle gebruikers.",
+          "success": "Terugbetaling succesvol aangemaakt",
+          "error": "Terugbetaling aanmaken mislukt",
+          "missingPayment": "Betalings-ID ontbreekt",
+          "table": {
+            "user": "Gebruiker",
+            "package": "Pakket",
+            "amount": "Bedrag",
+            "payment": "Betaling",
+            "date": "Datum",
+            "actions": "Acties"
+          },
+          "dialog": {
+            "title": "Creditaankoop terugbetalen",
+            "description": "Maak een providerterugbetaling aan en draai de toegekende credits terug.",
+            "reason": "Reden",
+            "secret": "Admin secret",
+            "cancel": "Annuleren",
+            "submit": "Terugbetaling aanmaken",
+            "submitting": "Aanmaken..."
+          }
+        }
+      },
+      "transactions": {
+        "title": "Alle Transacties",
+        "description": "Credittransacties voor alle gebruikers",
+        "descriptionAllUsers": "Credittransacties voor alle gebruikers",
+        "descriptionForUser": "Credittransacties voor gebruiker {userName}",
+        "searchPlaceholder": "Zoek op e-mail van gebruiker...",
+        "search": "Zoeken",
+        "loading": "Transacties laden...",
+        "noTransactions": "Geen transacties gevonden.",
+        "table": {
+          "user": "Gebruiker",
+          "type": "Type",
+          "amount": "Bedrag",
+          "balance": "Saldo",
+          "description": "Beschrijving",
+          "date": "Datum"
+        },
+        "pagination": {
+          "showing": "Toont {from} tot {to} van {total} transacties",
+          "page": "Pagina {current} van {total}",
+          "previous": "Vorige",
+          "next": "Volgende"
+        },
+        "types": {
+          "purchase": "Aankoop",
+          "usage": "Gebruik",
+          "refund": "Terugbetaling",
+          "bonus": "Bonus",
+          "admin_adjustment": "Admin-aanpassing",
+          "voucher": "Voucher"
+        },
+        "details": {
+          "title": "Transactiedetails",
+          "description": "Bekijk gedetailleerde informatie over deze credittransactie",
+          "transactionId": "Transactie-ID",
+          "userId": "Gebruikers-ID",
+          "referenceId": "Referentie-ID",
+          "date": "Datum",
+          "type": "Type",
+          "amount": "Bedrag",
+          "balanceBefore": "Saldo voor",
+          "balanceAfter": "Saldo na",
+          "descriptionLabel": "Beschrijving",
+          "referenceType": "Referentietype",
+          "metadata": "Metadata"
+        }
+      },
+      "purchases": {
+        "title": "Alle Aankopen",
+        "description": "Creditpakket aankopen voor alle gebruikers",
+        "descriptionAllUsers": "Creditaankopen voor alle gebruikers",
+        "descriptionForUser": "Creditaankopen voor gebruiker {userName}",
+        "searchPlaceholder": "Zoek op e-mail van gebruiker...",
+        "search": "Zoeken",
+        "loading": "Aankopen laden...",
+        "noPurchases": "Geen aankopen gevonden.",
+        "bonus": "bonus",
+        "table": {
+          "user": "Gebruiker",
+          "package": "Pakket",
+          "credits": "Credits",
+          "amount": "Bedrag",
+          "status": "Status",
+          "date": "Datum"
+        },
+        "pagination": {
+          "showing": "Toont {from} tot {to} van {total} aankopen",
+          "page": "Pagina {current} van {total}",
+          "previous": "Vorige",
+          "next": "Volgende"
+        }
+      },
+      "subscriptionsMode": {
+        "title": "Abonnementsfacturatie",
+        "description": "Monitor terugkerende omzet, planverdeling en abonnementsgezondheid.",
+        "stats": {
+          "activeSubscriptions": "Actieve abonnementen",
+          "activeSubscriptionsDescription": "{trialing} in proefperiode · {total} totaal",
+          "pastDueSubscriptions": "Achterstallig",
+          "pastDueSubscriptionsDescription": "{canceled} geannuleerd",
+          "monthlyRecurringRevenue": "MRR",
+          "monthlyRecurringRevenueDescription": "Maandelijkse terugkerende omzet",
+          "annualRecurringRevenue": "ARR",
+          "annualRecurringRevenueDescription": "Geannualiseerde terugkerende omzet"
+        },
+        "finance": {
+          "grossRevenue": "Bruto omzet",
+          "grossRevenueDescription": "Uit {count} voltooide betalingen",
+          "netRevenue": "Netto omzet",
+          "netRevenueDescription": "Na {refunded} terugbetaald",
+          "refunds": "Terugbetalingen",
+          "refundsDescription": "Totaal terugbetaald: {amount}",
+          "providerDrift": "Provider-afwijking",
+          "providerDriftDescription": "{payments} betalingen · {subscriptions} abonnementen niet gekoppeld",
+          "providerUnavailable": "Provider-financegegevens niet beschikbaar"
+        },
+        "planDistribution": {
+          "title": "Planverdeling",
+          "empty": "Geen abonnementen gevonden.",
+          "count": "{count, plural, one {# abonnement} other {# abonnementen}}"
+        },
+        "subscriptions": {
+          "title": "Abonnementen",
+          "empty": "Geen abonnementen gevonden.",
+          "unknownUser": "Onbekend",
+          "cancelsAtPeriodEnd": "Annuleert aan het einde van de periode",
+          "table": {
+            "user": "Gebruiker",
+            "plan": "Plan",
+            "status": "Status",
+            "periodEnd": "Periode-einde",
+            "subscriptionId": "Providerabonnement"
+          },
+          "status": {
+            "active": "Actief",
+            "trialing": "Proefperiode",
+            "past_due": "Achterstallig",
+            "canceled": "Geannuleerd",
+            "expired": "Verlopen",
+            "paused": "Gepauzeerd"
+          }
+        },
+        "payments": {
+          "title": "Abonnementsbetalingen",
+          "empty": "Geen abonnementsbetalingen gevonden.",
+          "unknownUser": "Onbekend",
+          "search": "Zoeken",
+          "searchPlaceholder": "Zoek op gebruikers-e-mail...",
+          "loading": "Abonnementsbetalingen laden...",
+          "pagination": {
+            "page": "Pagina {current} van {total}",
+            "previous": "Vorige",
+            "next": "Volgende"
+          },
+          "table": {
+            "user": "Gebruiker",
+            "plan": "Plan",
+            "status": "Status",
+            "amount": "Bedrag",
+            "payment": "Betaling",
+            "date": "Datum",
+            "actions": "Acties"
+          },
+          "refund": {
+            "action": "Terugbetalen",
+            "success": "Terugbetaling voor abonnementsbetaling aangemaakt.",
+            "error": "Terugbetaling voor abonnement aanmaken mislukt.",
+            "missingPayment": "Betalings-ID ontbreekt.",
+            "dialog": {
+              "title": "Abonnementsbetaling terugbetalen",
+              "description": "Dit start een providerterugbetaling voor de geselecteerde abonnementsbetaling.",
+              "reason": "Reden",
+              "secret": "Admin-geheim",
+              "cancel": "Annuleren",
+              "submit": "Terugbetaling aanmaken",
+              "submitting": "Aanmaken..."
+            }
+          }
+        },
+        "events": {
+          "title": "Abonnementsgebeurtenissen",
+          "empty": "Geen abonnementsgebeurtenissen gevonden.",
+          "table": {
+            "event": "Gebeurtenis",
+            "status": "Status",
+            "providerSubscription": "Providerabonnement",
+            "received": "Ontvangen"
+          }
+        }
+      },
+      "errors": {
+        "fetchFailed": "Facturatiegegevens ophalen mislukt.",
+        "statsFetchFailed": "Facturatiestatistieken ophalen mislukt.",
+        "revenueFetchFailed": "Omzetgegevens ophalen mislukt.",
+        "transactionsFetchFailed": "Transacties ophalen mislukt.",
+        "purchasesFetchFailed": "Aankopen ophalen mislukt."
+      }
+    },
+    "discounts": {
+      "title": "Kortingscodes",
+      "description": "Maak en beheer kortingscodes voor uw gebruikers.",
+      "create": "Korting Aanmaken",
+      "edit": "Korting Bewerken",
+      "delete": "Korting Verwijderen",
+      "deleteConfirm": "Weet u zeker dat u korting \"{code}\" wilt verwijderen?",
+      "searchPlaceholder": "Zoek op kortingscode...",
+      "filter": "Filteren op status",
+      "filterAll": "Alle Statussen",
+      "filterActive": "Actief",
+      "filterInactive": "Inactief",
+      "filterExpired": "Verlopen",
+      "loading": "Kortingen laden...",
+      "noDiscounts": "Geen kortingen gevonden.",
+      "success": {
+        "created": "Korting succesvol aangemaakt",
+        "updated": "Korting succesvol bijgewerkt",
+        "deleted": "Korting succesvol verwijderd"
+      },
+      "error": "Kortingen laden mislukt",
+      "form": {
+        "code": "Kortingscode",
+        "codePlaceholder": "Voer kortingscode in",
+        "codeHint": "Unieke code die gebruikers bij het afrekenen invoeren",
+        "type": "Kortingstype",
+        "typeDescription": "Hoe de korting wordt toegepast",
+        "types": {
+          "percentage": "Percentage",
+          "fixed": "Vast Bedrag"
+        },
+        "value": "Kortingswaarde",
+        "valuePlaceholder": "Voer kortingswaarde in",
+        "valueHint": "Percentage (bijv. 10) of vast bedrag (bijv. 5,00)",
+        "startDate": "Startdatum",
+        "startDatePlaceholder": "Kies een startdatum",
+        "endDate": "Einddatum",
+        "endDatePlaceholder": "Kies een einddatum",
+        "maxUses": "Maximaal Gebruik",
+        "maxUsesPlaceholder": "Voer maximaal gebruik in",
+        "maxUsesHint": "Laat leeg voor onbeperkt gebruik",
+        "users": "Toewijzen aan Gebruikers",
+        "usersDescription": "Laat leeg om de korting beschikbaar te maken voor alle gebruikers",
+        "usersPlaceholder": "Selecteer gebruikers...",
+        "submit": "Korting Aanmaken",
+        "submitting": "Aanmaken...",
+        "update": "Korting Bijwerken",
+        "updating": "Bijwerken...",
+        "cancel": "Annuleren"
+      },
+      "table": {
+        "code": "Code",
+        "type": "Type",
+        "value": "Waarde",
+        "startDate": "Startdatum",
+        "endDate": "Einddatum",
+        "uses": "Gebruik",
+        "maxUses": "Max Gebruik",
+        "status": "Status",
+        "users": "Gebruikers",
+        "actions": "Acties"
+      },
+      "status": {
+        "active": "Actief",
+        "inactive": "Inactief",
+        "expired": "Verlopen"
+      },
+      "types": {
+        "percentage": "Percentage",
+        "fixed": "Vast"
+      }
+    },
+    "vouchers": {
+      "title": "Voucherbeheer",
+      "description": "Maak vouchers die gebruikers kunnen inwisselen voor credits.",
+      "loading": "Vouchers laden...",
+      "empty": "Geen vouchers gevonden.",
+      "filters": {
+        "searchPlaceholder": "Zoek op code of e-mail van toegewezen gebruiker...",
+        "statusPlaceholder": "Filter op status",
+        "statusAll": "Alle statussen"
+      },
+      "table": {
+        "code": "Code",
+        "credits": "Credits",
+        "status": "Status",
+        "redemptions": "Inwisselingen",
+        "assignedTo": "Toegewezen aan",
+        "allUsers": "Alle gebruikers",
+        "selectedUsers": "{count} geselecteerde gebruikers",
+        "expiresAt": "Verloopt op",
+        "actions": "Acties"
+      },
+      "statuses": {
+        "active": "Actief",
+        "inactive": "Inactief",
+        "redeemed": "Ingewisseld",
+        "expired": "Verlopen"
+      },
+      "actions": {
+        "create": "Voucher aanmaken",
+        "edit": "Bewerken",
+        "save": "Wijzigingen opslaan",
+        "activate": "Activeren",
+        "deactivate": "Deactiveren"
+      },
+      "dialog": {
+        "title": "Voucher aanmaken",
+        "description": "Maak een vouchercode die wordt omgezet in gebruikerscredits.",
+        "editTitle": "Voucher bewerken",
+        "editDescription": "Werk voucherdetails, toewijzingsbereik en inwissellimieten bij."
+      },
+      "form": {
+        "code": "Vouchercode",
+        "codePlaceholder": "Voer vouchercode in",
+        "creditAmount": "Aantal credits",
+        "assignmentScope": "Beschikbaarheid",
+        "assignmentScopePlaceholder": "Selecteer wie deze voucher kan inwisselen",
+        "assignmentScopes": {
+          "selected": "Geselecteerde gebruikers",
+          "all": "Alle gebruikers"
+        },
+        "users": "Geschikte gebruikers",
+        "usersDescription": "Selecteer een of meer gebruikers die deze voucher mogen inwisselen.",
+        "usersPlaceholder": "Selecteer gebruikers...",
+        "usersSearchPlaceholder": "Zoek gebruikers op naam of e-mail...",
+        "usersLoading": "Gebruikers zoeken...",
+        "usersEmpty": "Geen gebruikers gevonden",
+        "usersMinSearch": "Typ minimaal 2 tekens om te zoeken",
+        "usersSelected": "{count} gebruikers geselecteerd",
+        "maxRedemptions": "Maximaal aantal inwisselingen",
+        "maxRedemptionsSelectedDescription": "Wordt automatisch gelijk aan het aantal geselecteerde gebruikers: {count}",
+        "maxRedemptionsAllDescription": "Stel in hoeveel gebruikers deze voucher in totaal mogen inwisselen.",
+        "expiresAt": "Verloopt op",
+        "expiresAtPlaceholder": "Kies een vervaldatum",
+        "expiresAtDescription": "Laat leeg om de voucher geldig te houden totdat deze wordt ingewisseld of handmatig wordt gedeactiveerd.",
+        "secret": "Admingeheim",
+        "secretPlaceholder": "Voer het admingeheim in",
+        "secretDescription": "Vereist om vouchers aan te maken of bij te werken.",
+        "secretRequired": "Admingeheim is vereist"
+      },
+      "success": {
+        "created": "Voucher succesvol aangemaakt.",
+        "updated": "Voucher succesvol bijgewerkt."
+      },
+      "errors": {
+        "loadFailed": "Vouchers laden mislukt.",
+        "statusLocked": "Deze voucher kan niet meer worden geactiveerd of gedeactiveerd."
+      }
+    }
+  },
+  "notifications": {
+    "title": "Meldingen",
+    "empty": "Nog geen meldingen",
+    "loading": "Meldingen laden...",
+    "markRead": "Markeer als gelezen",
+    "markAllRead": "Markeer alles als gelezen",
+    "delete": "Melding verwijderen",
+    "welcome": {
+      "title": "Welkom bij {appName}!",
+      "message": "We zijn blij dat je er bent. Verken onze functies en begin met het bouwen van iets geweldigs."
+    },
+    "newLogin": {
+      "title": "Nieuwe aanmelding gedetecteerd",
+      "message": "Er is een nieuwe aanmelding gedetecteerd vanaf {device} op {ipAddress}. Als dit niet jouw actie was, wijzig dan onmiddellijk je wachtwoord."
+    },
+    "passwordChanged": {
+      "title": "Wachtwoord gewijzigd",
+      "message": "Je wachtwoord is succesvol gewijzigd. Als je deze wijziging niet hebt gedaan, neem dan onmiddellijk contact op met support."
+    },
+    "passwordChangeRequired": {
+      "title": "Wachtwoordwijziging vereist",
+      "message": "Werk je wachtwoord bij om veiligheidsredenen."
+    },
+    "twoFactorEnabled": {
+      "title": "Twee-factor authenticatie ingeschakeld",
+      "message": "Twee-factor authenticatie is ingeschakeld op je account. Je account is nu veiliger."
+    },
+    "twoFactorDisabled": {
+      "title": "Twee-factor authenticatie uitgeschakeld",
+      "message": "Twee-factor authenticatie is uitgeschakeld op je account. Overweeg het opnieuw in te schakelen voor betere beveiliging."
+    },
+    "passkeyAdded": {
+      "title": "Nieuwe passkey toegevoegd",
+      "message": "Een nieuwe passkey \"{passkeyName}\" is toegevoegd aan je account."
+    },
+    "passkeyRemoved": {
+      "title": "Passkey verwijderd",
+      "message": "De passkey \"{passkeyName}\" is verwijderd van je account."
+    },
+    "emailChanged": {
+      "title": "E-mailadres gewijzigd",
+      "message": "Je e-mailadres is gewijzigd naar {newEmail}. Als je deze wijziging niet hebt gedaan, neem dan onmiddellijk contact op met support."
+    },
+    "emailVerified": {
+      "title": "E-mail geverifieerd",
+      "message": "Je e-mailadres is succesvol geverifieerd."
+    },
+    "profileUpdated": {
+      "title": "Profiel bijgewerkt",
+      "message": "Je profielinformatie is succesvol bijgewerkt."
+    },
+    "paymentSuccess": {
+      "title": "Betaling geslaagd",
+      "message": "Je betaling van {amount} is succesvol verwerkt.",
+      "titleWithInvoice": "Betaling geslaagd",
+      "messageWithInvoice": "Je betaling van {amount} is succesvol verwerkt. Factuur: {invoiceId}"
+    },
+    "paymentFailed": {
+      "title": "Betaling mislukt",
+      "message": "Je betaling van {amount} is mislukt. Werk je betaalmethode bij en probeer het opnieuw."
+    },
+    "invoiceReady": {
+      "title": "Nieuwe factuur beschikbaar",
+      "message": "Je factuur {invoiceId} voor {amount} is nu beschikbaar."
+    },
+    "subscriptionCanceled": {
+      "title": "Abonnement geannuleerd",
+      "message": "Je abonnement is geannuleerd en eindigt op {endDate}."
+    },
+    "subscriptionRenewed": {
+      "title": "Abonnement verlengd",
+      "message": "Je {planName} abonnement is verlengd voor {amount}."
+    },
+    "usageLimitWarning": {
+      "title": "Gebruikslimiet waarschuwing",
+      "message": "Je hebt {percentage}% van je {resourceType} limiet gebruikt. Overweeg je plan te upgraden."
+    },
+    "usageLimitReached": {
+      "title": "Gebruikslimiet bereikt",
+      "message": "Je hebt je {resourceType} limiet bereikt. Upgrade je plan om deze functie te blijven gebruiken."
+    },
+    "scheduledMaintenance": {
+      "title": "Gepland onderhoud",
+      "message": "We voeren gepland onderhoud uit op {startTime} voor ongeveer {duration}. Sommige functies kunnen tijdelijk niet beschikbaar zijn."
+    },
+    "newFeature": {
+      "title": "Nieuwe functie beschikbaar",
+      "message": "Bekijk onze nieuwe functie: {featureName}. {description}"
+    },
+    "systemUpdate": {
+      "title": "Systeem update",
+      "message": "{updateDetails}"
+    },
+    "creditPurchaseSuccess": {
+      "title": "Creditaankoop geslaagd",
+      "message": "Succesvol {credits} credits gekocht voor €{amount} (incl BTW). Je credits zijn nu beschikbaar voor gebruik."
+    },
+    "voucherRedeemed": {
+      "title": "Voucher ingewisseld",
+      "message": "Je voucher {code} is succesvol ingewisseld en heeft {credits} credits aan je account toegevoegd."
+    },
+    "creditsAdded": {
+      "title": "Credits toegevoegd aan uw account",
+      "message": "{amount} credits zijn toegevoegd aan uw account. Uw nieuwe saldo wordt binnenkort bijgewerkt."
+    },
+    "lowCreditWarning": {
+      "title": "Laag creditsaldo",
+      "message": "Uw creditsaldo is bijna op ({balance} credits resterend). Overweeg meer credits te kopen om premiumfuncties te blijven gebruiken."
+    }
+  },
+  "emailVerification": {
+    "alertMessage": "Verifieer je e-mailadres om toegang te krijgen tot alle functies.",
+    "verifyButton": "E-mail verifiëren",
+    "pageTitle": "E-mail verifiëren",
+    "pageHeading": "Verifieer je e-mail",
+    "pageDescription": "Er is een verificatie-e-mail naar je inbox verzonden. Controleer je e-mail en klik op de verificatielink.",
+    "resendButton": "Verificatie-e-mail opnieuw verzenden",
+    "dialogHint": "Dit dialoogvenster blijft open totdat je je e-mailadres hebt geverifieerd.",
+    "sending": "Verzenden...",
+    "emailSent": "Verificatie-e-mail succesvol verzonden! Controleer je inbox.",
+    "emailError": "Kan verificatie-e-mail niet verzenden. Probeer het opnieuw.",
+    "verified": {
+      "title": "E-mail geverifieerd",
+      "heading": "E-mail geverifieerd",
+      "description": "Je e-mailadres is succesvol geverifieerd.",
+      "button": "Ga naar dashboard"
+    }
+  },
+  "creditPricing": {
+    "title": "Eenvoudige Tegoedpakketten",
+    "description": "Kies het tegoedpakket dat bij je behoeften past. Tegoed verloopt nooit.",
+    "mostPopular": "Meest Populair",
+    "packages": {
+      "starter": {
+        "name": "Starter",
+        "description": "Perfect om te beginnen met ons platform.",
+        "cta": "Koop Starter"
+      },
+      "advanced": {
+        "name": "Advanced",
+        "description": "Beste waarde met bonustegoed inbegrepen.",
+        "cta": "Koop Advanced"
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "Maximaal tegoed met de grootste bonus.",
+        "cta": "Koop Pro"
+      }
+    },
+    "features": {
+      "credits": "{count} tegoed",
+      "bonus": "+{count} bonustegoed",
+      "total": "{count} totaal tegoed",
+      "noExpiry": "Verloopt nooit",
+      "instantActivation": "Directe activering"
+    }
+  },
+  "buyCredits": {
+    "title": "Koop Tegoed",
+    "subtitle": "Koop tegoed om premium functies en diensten te ontgrendelen.",
+    "processing": "Verwerken...",
+    "currentBalance": {
+      "title": "Je Huidige Saldo",
+      "description": "Beschikbaar tegoed in je account",
+      "credits": "tegoed"
+    },
+    "howItWorks": {
+      "title": "Hoe Het Werkt",
+      "step1": {
+        "title": "1. Kies Je Pakket",
+        "description": "Selecteer het tegoedpakket dat het beste bij je behoeften past. Grotere pakketten bevatten bonustegoed."
+      },
+      "step2": {
+        "title": "2. Voltooi Betaling",
+        "description": "Betaal veilig via creditcard, bankpas of andere betaalmethoden."
+      },
+      "step3": {
+        "title": "3. Begin Met Tegoed Gebruiken",
+        "description": "Tegoed wordt direct aan je account toegevoegd en verloopt nooit."
+      }
+    },
+    "errors": {
+      "notAuthenticated": "Log in om tegoed te kopen",
+      "checkoutFailed": "Kan afrekenen niet starten. Probeer het opnieuw.",
+      "purchaseFailed": "Aankoop mislukt. Probeer het opnieuw."
+    }
+  },
+  "billing": {
+    "title": "Facturatieportaal",
+    "description": "Beheer je tegoed, bekijk aankoopgeschiedenis en volg gebruik.",
+    "stats": {
+      "available": "Totaal Beschikbaar Tegoed",
+      "availableDescription": "Tegoed klaar voor gebruik",
+      "purchased": "Totaal Gekocht",
+      "purchasedDescription": "All-time gekochte tegoed",
+      "used": "Totaal Credits Gebruikt",
+      "usedDescription": "All-time bestede tegoed",
+      "total": "Totaal Ontvangen Credits"
+    },
+    "purchases": {
+      "title": "Aankoopgeschiedenis",
+      "description": "Je aankooppakketten",
+      "empty": "Nog geen aankopen. Koop tegoed om te beginnen!",
+      "buyNow": "Koop Tegoed",
+      "bonus": "bonus",
+      "table": {
+        "package": "Pakket",
+        "credits": "Tegoed",
+        "amount": "Bedrag",
+        "status": "Status",
+        "date": "Datum"
+      }
+    },
+    "transactions": {
+      "title": "Transactiegeschiedenis",
+      "description": "Recente tegoed activiteit",
+      "empty": "Nog geen transacties.",
+      "table": {
+        "type": "Type",
+        "amount": "Bedrag",
+        "balance": "Saldo",
+        "description": "Beschrijving",
+        "date": "Datum"
+      }
+    }
+  },
+  "chat": {
+    "title": "AI Chat",
+    "subtitle": "Stel me een vraag en ik help je.",
+    "placeholder": "Typ je bericht...",
+    "send": "Verstuur",
+    "sending": "Versturen...",
+    "thinking": "Aan het denken...",
+    "error": "Bericht versturen mislukt. Probeer het opnieuw.",
+    "empty": "Start een gesprek door hieronder een bericht te typen.",
+    "you": "Jij",
+    "assistant": "Assistent",
+    "buyCredits": "Koop credits",
+    "insufficientCredits": "Onvoldoende credits om bericht te versturen."
+  },
+  "breadcrumb": {
+    "overview": "Overzicht",
+    "dashboard": "Dashboard",
+    "settings": "Instellingen",
+    "analytics": "Analyses",
+    "billing": "Facturatie",
+    "purchase": "Aankoop",
+    "chat": "Chat",
+    "admin": "Admin",
+    "admins": "Admins",
+    "users": "Gebruikers",
+    "notifications": "Meldingen",
+    "projects": "Projecten",
+    "webhooks": "Webhooks",
+    "discounts": "Kortingscodes",
+    "vouchers": "Vouchers",
+    "logs": "Logs",
+    "system": "Systeem",
+    "certdrill": "CertDrill"
+  },
+  "creditProgressBar": {
+    "creditsOf": "{current} van {total} tegoed",
+    "credits": "Tegoed",
+    "topUp": "Opwaarderen",
+    "upgrade": "Upgraden",
+    "loading": "Tegoed laden...",
+    "error": "Tegoed laden mislukt"
+  }
+}

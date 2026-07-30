@@ -1,0 +1,558 @@
+name: Azure Production Infra
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.3.9
+  POSTGRES_FIREWALL_RESOURCE_GROUP_NAME: ${{ vars.POSTGRES_FIREWALL_RESOURCE_GROUP_NAME || 'RG-Wim-Wymedia' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'germanywestcentral' }}
+      AZURE_RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME || 'RG-Boilerplate-SingleTenant-Hono' }}
+      AZURE_ENVIRONMENT_NAME: ${{ vars.AZURE_ENVIRONMENT_NAME || 'production' }}
+      APP_NAME: ${{ vars.APP_NAME || 'singletenant-hono' }}
+      NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'SingleTenant Hono' }}
+      NEXT_PUBLIC_ADMIN_APP_NAME: ${{ vars.NEXT_PUBLIC_ADMIN_APP_NAME || 'SingleTenant Hono Admin' }}
+      PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
+      PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+      PUBLIC_ADMIN_URL: ${{ vars.PUBLIC_ADMIN_URL }}
+      COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
+      BETTER_AUTH_ALLOWED_ORIGINS: ${{ vars.BETTER_AUTH_ALLOWED_ORIGINS }}
+      DODO_PAYMENTS_ENVIRONMENT: ${{ vars.DODO_PAYMENTS_ENVIRONMENT || 'live_mode' }}
+      POSTGRES_SERVER_FQDN: ${{ vars.POSTGRES_SERVER_FQDN }}
+      POSTGRES_ADMIN_LOGIN: ${{ vars.POSTGRES_ADMIN_LOGIN }}
+      POSTGRES_DATABASE_NAME: ${{ vars.POSTGRES_DATABASE_NAME || 'boilerplate-singletenant-hono' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Validate production configuration
+        shell: bash
+        env:
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          BILLING_RECONCILIATION_SECRET: ${{ secrets.BILLING_RECONCILIATION_SECRET }}
+          JOBS_SECRET_KEY: ${{ secrets.JOBS_SECRET_KEY }}
+          DODO_PAYMENTS_API_KEY: ${{ secrets.DODO_PAYMENTS_API_KEY }}
+          DODO_PAYMENTS_WEBHOOK_SECRET: ${{ secrets.DODO_PAYMENTS_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          required_vars=(
+            POSTGRES_SERVER_FQDN
+            POSTGRES_ADMIN_LOGIN
+            POSTGRES_DATABASE_NAME
+            POSTGRES_ADMIN_PASSWORD
+            BETTER_AUTH_SECRET
+            JWT_SECRET
+            ADMIN_SECRET
+            BILLING_RECONCILIATION_SECRET
+            JOBS_SECRET_KEY
+            DODO_PAYMENTS_API_KEY
+            DODO_PAYMENTS_WEBHOOK_SECRET
+          )
+          for name in "${required_vars[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              printf 'Missing required production setting: %s\n' "${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check Drizzle migrations
+        run: bun run db:check
+
+      - name: Typecheck
+        run: bun run typecheck:all
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          creds: >-
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ vars.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ vars.AZURE_TENANT_ID }}"
+            }
+
+      - name: Select Azure subscription
+        shell: bash
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+
+      - name: Resolve or bootstrap Azure infrastructure
+        id: infra
+        shell: bash
+        env:
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          normalized_name="$(printf '%s' "${APP_NAME}" | tr '[:upper:]_' '[:lower:]-')"
+          api_app_name="${normalized_name}-api"
+          web_app_name="${normalized_name}-web"
+          admin_app_name="${normalized_name}-admin"
+          api_app_name="${api_app_name:0:32}"
+          web_app_name="${web_app_name:0:32}"
+          admin_app_name="${admin_app_name:0:32}"
+
+          resolve_existing=false
+          rg_exists="$(az group exists --name "${AZURE_RESOURCE_GROUP_NAME}")"
+          if [[ "${rg_exists}" == "true" ]]; then
+            existing_count=0
+            for app_name in "${api_app_name}" "${web_app_name}" "${admin_app_name}"; do
+              if az containerapp show --resource-group "${AZURE_RESOURCE_GROUP_NAME}" --name "${app_name}" --output none 2>/dev/null; then
+                existing_count=$((existing_count + 1))
+              fi
+            done
+
+            if [[ "${existing_count}" -eq 3 ]]; then
+              resolve_existing=true
+            elif [[ "${existing_count}" -ne 0 ]]; then
+              printf 'Found %s of 3 expected Container Apps in %s. Refusing placeholder bootstrap because it could replace existing production apps. Repair the partial infra manually or remove the partial apps first.\n' \
+                "${existing_count}" "${AZURE_RESOURCE_GROUP_NAME}" >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "${resolve_existing}" == "true" ]]; then
+            acr_json="$(az acr list \
+              --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+              --output json \
+              | jq --arg app "${APP_NAME}" --arg env "${AZURE_ENVIRONMENT_NAME}" \
+                '.[] | select(.tags.app == $app and .tags.environment == $env)' \
+              | jq -s '.')"
+            acr_count="$(jq 'length' <<< "${acr_json}")"
+            if [[ "${acr_count}" -ne 1 ]]; then
+              printf 'Expected exactly one ACR tagged app=%s environment=%s in resource group %s, found %s.\n' \
+                "${APP_NAME}" "${AZURE_ENVIRONMENT_NAME}" "${AZURE_RESOURCE_GROUP_NAME}" "${acr_count}" >&2
+              exit 1
+            fi
+
+            api_fqdn="$(az containerapp show --resource-group "${AZURE_RESOURCE_GROUP_NAME}" --name "${api_app_name}" --query properties.configuration.ingress.fqdn --output tsv)"
+            web_fqdn="$(az containerapp show --resource-group "${AZURE_RESOURCE_GROUP_NAME}" --name "${web_app_name}" --query properties.configuration.ingress.fqdn --output tsv)"
+            admin_fqdn="$(az containerapp show --resource-group "${AZURE_RESOURCE_GROUP_NAME}" --name "${admin_app_name}" --query properties.configuration.ingress.fqdn --output tsv)"
+
+            generated_api_url="https://${api_fqdn}"
+            generated_web_url="https://${web_fqdn}"
+            generated_admin_url="https://${admin_fqdn}"
+            public_api_url="${PUBLIC_API_URL:-${generated_api_url}}"
+            public_web_url="${PUBLIC_WEB_URL:-${generated_web_url}}"
+            public_admin_url="${PUBLIC_ADMIN_URL:-${generated_admin_url}}"
+
+            {
+              echo "acr_name=$(jq -er '.[0].name' <<< "${acr_json}")"
+              echo "acr_login_server=$(jq -er '.[0].loginServer' <<< "${acr_json}")"
+              echo "api_app_name=${api_app_name}"
+              echo "web_app_name=${web_app_name}"
+              echo "admin_app_name=${admin_app_name}"
+              echo "api_url=${generated_api_url}"
+              echo "web_url=${generated_web_url}"
+              echo "admin_url=${generated_admin_url}"
+              echo "public_api_url=${public_api_url}"
+              echo "public_web_url=${public_web_url}"
+              echo "public_admin_url=${public_admin_url}"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          az deployment sub create \
+            --name "bootstrap-production-${GITHUB_RUN_ID}" \
+            --location "${AZURE_LOCATION}" \
+            --template-file infra/main.bicep \
+            --parameters \
+              location="${AZURE_LOCATION}" \
+              resourceGroupName="${AZURE_RESOURCE_GROUP_NAME}" \
+              appName="${APP_NAME}" \
+              environmentName="${AZURE_ENVIRONMENT_NAME}" \
+              postgresServerFqdn="${POSTGRES_SERVER_FQDN}" \
+              postgresAdminLogin="${POSTGRES_ADMIN_LOGIN}" \
+              postgresAdminPassword="${POSTGRES_ADMIN_PASSWORD}" \
+              postgresDatabaseName="${POSTGRES_DATABASE_NAME}" \
+              apiImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+              enableApiLivenessProbe=false \
+              webImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+              adminImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+              acrUsername="" \
+              acrPassword="" \
+            --query properties.outputs \
+            --output json > deployment-outputs.json
+
+          {
+            echo "acr_name=$(jq -er '.acrName.value' deployment-outputs.json)"
+            echo "acr_login_server=$(jq -er '.acrLoginServer.value' deployment-outputs.json)"
+            echo "api_app_name=$(jq -er '.apiAppName.value' deployment-outputs.json)"
+            echo "web_app_name=$(jq -er '.webAppName.value' deployment-outputs.json)"
+            echo "admin_app_name=$(jq -er '.adminAppName.value' deployment-outputs.json)"
+            generated_api_url="https://$(jq -er '.apiFqdn.value' deployment-outputs.json)"
+            generated_web_url="https://$(jq -er '.webFqdn.value' deployment-outputs.json)"
+            generated_admin_url="https://$(jq -er '.adminFqdn.value' deployment-outputs.json)"
+            public_api_url="${PUBLIC_API_URL:-${generated_api_url}}"
+            public_web_url="${PUBLIC_WEB_URL:-${generated_web_url}}"
+            public_admin_url="${PUBLIC_ADMIN_URL:-${generated_admin_url}}"
+            echo "api_url=${generated_api_url}"
+            echo "web_url=${generated_web_url}"
+            echo "admin_url=${generated_admin_url}"
+            echo "public_api_url=${public_api_url}"
+            echo "public_web_url=${public_web_url}"
+            echo "public_admin_url=${public_admin_url}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to Azure Container Registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "${{ steps.infra.outputs.acr_name }}"
+
+      - name: Read Azure resource credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          acr_username="$(az acr credential show --name "${{ steps.infra.outputs.acr_name }}" --query username --output tsv)"
+          acr_password="$(az acr credential show --name "${{ steps.infra.outputs.acr_name }}" --query 'passwords[0].value' --output tsv)"
+          echo "::add-mask::${acr_username}"
+          echo "::add-mask::${acr_password}"
+
+          printf '%s' "${acr_username}" > "${RUNNER_TEMP}/acr-username"
+          printf '%s' "${acr_password}" > "${RUNNER_TEMP}/acr-password"
+
+      - name: Build and push API image
+        id: api-image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.infra.outputs.acr_login_server }}/api:${GITHUB_SHA}"
+          docker build \
+            --file apps/api/Dockerfile \
+            --tag "${image}" \
+            .
+          docker push "${image}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push web image
+        id: web-image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.infra.outputs.acr_login_server }}/web:${GITHUB_SHA}"
+          docker build \
+            --file apps/web/Dockerfile \
+            --tag "${image}" \
+            --build-arg NEXT_PUBLIC_APP_URL="${{ steps.infra.outputs.public_web_url }}" \
+            --build-arg NEXT_PUBLIC_ADMIN_APP_URL="${{ steps.infra.outputs.public_admin_url }}" \
+            --build-arg NEXT_PUBLIC_APP_NAME="${NEXT_PUBLIC_APP_NAME}" \
+            --build-arg NEXT_PUBLIC_API_URL="${{ steps.infra.outputs.public_api_url }}" \
+            .
+          docker push "${image}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push admin image
+        id: admin-image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ steps.infra.outputs.acr_login_server }}/admin:${GITHUB_SHA}"
+          docker build \
+            --file apps/admin/Dockerfile \
+            --tag "${image}" \
+            --build-arg NEXT_PUBLIC_APP_URL="${{ steps.infra.outputs.public_admin_url }}" \
+            --build-arg NEXT_PUBLIC_APP_NAME="${NEXT_PUBLIC_ADMIN_APP_NAME}" \
+            --build-arg NEXT_PUBLIC_API_URL="${{ steps.infra.outputs.public_api_url }}" \
+            --build-arg NEXT_PUBLIC_MAIN_APP_URL="${{ steps.infra.outputs.public_web_url }}" \
+            .
+          docker push "${image}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Add temporary PostgreSQL firewall rule
+        id: postgres-firewall
+        shell: bash
+        run: |
+          set -euo pipefail
+          runner_ip="$(curl -fsSL https://api.ipify.org)"
+          postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
+          postgres_server_name="${postgres_server_host%%.postgres.database.azure.com}"
+          rule_name="github-actions-${GITHUB_RUN_ID}"
+          az postgres flexible-server firewall-rule create \
+            --resource-group "${POSTGRES_FIREWALL_RESOURCE_GROUP_NAME}" \
+            --server-name "${postgres_server_name}" \
+            --name "${rule_name}" \
+            --start-ip-address "${runner_ip}" \
+            --end-ip-address "${runner_ip}" \
+            --output none
+          {
+            echo "postgres_server_name=${postgres_server_name}"
+            echo "rule_name=${rule_name}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Run database migrations
+        shell: bash
+        env:
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_PASSWORD"], safe=""))')"
+          echo "::add-mask::${encoded_password}"
+          postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
+          export DATABASE_URL="postgresql://${POSTGRES_ADMIN_LOGIN}:${encoded_password}@${postgres_server_host}:5432/${POSTGRES_DATABASE_NAME}?sslmode=require"
+          echo "::add-mask::${DATABASE_URL}"
+          for attempt in {1..6}; do
+            if bun run db:migrate; then
+              exit 0
+            fi
+
+            if [[ "${attempt}" -eq 6 ]]; then
+              echo "Database migration failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+
+            echo "Database migration attempt ${attempt} failed; retrying in 10 seconds." >&2
+            sleep 10
+          done
+
+      - name: Remove temporary PostgreSQL firewall rule
+        if: always() && steps.postgres-firewall.outputs.postgres_server_name != '' && steps.postgres-firewall.outputs.rule_name != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "${POSTGRES_FIREWALL_RESOURCE_GROUP_NAME}" \
+            --server-name "${{ steps.postgres-firewall.outputs.postgres_server_name }}" \
+            --name "${{ steps.postgres-firewall.outputs.rule_name }}" \
+            --yes \
+            --output none
+
+      - name: Deploy final Azure infrastructure
+        shell: bash
+        env:
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          acr_username="$(< "${RUNNER_TEMP}/acr-username")"
+          acr_password="$(< "${RUNNER_TEMP}/acr-password")"
+          az deployment sub create \
+            --name "deploy-production-${GITHUB_RUN_ID}" \
+            --location "${AZURE_LOCATION}" \
+            --template-file infra/main.bicep \
+            --parameters \
+              location="${AZURE_LOCATION}" \
+              resourceGroupName="${AZURE_RESOURCE_GROUP_NAME}" \
+              appName="${APP_NAME}" \
+              environmentName="${AZURE_ENVIRONMENT_NAME}" \
+              postgresServerFqdn="${POSTGRES_SERVER_FQDN}" \
+              postgresAdminLogin="${POSTGRES_ADMIN_LOGIN}" \
+              postgresAdminPassword="${POSTGRES_ADMIN_PASSWORD}" \
+              postgresDatabaseName="${POSTGRES_DATABASE_NAME}" \
+              apiImage="${{ steps.api-image.outputs.image }}" \
+              enableApiLivenessProbe=false \
+              webImage="${{ steps.web-image.outputs.image }}" \
+              adminImage="${{ steps.admin-image.outputs.image }}" \
+              acrUsername="${acr_username}" \
+              acrPassword="${acr_password}" \
+            --output none
+
+      - name: Configure API secrets
+        shell: bash
+        env:
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          BILLING_RECONCILIATION_SECRET: ${{ secrets.BILLING_RECONCILIATION_SECRET }}
+          JOBS_SECRET_KEY: ${{ secrets.JOBS_SECRET_KEY }}
+          DODO_PAYMENTS_API_KEY: ${{ secrets.DODO_PAYMENTS_API_KEY }}
+          DODO_PAYMENTS_WEBHOOK_SECRET: ${{ secrets.DODO_PAYMENTS_WEBHOOK_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_PASSWORD"], safe=""))')"
+          postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
+          database_url="postgresql://${POSTGRES_ADMIN_LOGIN}:${encoded_password}@${postgres_server_host}:5432/${POSTGRES_DATABASE_NAME}?sslmode=require"
+          secret_args=(
+            "database-url=${database_url}"
+            "better-auth-secret=${BETTER_AUTH_SECRET}"
+            "jwt-secret=${JWT_SECRET}"
+            "admin-secret=${ADMIN_SECRET}"
+            "billing-reconciliation-secret=${BILLING_RECONCILIATION_SECRET}"
+            "jobs-secret-key=${JOBS_SECRET_KEY}"
+            "dodo-api-key=${DODO_PAYMENTS_API_KEY}"
+            "dodo-webhook-secret=${DODO_PAYMENTS_WEBHOOK_SECRET}"
+          )
+
+          if [[ -n "${RESEND_API_KEY}" ]]; then
+            secret_args+=("resend-api-key=${RESEND_API_KEY}")
+          fi
+
+          if [[ -n "${GOOGLE_CLIENT_SECRET}" ]]; then
+            secret_args+=("google-client-secret=${GOOGLE_CLIENT_SECRET}")
+          fi
+
+          if [[ -n "${GITHUB_CLIENT_SECRET}" ]]; then
+            secret_args+=("github-client-secret=${GITHUB_CLIENT_SECRET}")
+          fi
+
+          echo "::add-mask::${encoded_password}"
+          echo "::add-mask::${database_url}"
+          az containerapp secret set \
+            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.api_app_name }}" \
+            --secrets \
+              "${secret_args[@]}" \
+            --output none
+
+      - name: Configure API environment variables
+        shell: bash
+        env:
+          ADMIN_ALLOWLIST: ${{ secrets.ADMIN_ALLOWLIST }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          env_args=(
+            NODE_ENV=production
+            PORT=8877
+            LOG_LEVEL=info
+            "APP_URL=${{ steps.infra.outputs.public_web_url }}"
+            "API_URL=${{ steps.infra.outputs.public_api_url }}"
+            "ADMIN_APP_URL=${{ steps.infra.outputs.public_admin_url }}"
+            COOKIE_SAMESITE=lax
+            TRUST_PROXY=true
+            "ADMIN_ALLOWLIST=${ADMIN_ALLOWLIST}"
+            PAYMENT_PROVIDER=dodo
+            "DODO_PAYMENTS_ENVIRONMENT=${DODO_PAYMENTS_ENVIRONMENT}"
+            "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}"
+            "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
+            "GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}"
+            JWT_ISSUER=api-production
+            JWT_AUDIENCE=mobile-clients
+            DATABASE_URL=secretref:database-url
+            BETTER_AUTH_SECRET=secretref:better-auth-secret
+            JWT_SECRET=secretref:jwt-secret
+            ADMIN_SECRET=secretref:admin-secret
+            BILLING_RECONCILIATION_SECRET=secretref:billing-reconciliation-secret
+            JOBS_SECRET_KEY=secretref:jobs-secret-key
+            DODO_PAYMENTS_API_KEY=secretref:dodo-api-key
+            DODO_PAYMENTS_WEBHOOK_SECRET=secretref:dodo-webhook-secret
+          )
+
+          if [[ -n "${COOKIE_DOMAIN}" ]]; then
+            env_args+=("COOKIE_DOMAIN=${COOKIE_DOMAIN}")
+          fi
+
+          if [[ -n "${BETTER_AUTH_ALLOWED_ORIGINS}" ]]; then
+            env_args+=("BETTER_AUTH_ALLOWED_ORIGINS=${BETTER_AUTH_ALLOWED_ORIGINS}")
+          fi
+
+          if [[ -n "${RESEND_API_KEY}" ]]; then
+            env_args+=(RESEND_API_KEY=secretref:resend-api-key)
+          fi
+
+          if [[ -n "${GOOGLE_CLIENT_SECRET}" ]]; then
+            env_args+=(GOOGLE_CLIENT_SECRET=secretref:google-client-secret)
+          fi
+
+          if [[ -n "${GITHUB_CLIENT_SECRET}" ]]; then
+            env_args+=(GITHUB_CLIENT_SECRET=secretref:github-client-secret)
+          fi
+
+          az containerapp update \
+            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.api_app_name }}" \
+            --set-env-vars \
+              "${env_args[@]}" \
+            --output none
+
+      - name: Enable API liveness probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_app_id="$(az containerapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.api_app_name }}" \
+            --query id \
+            --output tsv)"
+
+          template="$(az containerapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.api_app_name }}" \
+            --query properties.template \
+            --output json)"
+
+          patch_body="$(jq -cn --argjson template "${template}" '{properties:{template:($template | del(.scale.cooldownPeriod, .scale.pollingInterval) | .containers[0].probes=[{"type":"Liveness","httpGet":{"path":"/health","port":8877},"initialDelaySeconds":30,"periodSeconds":30}])}}')"
+
+          az rest \
+            --method patch \
+            --uri "https://management.azure.com${api_app_id}?api-version=2024-03-01" \
+            --body "${patch_body}" \
+            --output none
+
+      - name: Wait for API provisioning after liveness probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            state="$(az containerapp show \
+              --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+              --name "${{ steps.infra.outputs.api_app_name }}" \
+              --query properties.provisioningState \
+              --output tsv)"
+
+            if [[ "${state}" == "Succeeded" ]]; then
+              exit 0
+            fi
+
+            echo "API Container App provisioning state is ${state:-unknown} on attempt ${attempt}; waiting 10 seconds."
+            sleep 10
+          done
+
+          echo "API Container App provisioning did not reach Succeeded after 30 attempts." >&2
+          exit 1
+
+      - name: Deploy API image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp update \
+            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.api_app_name }}" \
+            --image "${{ steps.api-image.outputs.image }}" \
+            --output none
+
+      - name: Print production URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'API: %s\n' "${{ steps.infra.outputs.api_url }}"
+          printf 'Web: %s\n' "${{ steps.infra.outputs.web_url }}"
+          printf 'Admin: %s\n' "${{ steps.infra.outputs.admin_url }}"

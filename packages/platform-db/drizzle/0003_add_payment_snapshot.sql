@@ -1,0 +1,1 @@
+ALTER TABLE "credit_purchases" ADD COLUMN "payment_snapshot" jsonb;
