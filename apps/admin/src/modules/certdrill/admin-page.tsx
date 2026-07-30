@@ -1364,12 +1364,12 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
         {categories.map((category) => (
           <TableRow key={category.id}>
             <TableCell className="font-medium">
-              <Link href={selectedCertificationHref({ categoryId: category.id })} className="hover:underline">
+              <Link href={selectedCertificationHref({ questionCategoryId: category.id })} className="hover:underline">
                 {category.code}
               </Link>
             </TableCell>
             <TableCell>
-              <Link href={selectedCertificationHref({ categoryId: category.id })} className="hover:underline">
+              <Link href={selectedCertificationHref({ questionCategoryId: category.id })} className="hover:underline">
                 {category.name}
               </Link>
             </TableCell>
