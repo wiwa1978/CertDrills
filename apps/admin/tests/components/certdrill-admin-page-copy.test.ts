@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(new URL("../../src/modules/certdrill/admin-page.tsx", import.meta.url), "utf8");
+const questionFilterBarSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-filter-bar.tsx", import.meta.url),
+  "utf8",
+);
 const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
 const routeSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/page.tsx", import.meta.url),
@@ -21,6 +25,21 @@ const editQuestionRouteSource = readFileSync(
 );
 
 describe("CertDrill admin page copy", () => {
+  it("uses a client-side question filter toolbar", () => {
+    expect(source).toContain('import { QuestionFilterBar } from "./question-filter-bar";');
+    expect(source).toContain("<QuestionFilterBar");
+    expect(source).not.toContain("QuestionFilterForm");
+    expect(source).not.toContain("Apply filters");
+    expect(questionFilterBarSource).toContain('"use client"');
+    expect(questionFilterBarSource).toContain("useRouter");
+    expect(questionFilterBarSource).toContain("usePathname");
+    expect(questionFilterBarSource).toContain("useSearchParams");
+    expect(questionFilterBarSource).toContain("setTimeout");
+    expect(questionFilterBarSource).toContain("250");
+    expect(questionFilterBarSource).toContain("router.replace(");
+    expect(questionFilterBarSource).toContain("scroll: false");
+  });
+
   it("shows management tabs and primary form labels", () => {
     expect(source).toContain("Categories");
     expect(source).toContain("Questions");
@@ -86,11 +105,11 @@ describe("CertDrill admin page copy", () => {
   });
 
   it("shows question filter controls and accepts filter query params", () => {
-    expect(source).toContain("Search questions");
-    expect(source).toContain("Filter by category");
-    expect(source).toContain("Filter by status");
-    expect(source).toContain("Filter by difficulty");
-    expect(source).toContain("Sort by");
+    expect(questionFilterBarSource).toContain("Search questions");
+    expect(questionFilterBarSource).toContain("Filter by category");
+    expect(questionFilterBarSource).toContain("Filter by status");
+    expect(questionFilterBarSource).toContain("Filter by difficulty");
+    expect(questionFilterBarSource).toContain("Sort by");
     expect(source).toContain("questionSearch");
     expect(source).toContain("questionStatus");
     expect(source).toContain("questionDifficulty");

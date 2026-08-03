@@ -49,6 +49,7 @@ import {
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
+import { QuestionFilterBar } from "./question-filter-bar";
 
 type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
@@ -265,7 +266,7 @@ export async function CertDrillAdminPage({
     questionCategoryId: questionCategoryId ?? requestedCategoryId,
     questionSort,
   });
-  const filteredQuestions = filterCertDrillAdminQuestions(questions, questionFilters);
+  const filteredQuestions = filterCertDrillAdminQuestions(questions, categories, questionFilters);
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
   const defaultTab = selectedTab === "categories"
     || selectedTab === "questions"
@@ -426,7 +427,7 @@ export async function CertDrillAdminPage({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {selectedCertificationId ? <QuestionFilterForm categories={categories} filters={questionFilters} /> : null}
+              {selectedCertificationId ? <QuestionFilterBar categories={categories} filters={questionFilters} /> : null}
               {filteredQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={filteredQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
@@ -626,7 +627,12 @@ function normalizeQuestionFilters(filters: QuestionFilters): QuestionFilters {
   };
 }
 
-function filterCertDrillAdminQuestions(questions: CertDrillAdminQuestion[], filters: QuestionFilters) {
+function filterCertDrillAdminQuestions(
+  questions: CertDrillAdminQuestion[],
+  categories: CertDrillAdminCategory[],
+  filters: QuestionFilters,
+) {
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const search = filters.questionSearch?.toLowerCase();
   const filtered = questions.filter((question) => {
     if (filters.questionCategoryId && question.categoryId !== filters.questionCategoryId) return false;
@@ -634,11 +640,15 @@ function filterCertDrillAdminQuestions(questions: CertDrillAdminQuestion[], filt
     if (filters.questionDifficulty && (question.difficulty ?? "medium") !== filters.questionDifficulty) return false;
     if (!search) return true;
 
+    const category = categoriesById.get(question.categoryId);
     const searchableText = [
       question.id,
       question.stem,
       question.status ?? "draft",
       question.difficulty ?? "medium",
+      question.categoryId,
+      category?.code ?? "",
+      category?.name ?? "",
       ...(question.options ?? []).flatMap((option) => [option.text, option.explanation ?? ""]),
     ].join(" ").toLowerCase();
 
@@ -1184,40 +1194,6 @@ function QuestionSelect({ id, name, questions, label }: { id: string; name: stri
         <option key={question.id} value={question.id}>{question.id} - {question.stem.slice(0, 80)}</option>
       )) : <option value="">Create a question first</option>}
     </SelectField>
-  );
-}
-
-function QuestionFilterForm({ categories, filters }: { categories: CertDrillAdminCategory[]; filters: QuestionFilters }) {
-  return (
-    <form className="grid gap-4 rounded-lg border p-4 md:grid-cols-2 xl:grid-cols-6">
-      <TextField id="question-search" name="questionSearch" label="Search questions" placeholder="Stem, option, status, difficulty" defaultValue={filters.questionSearch ?? ""} className="xl:col-span-2" />
-      <CategorySelect id="question-category-filter" name="questionCategoryId" categories={categories} label="Filter by category" includeEmpty emptyLabel="All categories" defaultValue={filters.questionCategoryId ?? ""} />
-      <SelectField id="question-status-filter" name="questionStatus" label="Filter by status" defaultValue={filters.questionStatus ?? ""}>
-        <option value="">All statuses</option>
-        <option value="draft">Draft</option>
-        <option value="published">Published</option>
-        <option value="archived">Archived</option>
-      </SelectField>
-      <SelectField id="question-difficulty-filter" name="questionDifficulty" label="Filter by difficulty" defaultValue={filters.questionDifficulty ?? ""}>
-        <option value="">All difficulties</option>
-        <option value="easy">Easy</option>
-        <option value="medium">Medium</option>
-        <option value="hard">Hard</option>
-      </SelectField>
-      <SelectField id="question-sort" name="questionSort" label="Sort by" defaultValue={filters.questionSort ?? "stem-asc"}>
-        <option value="stem-asc">Stem A-Z</option>
-        <option value="stem-desc">Stem Z-A</option>
-        <option value="status-asc">Status</option>
-        <option value="difficulty-asc">Difficulty</option>
-        <option value="id-asc">ID</option>
-      </SelectField>
-      <div className="flex items-end gap-2 md:col-span-2 xl:col-span-6">
-        <Button type="submit">Apply filters</Button>
-        <Button asChild variant="outline">
-          <Link href="?">Clear filters</Link>
-        </Button>
-      </div>
-    </form>
   );
 }
 
