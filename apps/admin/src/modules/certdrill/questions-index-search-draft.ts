@@ -16,6 +16,10 @@ export type QuestionsIndexSearchOwnership = {
   hasLocalSearchChange: boolean;
 };
 
+// Track only the newest owned search versions so recent stale responses still reconcile
+// locally without letting superseded entries grow forever or claim unrelated future searches.
+export const QUESTIONS_INDEX_SEARCH_OWNERSHIP_LIMIT = 20;
+
 function findLatestMatchingNavigation(
   serverSearch: string,
   navigations: readonly QuestionsIndexSearchNavigation[],
@@ -35,6 +39,69 @@ function appendLatestNavigation(
     ...navigations.filter((currentNavigation) => currentNavigation.value !== navigation.value),
     navigation,
   ];
+}
+
+function pruneQuestionsIndexTrackedNavigations({
+  pendingNavigations,
+  reconciledNavigations,
+}: {
+  pendingNavigations: readonly QuestionsIndexSearchNavigation[];
+  reconciledNavigations: readonly QuestionsIndexSearchNavigation[];
+}) {
+  const latestNavigationsByValue = new Map<
+    string,
+    QuestionsIndexSearchNavigation & { status: "pending" | "reconciled" }
+  >();
+
+  for (const navigation of reconciledNavigations) {
+    const currentNavigation = latestNavigationsByValue.get(navigation.value);
+    if (currentNavigation && currentNavigation.version >= navigation.version) continue;
+    latestNavigationsByValue.set(navigation.value, { ...navigation, status: "reconciled" });
+  }
+
+  for (const navigation of pendingNavigations) {
+    const currentNavigation = latestNavigationsByValue.get(navigation.value);
+    if (currentNavigation && currentNavigation.version > navigation.version) continue;
+    latestNavigationsByValue.set(navigation.value, { ...navigation, status: "pending" });
+  }
+
+  const trackedNavigations = [...latestNavigationsByValue.values()]
+    .toSorted((first, second) => second.version - first.version)
+    .slice(0, QUESTIONS_INDEX_SEARCH_OWNERSHIP_LIMIT)
+    .toSorted((first, second) => first.version - second.version);
+
+  return trackedNavigations.reduce<{
+    pendingNavigations: QuestionsIndexSearchNavigation[];
+    reconciledNavigations: QuestionsIndexSearchNavigation[];
+  }>((nextTrackedNavigations, navigation) => {
+    const targetNavigations = navigation.status === "pending"
+      ? nextTrackedNavigations.pendingNavigations
+      : nextTrackedNavigations.reconciledNavigations;
+    targetNavigations.push({ value: navigation.value, version: navigation.version });
+    return nextTrackedNavigations;
+  }, {
+    pendingNavigations: [],
+    reconciledNavigations: [],
+  });
+}
+
+export function queueQuestionsIndexPendingNavigation({
+  searchOwnership,
+  navigation,
+}: {
+  searchOwnership: QuestionsIndexSearchOwnership;
+  navigation: QuestionsIndexSearchNavigation;
+}) {
+  const trackedNavigations = pruneQuestionsIndexTrackedNavigations({
+    pendingNavigations: appendLatestNavigation(searchOwnership.pendingNavigations, navigation),
+    reconciledNavigations: searchOwnership.reconciledNavigations,
+  });
+
+  return {
+    ...searchOwnership,
+    pendingNavigations: trackedNavigations.pendingNavigations,
+    reconciledNavigations: trackedNavigations.reconciledNavigations,
+  } satisfies QuestionsIndexSearchOwnership;
 }
 
 export function getQuestionsIndexDisplayedSearch({
@@ -131,8 +198,10 @@ export function reconcileQuestionsIndexSearchOwnership({
     reconciliation,
     nextSearchOwnership: {
       ...searchOwnership,
-      pendingNavigations: [...reconciliation.nextPendingNavigations],
-      reconciledNavigations: [...reconciliation.nextReconciledNavigations],
+      ...pruneQuestionsIndexTrackedNavigations({
+        pendingNavigations: reconciliation.nextPendingNavigations,
+        reconciledNavigations: reconciliation.nextReconciledNavigations,
+      }),
       hasLocalSearchChange: reconciliation.matchingNavigation?.version === searchOwnership.activeDraftVersion
         ? false
         : true,

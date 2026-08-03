@@ -1,11 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import {
+import * as searchDraftModule from "../../../src/modules/certdrill/questions-index-search-draft";
+
+import type {
+  QuestionsIndexSearchDraft,
+  QuestionsIndexSearchNavigation,
+  QuestionsIndexSearchOwnership,
+} from "../../../src/modules/certdrill/questions-index-search-draft";
+
+const {
   getQuestionsIndexDisplayedSearch,
   reconcileQuestionsIndexSearchOwnership,
-  type QuestionsIndexSearchDraft,
-  type QuestionsIndexSearchOwnership,
-} from "../../../src/modules/certdrill/questions-index-search-draft";
+} = searchDraftModule;
+
+const queueQuestionsIndexPendingNavigation = (
+  searchDraftModule as {
+    queueQuestionsIndexPendingNavigation?: (args: {
+      searchOwnership: QuestionsIndexSearchOwnership;
+      navigation: QuestionsIndexSearchNavigation;
+    }) => QuestionsIndexSearchOwnership;
+  }
+).queueQuestionsIndexPendingNavigation;
+
+const TRACKED_NAVIGATION_LIMIT = 20;
 
 type SearchDraftHarnessState = {
   serverSearch: string;
@@ -48,15 +65,15 @@ function typeSearch(state: SearchDraftHarnessState, value: string): SearchDraftH
 }
 
 function queueOwnNavigation(state: SearchDraftHarnessState): SearchDraftHarnessState {
+  expect(queueQuestionsIndexPendingNavigation).toBeTypeOf("function");
+  if (!queueQuestionsIndexPendingNavigation) return state;
+
   return {
     ...state,
-    searchOwnership: {
-      ...state.searchOwnership,
-      pendingNavigations: [
-        ...state.searchOwnership.pendingNavigations.filter((navigation) => navigation.value !== state.searchDraft.value),
-        { value: state.searchDraft.value, version: state.searchDraft.version },
-      ],
-    },
+    searchOwnership: queueQuestionsIndexPendingNavigation({
+      searchOwnership: state.searchOwnership,
+      navigation: { value: state.searchDraft.value, version: state.searchDraft.version },
+    }),
   };
 }
 
@@ -165,5 +182,61 @@ describe("questions index search draft", () => {
     state = applyServerSearch(state, "ab");
     expect(state.searchOwnership.hasLocalSearchChange).toBe(false);
     expect(displayedSearch(state)).toBe("ab");
+  });
+
+  it("bounds pending ownership across many unique searches, prunes obsolete pending entries, and keeps recent stale own responses local", () => {
+    let state = createHarness();
+
+    for (let version = 1; version <= TRACKED_NAVIGATION_LIMIT + 5; version += 1) {
+      state = typeSearch(state, `search-${version}`);
+      state = queueOwnNavigation(state);
+    }
+
+    expect(state.searchOwnership.pendingNavigations).toHaveLength(TRACKED_NAVIGATION_LIMIT);
+    expect(state.searchOwnership.pendingNavigations).toEqual(
+      Array.from({ length: TRACKED_NAVIGATION_LIMIT }, (_, index) => {
+        const version = index + 6;
+        return { value: `search-${version}`, version };
+      }),
+    );
+
+    expect(renderWithServerSearch(state, "search-5")).toBe("search-5");
+    expect(renderWithServerSearch(state, "search-25")).toBe("search-25");
+
+    state = typeSearch(state, "search-26");
+    expect(renderWithServerSearch(state, "search-25")).toBe("search-26");
+
+    state = applyServerSearch(state, "search-25");
+    expect(displayedSearch(state)).toBe("search-26");
+    expect(state.searchOwnership.pendingNavigations).toHaveLength(TRACKED_NAVIGATION_LIMIT - 1);
+    expect(state.searchOwnership.reconciledNavigations).toEqual([{ value: "search-25", version: 25 }]);
+  });
+
+  it("bounds reconciled ownership history and prunes obsolete confirmed searches without breaking the stale-own-response guard", () => {
+    let state = createHarness();
+
+    for (let version = 1; version <= TRACKED_NAVIGATION_LIMIT + 5; version += 1) {
+      state = typeSearch(state, `search-${version}`);
+      state = queueOwnNavigation(state);
+      state = applyServerSearch(state, `search-${version}`);
+    }
+
+    expect(state.searchOwnership.pendingNavigations).toEqual([]);
+    expect(state.searchOwnership.reconciledNavigations).toHaveLength(TRACKED_NAVIGATION_LIMIT);
+    expect(state.searchOwnership.reconciledNavigations).toEqual(
+      Array.from({ length: TRACKED_NAVIGATION_LIMIT }, (_, index) => {
+        const version = index + 6;
+        return { value: `search-${version}`, version };
+      }),
+    );
+
+    state = typeSearch(state, "search-26");
+    expect(renderWithServerSearch(state, "search-24")).toBe("search-26");
+    expect(renderWithServerSearch(state, "search-5")).toBe("search-5");
+
+    state = applyServerSearch(state, "search-5");
+    expect(state.searchOwnership.pendingNavigations).toEqual([]);
+    expect(state.searchOwnership.reconciledNavigations).toEqual([]);
+    expect(displayedSearch(state)).toBe("search-5");
   });
 });

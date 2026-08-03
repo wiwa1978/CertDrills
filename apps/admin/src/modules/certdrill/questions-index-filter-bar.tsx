@@ -19,6 +19,7 @@ import {
 } from "./questions-index-query";
 import {
   getQuestionsIndexDisplayedSearch,
+  queueQuestionsIndexPendingNavigation,
   reconcileQuestionsIndexSearchOwnership,
   type QuestionsIndexSearchDraft,
   type QuestionsIndexSearchNavigation,
@@ -51,13 +52,10 @@ function createSearchOwnership() {
       };
     },
     queuePendingNavigation(navigation: QuestionsIndexSearchNavigation) {
-      snapshot = {
-        ...snapshot,
-        pendingNavigations: [
-          ...snapshot.pendingNavigations.filter((currentNavigation) => currentNavigation.value !== navigation.value),
-          navigation,
-        ],
-      };
+      snapshot = queueQuestionsIndexPendingNavigation({
+        searchOwnership: snapshot,
+        navigation,
+      });
     },
     reconcileServerSearch(serverSearch: string) {
       const result = reconcileQuestionsIndexSearchOwnership({
@@ -68,6 +66,19 @@ function createSearchOwnership() {
       return result.reconciliation;
     },
   };
+}
+
+function useSearchOwnership() {
+  const searchOwnershipRef = useRef<ReturnType<typeof createSearchOwnership> | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- this local ownership store is intentionally rendered and mutated in place.
+  let searchOwnership = searchOwnershipRef.current;
+
+  if (searchOwnership == null) {
+    searchOwnership = createSearchOwnership();
+    searchOwnershipRef.current = searchOwnership;
+  }
+
+  return searchOwnership;
 }
 
 function searchParamsToQuery(params: URLSearchParams): QuestionsIndexQuery {
@@ -105,7 +116,7 @@ export function QuestionsIndexFilterBar({
     base: serverSearch,
     version: 0,
   });
-  const [searchOwnership] = useState(createSearchOwnership);
+  const searchOwnership = useSearchOwnership();
   const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));
   const synchronizedQueryStringRef = useRef(currentQueryString);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

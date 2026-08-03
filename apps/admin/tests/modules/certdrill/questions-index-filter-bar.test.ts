@@ -37,7 +37,13 @@ describe("questions index filter bar source", () => {
   it("derives the displayed search from a draft helper keyed to the server search without syncing state in an effect", () => {
     expect(source).toContain('const serverSearch = query.search ?? "";');
     expect(source).toContain("const [searchDraft, setSearchDraft] = useState<QuestionsIndexSearchDraft>({");
-    expect(source).toContain("const [searchOwnership] = useState(createSearchOwnership);");
+    expect(source).toContain("function useSearchOwnership() {");
+    expect(source).toContain("const searchOwnershipRef = useRef<ReturnType<typeof createSearchOwnership> | null>(null);");
+    expect(source).toContain("let searchOwnership = searchOwnershipRef.current;");
+    expect(source).toContain("if (searchOwnership == null) {");
+    expect(source).toContain("searchOwnership = createSearchOwnership();");
+    expect(source).toContain("searchOwnershipRef.current = searchOwnership;");
+    expect(source).toContain("const searchOwnership = useSearchOwnership();");
     expect(source).toContain("getQuestionsIndexDisplayedSearch({");
     expect(source).toContain("activeDraftVersion: searchOwnershipSnapshot.activeDraftVersion");
     expect(source).toContain("reconciledNavigations: searchOwnershipSnapshot.reconciledNavigations");
@@ -46,6 +52,7 @@ describe("questions index filter bar source", () => {
     expect(source).toContain("value: event.target.value,");
     expect(source).toContain('value: "",');
     expect(source).toContain("const version = searchOwnership.incrementDraftVersion();");
+    expect(source).not.toContain("const [searchOwnership] = useState(createSearchOwnership);");
     expect(source).not.toContain('const [search, setSearch] = useState(query.search ?? "");');
     expect(source).not.toContain("setSearch(serverSearch);");
   });
