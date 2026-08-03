@@ -133,6 +133,11 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Stem A-Z");
     expect(source).toContain("Stem Z-A");
     expect(source).toContain("questionPage");
+    expect(source).toContain("Page {page} of {pageCount}");
+    expect(source).toContain("<LocalizedLink href={previousPageHref}>Previous</LocalizedLink>");
+    expect(source).toContain("<LocalizedLink href={nextPageHref}>Next</LocalizedLink>");
+    expect(source).toContain(': <Button variant="outline" size="sm" disabled>Previous</Button>');
+    expect(source).toContain(': <Button variant="outline" size="sm" disabled>Next</Button>');
     expect(detailRouteSource).toContain("questionPage?: SearchParamValue");
     expect(detailRouteSource).toContain("questionPage={firstSearchParamString(questionPage)}");
   });
