@@ -70,6 +70,7 @@ export function QuestionFilterBar({
     } else {
       params.delete(name);
     }
+    if (name === "questionCategoryId") params.delete("categoryId");
 
     currentQueryParamsRef.current = params;
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
