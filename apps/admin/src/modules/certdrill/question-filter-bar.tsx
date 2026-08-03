@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ type QuestionFilters = {
 };
 
 type QuestionFilterName = keyof QuestionFilters;
+type SearchNavigation = { value: string; version: number };
 
 const questionFilterNames: QuestionFilterName[] = [
   "questionSearch",
@@ -37,6 +38,17 @@ export function QuestionFilterBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(filters.questionSearch ?? "");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchNavigationVersionRef = useRef(0);
+  const pendingSearchNavigationsRef = useRef<SearchNavigation[]>([]);
+  const hasLocalSearchChangeRef = useRef(false);
+
+  const cancelSearchDebounce = useCallback(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+  }, []);
 
   const replaceFilter = useCallback((name: QuestionFilterName, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -53,19 +65,66 @@ export function QuestionFilterBar({
   }, [pathname, router, searchParams]);
 
   useEffect(() => {
-    setSearch(filters.questionSearch ?? "");
-  }, [filters.questionSearch]);
+    const serverSearch = filters.questionSearch ?? "";
+    const matchingNavigationIndex = pendingSearchNavigationsRef.current
+      .findIndex((navigation) => navigation.value === serverSearch);
+
+    if (matchingNavigationIndex >= 0) {
+      const [matchingNavigation] = pendingSearchNavigationsRef.current.splice(matchingNavigationIndex, 1);
+      if (matchingNavigation.version === searchNavigationVersionRef.current) {
+        hasLocalSearchChangeRef.current = false;
+      }
+      return;
+    }
+
+    hasLocalSearchChangeRef.current = false;
+    searchNavigationVersionRef.current += 1;
+    cancelSearchDebounce();
+    setSearch(serverSearch);
+  }, [cancelSearchDebounce, filters.questionSearch]);
 
   useEffect(() => {
     const serverSearch = filters.questionSearch ?? "";
-    if (search === serverSearch) return;
+    if (search === serverSearch) {
+      hasLocalSearchChangeRef.current = false;
+      return;
+    }
 
-    const timeout = setTimeout(() => replaceFilter("questionSearch", search), 250);
-    return () => clearTimeout(timeout);
+    if (!hasLocalSearchChangeRef.current) return;
+
+    const version = searchNavigationVersionRef.current;
+    if (pendingSearchNavigationsRef.current.some(
+      (navigation) => navigation.value === search && navigation.version === version,
+    )) return;
+
+    const timeout = setTimeout(() => {
+      if (searchNavigationVersionRef.current !== version) return;
+
+      pendingSearchNavigationsRef.current.push({ value: search, version });
+      searchDebounceRef.current = null;
+      replaceFilter("questionSearch", search);
+    }, 250);
+
+    searchDebounceRef.current = timeout;
+    return () => {
+      clearTimeout(timeout);
+      if (searchDebounceRef.current === timeout) searchDebounceRef.current = null;
+    };
   }, [filters.questionSearch, replaceFilter, search]);
 
   function clearFilters() {
     const params = new URLSearchParams(searchParams.toString());
+
+    searchNavigationVersionRef.current += 1;
+    cancelSearchDebounce();
+    hasLocalSearchChangeRef.current = false;
+    setSearch("");
+    if (filters.questionSearch) {
+      pendingSearchNavigationsRef.current.push({
+        value: "",
+        version: searchNavigationVersionRef.current,
+      });
+    }
 
     params.set("tab", "questions");
     questionFilterNames.forEach((name) => params.delete(name));
@@ -80,7 +139,11 @@ export function QuestionFilterBar({
           id="question-search"
           placeholder="Stem, option, category, status, difficulty"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            searchNavigationVersionRef.current += 1;
+            hasLocalSearchChangeRef.current = true;
+            setSearch(event.target.value);
+          }}
         />
       </div>
       <div className="space-y-2">

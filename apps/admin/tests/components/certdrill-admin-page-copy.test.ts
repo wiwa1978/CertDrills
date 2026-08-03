@@ -123,6 +123,16 @@ describe("CertDrill admin page copy", () => {
     expect(detailRouteSource).toContain("questionSort");
   });
 
+  it("guards live question search state against stale navigations", () => {
+    expect(questionFilterBarSource).toContain("searchDebounceRef");
+    expect(questionFilterBarSource).toContain("searchNavigationVersionRef");
+    expect(questionFilterBarSource).toContain("pendingSearchNavigationsRef");
+    expect(questionFilterBarSource).toContain("clearTimeout(searchDebounceRef.current)");
+    expect(questionFilterBarSource).toContain("pendingSearchNavigationsRef.current.push");
+    expect(questionFilterBarSource).toContain("matchingNavigationIndex");
+    expect(questionFilterBarSource).toContain('setSearch("")');
+  });
+
   it("opens filtered questions when selecting a category", () => {
     expect(source).toContain('selectedCertificationHref({ questionCategoryId: category.id, tab: "questions" })');
     expect(source).toContain("selectedTab?: string;");
