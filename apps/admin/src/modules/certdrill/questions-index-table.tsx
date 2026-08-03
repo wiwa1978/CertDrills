@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { Fragment, useState } from "react";
 
 import { Link as LocalizedLink } from "@/i18n/navigation";
@@ -30,7 +30,7 @@ type QuestionsIndexTableProps = {
   archiveAction: (formData: FormData) => void | Promise<void>;
 };
 
-function stopRowToggle(event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) {
+function stopRowToggle(event: MouseEvent<HTMLElement>) {
   event.stopPropagation();
 }
 
@@ -63,13 +63,6 @@ export function QuestionsIndexTable({
     setExpandedQuestionId((currentQuestionId) => currentQuestionId === questionId ? undefined : questionId);
   }
 
-  function handleRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, questionId: string) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      toggleExpandedQuestion(questionId);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <Table>
@@ -77,7 +70,7 @@ export function QuestionsIndexTable({
           <TableRow>
             <TableHead>Certification</TableHead>
             <TableHead>Category</TableHead>
-            <TableHead aria-sort={sort === "stem-desc" ? "descending" : "ascending"}>
+            <TableHead aria-sort={sortHref ? (sort === "stem-desc" ? "descending" : "ascending") : "none"}>
               {sortHref ? (
                 <Button asChild variant="ghost" size="sm" className="-ml-3 h-auto px-3 py-1 font-medium">
                   <LocalizedLink href={sortHref} aria-label={sort === "stem-desc" ? "Sort Question A-Z" : "Sort Question Z-A"}>
@@ -94,16 +87,14 @@ export function QuestionsIndexTable({
         <TableBody>
           {questionItems.map((question) => {
             const isExpanded = expandedQuestionId === question.questionId;
+            const detailsId = `question-details-${question.questionId}`;
             const sortedOptions = question.options.toSorted((first, second) => first.sortOrder - second.sortOrder);
 
             return (
               <Fragment key={question.questionId}>
                 <TableRow
-                  tabIndex={0}
-                  aria-expanded={isExpanded}
-                  className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="cursor-pointer"
                   onClick={() => toggleExpandedQuestion(question.questionId)}
-                  onKeyDown={(event) => handleRowKeyDown(event, question.questionId)}
                 >
                   <TableCell className="whitespace-normal">
                     <div className="space-y-1">
@@ -118,22 +109,38 @@ export function QuestionsIndexTable({
                     </div>
                   </TableCell>
                   <TableCell className="max-w-xl whitespace-normal">
-                    <div className="space-y-1">
-                      <LocalizedLink
-                        href={questionEditorHref(question.certificationId, question.questionId)}
-                        className="font-medium underline-offset-4 hover:underline"
-                        onClick={stopRowToggle}
-                        onKeyDown={stopRowToggle}
-                      >
-                        {question.stem}
-                      </LocalizedLink>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-expanded={isExpanded}
+                          aria-controls={detailsId}
+                          aria-label={isExpanded ? `Hide answers for ${question.stem}` : `Show answers for ${question.stem}`}
+                          onClick={(event) => {
+                            stopRowToggle(event);
+                            toggleExpandedQuestion(question.questionId);
+                          }}
+                        >
+                          {isExpanded ? "Hide answers" : "Show answers"}
+                        </Button>
+                        <LocalizedLink
+                          href={questionEditorHref(question.certificationId, question.questionId)}
+                          className="text-sm font-medium underline-offset-4 hover:underline"
+                          onClick={stopRowToggle}
+                        >
+                          Open editor
+                        </LocalizedLink>
+                      </div>
+                      <p className="font-medium">{question.stem}</p>
                       <p className="font-mono text-xs text-muted-foreground">{question.questionId}</p>
                     </div>
                   </TableCell>
                   <TableCell><Badge variant="outline">{question.status}</Badge></TableCell>
                   <TableCell><Badge variant="secondary">{question.difficulty}</Badge></TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end" onClick={stopRowToggle} onKeyDown={stopRowToggle}>
+                    <div className="flex justify-end" onClick={stopRowToggle}>
                       <QuestionActionsMenu
                         questionId={question.questionId}
                         status={question.status}
@@ -141,7 +148,6 @@ export function QuestionsIndexTable({
                           <LocalizedLink
                             href={questionEditorHref(question.certificationId, question.questionId)}
                             onClick={stopRowToggle}
-                            onKeyDown={stopRowToggle}
                           >
                             Edit
                           </LocalizedLink>
@@ -155,7 +161,7 @@ export function QuestionsIndexTable({
                 {isExpanded ? (
                   <TableRow key={`${question.questionId}-details`}>
                     <TableCell colSpan={6} className="whitespace-normal bg-muted/20">
-                      <div className="space-y-3 py-2">
+                      <div id={detailsId} className="space-y-3 py-2">
                         {sortedOptions.length > 0 ? (
                           <ol className="space-y-3">
                             {sortedOptions.map((option) => (

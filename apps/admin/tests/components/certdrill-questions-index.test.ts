@@ -30,7 +30,7 @@ describe("questions index table source", () => {
   it("renders exactly the required columns and a sortable question header", () => {
     expect(tableSource).toContain("<TableHead>Certification</TableHead>");
     expect(tableSource).toContain("<TableHead>Category</TableHead>");
-    expect(tableSource).toContain('<TableHead aria-sort={sort === "stem-desc" ? "descending" : "ascending"}>');
+    expect(tableSource).toContain('<TableHead aria-sort={sortHref ? (sort === "stem-desc" ? "descending" : "ascending") : "none"}>');
     expect(tableSource).toContain("Question");
     expect(tableSource).toContain("<TableHead>Status</TableHead>");
     expect(tableSource).toContain("<TableHead>Difficulty</TableHead>");
@@ -40,28 +40,35 @@ describe("questions index table source", () => {
     expect(tableSource).not.toContain('>Options</TableHead>');
   });
 
-  it("keeps a single expanded question id with click and keyboard row toggles", () => {
+  it("keeps a single expanded question id with a dedicated disclosure button and mouse row toggles", () => {
     expect(tableSource).toContain("const [expandedQuestionId, setExpandedQuestionId] = useState<string>();");
     expect(tableSource).toContain("setExpandedQuestionId((currentQuestionId) => currentQuestionId === questionId ? undefined : questionId);");
-    expect(tableSource).toContain("tabIndex={0}");
+    expect(tableSource).toContain("const detailsId = `question-details-${question.questionId}`;");
+    expect(tableSource).toContain("type=\"button\"");
     expect(tableSource).toContain("aria-expanded={isExpanded}");
+    expect(tableSource).toContain("aria-controls={detailsId}");
+    expect(tableSource).toContain('aria-label={isExpanded ? `Hide answers for ${question.stem}` : `Show answers for ${question.stem}`}');
+    expect(tableSource).toContain('{isExpanded ? "Hide answers" : "Show answers"}');
     expect(tableSource).toContain("onClick={() => toggleExpandedQuestion(question.questionId)}");
-    expect(tableSource).toContain('event.key === "Enter"');
-    expect(tableSource).toContain('event.key === " "');
-    expect(tableSource).toContain("event.preventDefault();");
+    expect(tableSource).toContain("stopRowToggle(event);");
+    expect(tableSource).not.toContain("tabIndex={0}");
+    expect(tableSource).not.toContain("handleRowKeyDown");
+    expect(tableSource).not.toContain('event.key === "Enter"');
+    expect(tableSource).not.toContain('event.key === " "');
   });
 
   it("stops propagation for the editor link and shared actions menu", () => {
     expect(tableSource).toContain("function stopRowToggle(");
     expect(tableSource).toContain("event.stopPropagation();");
     expect(tableSource).toContain("onClick={stopRowToggle}");
-    expect(tableSource).toContain("onKeyDown={stopRowToggle}");
+    expect(tableSource).not.toContain("onKeyDown={stopRowToggle}");
     expect(tableSource).toContain("<QuestionActionsMenu");
   });
 
   it("renders expanded answers directly below the active row without citations or media metadata", () => {
     expect(tableSource).toContain("isExpanded ? (");
     expect(tableSource).toContain("<TableRow key={`${question.questionId}-details`}>");
+    expect(tableSource).toContain("<div id={detailsId} className=\"space-y-3 py-2\">");
     expect(tableSource).toContain("<TableCell colSpan={6}");
     expect(tableSource).toContain("question.options.toSorted((first, second) => first.sortOrder - second.sortOrder)");
     expect(tableSource).toContain("Correct");
