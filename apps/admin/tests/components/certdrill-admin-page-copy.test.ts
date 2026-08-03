@@ -138,6 +138,7 @@ describe("CertDrill admin page copy", () => {
     expect(questionFilterBarSource).toContain("pendingSearchNavigationsRef.current.push");
     expect(questionFilterBarSource).toContain("matchingNavigationIndex");
     expect(questionFilterBarSource).toContain('setSearch("")');
+    expect(questionFilterBarSource).toContain('params.delete("categoryId");');
   });
 
   it("opens filtered questions when selecting a category", () => {

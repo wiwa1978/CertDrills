@@ -139,6 +139,7 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     questionFilterNames.forEach((name) => params.delete(name));
+    params.delete("categoryId");
     currentQueryParamsRef.current = params;
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
