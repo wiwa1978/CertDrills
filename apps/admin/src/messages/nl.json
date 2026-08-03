@@ -624,7 +624,8 @@
       "discounts": "Kortingscodes",
       "vouchers": "Vouchers",
       "logs": "Logs",
-      "certdrill": "CertDrill"
+      "certdrill": "CertDrill",
+      "questions": "Vragen"
     },
     "system": {
       "title": "Systeem",

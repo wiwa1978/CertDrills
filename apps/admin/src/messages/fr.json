@@ -624,7 +624,8 @@
       "discounts": "Codes de réduction",
       "vouchers": "Bons",
       "logs": "Journaux",
-      "certdrill": "CertDrill"
+      "certdrill": "CertDrill",
+      "questions": "Questions"
     },
     "system": {
       "title": "Système",

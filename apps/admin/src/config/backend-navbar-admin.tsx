@@ -3,6 +3,7 @@ import {
   BookOpenCheck,
   CreditCard,
   ListChecks,
+  ListTodo,
   ServerCog,
   ShieldCheck,
   LayoutDashboard,
@@ -30,6 +31,12 @@ export const BackendNavAdminItems: BackendNavAdminItem[] = [
     title: "admin.nav.certdrill",
     url: "/admin/certdrill",
     icon: BookOpenCheck,
+  },
+
+  {
+    title: "admin.nav.questions",
+    url: "/admin/questions",
+    icon: ListTodo,
   },
 
   {

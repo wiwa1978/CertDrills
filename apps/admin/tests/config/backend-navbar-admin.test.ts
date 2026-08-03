@@ -9,6 +9,7 @@ describe("admin backend nav config", () => {
     expect(urls).toEqual([
       "/admin/overview",
       "/admin/certdrill",
+      "/admin/questions",
       "/admin/system",
       "/admin/admins",
       "/admin/users",
