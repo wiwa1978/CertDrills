@@ -89,7 +89,6 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("FeedbackStatusFilter");
     expect(source).toContain("filterQuestionFeedback");
     expect(source).toContain("feedbackStatus?: string;");
-    expect(detailRouteSource).toContain("feedbackStatus?: SearchParamValue");
     expect(detailRouteSource).toContain("feedbackStatus={firstSearchParamString(feedbackStatus)}");
     expect(source).toContain("FeedbackTable");
     expect(source).toContain("Rating");
@@ -127,17 +126,24 @@ describe("CertDrill admin page copy", () => {
 
   it("paginates the server-filtered question table and preserves page routing", () => {
     expect(source).toContain("questionPage?: string;");
+    expect(source).toContain("questionTableQuery?: QuestionTableQuery;");
+    expect(source).toContain("const currentQuestionTableQuery = questionTableQuery ??");
+    expect(source).toContain("if (item !== undefined) searchParams.append(key, item);");
+    expect(source).toContain("} else if (value !== undefined) {");
     expect(source).toContain("paginateQuestions");
     expect(source).toContain("Stem A-Z");
     expect(source).toContain("Stem Z-A");
+    expect(source).toContain('aria-sort={sort === "stem-desc" ? "descending" : "ascending"}');
+    expect(source).toContain('{sort === "stem-desc" ? "↓" : "↑"}');
     expect(source).toContain("questionPage");
     expect(source).toContain("Page {page} of {pageCount}");
     expect(source).toContain("<LocalizedLink href={previousPageHref}>Previous</LocalizedLink>");
     expect(source).toContain("<LocalizedLink href={nextPageHref}>Next</LocalizedLink>");
     expect(source).toContain(': <Button variant="outline" size="sm" disabled>Previous</Button>');
     expect(source).toContain(': <Button variant="outline" size="sm" disabled>Next</Button>');
-    expect(detailRouteSource).toContain("questionPage?: SearchParamValue");
     expect(detailRouteSource).toContain("questionPage={firstSearchParamString(questionPage)}");
+    expect(detailRouteSource).toContain("searchParams: Promise<Record<string, SearchParamValue>>");
+    expect(detailRouteSource).toContain("questionTableQuery={query}");
   });
 
   it("keeps category labels out of free-text question matches", () => {
@@ -171,15 +177,13 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("selectedTab?: string;");
     expect(source).toContain('selectedTab === "questions"');
     expect(source).toContain('<Tabs key={defaultTab} defaultValue={defaultTab}');
-    expect(detailRouteSource).toContain("tab?: SearchParamValue");
     expect(detailRouteSource).toContain("selectedTab={firstSearchParamString(tab)}");
   });
 
   it("normalizes array search params before passing string-only filters", () => {
     expect(detailRouteSource).toContain("type SearchParamValue = string | string[] | undefined");
     expect(detailRouteSource).toContain("firstSearchParamString");
-    expect(detailRouteSource).toContain("categoryId?: SearchParamValue");
-    expect(detailRouteSource).toContain("questionSearch?: SearchParamValue");
+    expect(detailRouteSource).toContain("searchParams: Promise<Record<string, SearchParamValue>>");
     expect(detailRouteSource).toContain("selectedCategoryId={firstSearchParamString(categoryId)}");
     expect(detailRouteSource).toContain("questionSearch={firstSearchParamString(questionSearch)}");
     expect(detailRouteSource).toContain("questionSort={firstSearchParamString(questionSort)}");

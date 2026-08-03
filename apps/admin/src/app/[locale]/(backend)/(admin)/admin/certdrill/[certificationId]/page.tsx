@@ -13,24 +13,10 @@ export default async function AdminCertDrillCertificationPage({
   searchParams,
 }: {
   params: Promise<{ certificationId: string }>;
-  searchParams: Promise<{
-    categoryId?: SearchParamValue;
-    examFormId?: SearchParamValue;
-    resourceId?: SearchParamValue;
-    questionSearch?: SearchParamValue;
-    questionStatus?: SearchParamValue;
-    questionDifficulty?: SearchParamValue;
-    questionCategoryId?: SearchParamValue;
-    questionSort?: SearchParamValue;
-    questionPage?: SearchParamValue;
-    feedbackStatus?: SearchParamValue;
-    tab?: SearchParamValue;
-  }>;
+  searchParams: Promise<Record<string, SearchParamValue>>;
 }) {
-  const [
-    { certificationId },
-    { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab },
-  ] = await Promise.all([params, searchParams]);
+  const [{ certificationId }, query] = await Promise.all([params, searchParams]);
+  const { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab } = query;
   const certifications = await getCertDrillCertificationsServer();
 
   return (
@@ -49,6 +35,7 @@ export default async function AdminCertDrillCertificationPage({
         questionPage={firstSearchParamString(questionPage)}
         feedbackStatus={firstSearchParamString(feedbackStatus)}
         selectedTab={firstSearchParamString(tab)}
+        questionTableQuery={query}
       />
     </Container>
   );

@@ -33,7 +33,7 @@ describe("question pagination", () => {
     expect(result.items.at(-1)).toBe("question-100");
   });
 
-  it("preserves detail-page state while changing question table navigation", () => {
+  it("preserves known and unknown query parameters while changing question table navigation", () => {
     const currentQuery = {
       categoryId: "category-1",
       examFormId: "form-1",
@@ -46,6 +46,7 @@ describe("question pagination", () => {
       questionPage: "3",
       feedbackStatus: "open",
       tab: "feedback",
+      foo: "bar",
     };
 
     expect(buildQuestionSortQuery(currentQuery, "stem-desc")).toEqual({
@@ -59,5 +60,7 @@ describe("question pagination", () => {
       questionPage: "4",
       tab: "questions",
     });
+    expect(buildQuestionSortQuery(currentQuery, "stem-desc")).toMatchObject({ foo: "bar" });
+    expect(buildQuestionPageQuery(currentQuery, 4)).toMatchObject({ foo: "bar" });
   });
 });

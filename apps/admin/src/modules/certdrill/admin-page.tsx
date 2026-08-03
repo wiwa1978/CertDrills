@@ -62,6 +62,7 @@ import {
   buildQuestionPageQuery,
   buildQuestionSortQuery,
   paginateQuestions,
+  type QuestionTableQuery,
 } from "./question-pagination";
 
 type CertDrillAdminPageProps = {
@@ -78,6 +79,7 @@ type CertDrillAdminPageProps = {
   questionPage?: string;
   feedbackStatus?: string;
   selectedTab?: string;
+  questionTableQuery?: QuestionTableQuery;
 };
 
 type CertificationOption = {
@@ -86,19 +88,7 @@ type CertificationOption = {
   name: string;
 };
 
-type CertDrillAdminHrefParams = {
-  categoryId?: string;
-  examFormId?: string;
-  resourceId?: string;
-  questionSearch?: string;
-  questionStatus?: string;
-  questionDifficulty?: string;
-  questionCategoryId?: string;
-  questionSort?: string;
-  questionPage?: string;
-  feedbackStatus?: string;
-  tab?: string;
-};
+type CertDrillAdminHrefParams = QuestionTableQuery;
 
 type QuestionFilters = {
   questionSearch?: string;
@@ -231,6 +221,7 @@ export async function CertDrillAdminPage({
   questionPage,
   feedbackStatus,
   selectedTab,
+  questionTableQuery,
 }: CertDrillAdminPageProps) {
   const [adminCertifications, vendors] = await Promise.all([
     listCertDrillAdminCertificationsServer(),
@@ -288,7 +279,7 @@ export async function CertDrillAdminPage({
     page: currentQuestionPage,
     pageCount: questionPageCount,
   } = paginateQuestions(filteredQuestions, questionPage);
-  const currentQuestionTableQuery: CertDrillAdminHrefParams = {
+  const currentQuestionTableQuery = questionTableQuery ?? {
     categoryId: requestedCategoryId,
     examFormId: requestedExamFormId,
     resourceId: requestedResourceId,
@@ -635,7 +626,13 @@ function certdrillAdminDetailHref(certificationId: string, params: CertDrillAdmi
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
-    if (value) searchParams.set(key, value);
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== undefined) searchParams.append(key, item);
+      }
+    } else if (value !== undefined) {
+      searchParams.set(key, value);
+    }
   }
 
   const query = searchParams.toString();
@@ -1518,8 +1515,12 @@ function QuestionTable({
         <TableHeader>
           <TableRow>
             <TableHead>ID</TableHead>
-            <TableHead>
-              {stemSortHref ? <LocalizedLink href={stemSortHref} aria-label="Toggle stem sort" className="hover:underline">{sort === "stem-desc" ? "Stem Z-A" : "Stem A-Z"}</LocalizedLink> : "Stem"}
+            <TableHead aria-sort={sort === "stem-desc" ? "descending" : "ascending"}>
+              {stemSortHref ? (
+                <LocalizedLink href={stemSortHref} aria-label={sort === "stem-desc" ? "Sort Stem A-Z" : "Sort Stem Z-A"} className="hover:underline">
+                  Stem <span aria-hidden="true">{sort === "stem-desc" ? "↓" : "↑"}</span>
+                </LocalizedLink>
+              ) : <>Stem <span aria-hidden="true">{sort === "stem-desc" ? "↓" : "↑"}</span></>}
             </TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Difficulty</TableHead>

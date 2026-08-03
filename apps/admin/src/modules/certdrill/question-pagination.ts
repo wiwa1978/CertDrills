@@ -1,9 +1,10 @@
 export const questionsPerPage = 50;
 
-type QuestionTableQuery = {
-  questionPage?: string;
-  questionSort?: string;
-  tab?: string;
+export type QuestionTableQuery = {
+  [key: string]: string | string[] | undefined;
+  questionPage?: string | string[];
+  questionSort?: string | string[];
+  tab?: string | string[];
 };
 
 export function normalizeQuestionPage(value?: string) {
