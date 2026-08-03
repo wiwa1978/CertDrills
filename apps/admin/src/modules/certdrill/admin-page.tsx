@@ -274,7 +274,7 @@ export async function CertDrillAdminPage({
     questionCategoryId: questionCategoryId ?? requestedCategoryId,
     questionSort,
   });
-  const filteredQuestions = filterCertDrillAdminQuestions(questions, categories, questionFilters);
+  const filteredQuestions = filterCertDrillAdminQuestions(questions, questionFilters);
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
   const defaultTab = selectedTab === "categories"
     || selectedTab === "questions"
@@ -624,10 +624,8 @@ function normalizeQuestionFilters(filters: QuestionFilters): QuestionFilters {
 
 function filterCertDrillAdminQuestions(
   questions: CertDrillAdminQuestion[],
-  categories: CertDrillAdminCategory[],
   filters: QuestionFilters,
 ) {
-  const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const search = filters.questionSearch?.toLowerCase();
   const filtered = questions.filter((question) => {
     if (filters.questionCategoryId && question.categoryId !== filters.questionCategoryId) return false;
@@ -635,15 +633,11 @@ function filterCertDrillAdminQuestions(
     if (filters.questionDifficulty && (question.difficulty ?? "medium") !== filters.questionDifficulty) return false;
     if (!search) return true;
 
-    const category = categoriesById.get(question.categoryId);
     const searchableText = [
       question.id,
       question.stem,
       question.status ?? "draft",
       question.difficulty ?? "medium",
-      question.categoryId,
-      category?.code ?? "",
-      category?.name ?? "",
       ...(question.options ?? []).flatMap((option) => [option.text, option.explanation ?? ""]),
     ].join(" ").toLowerCase();
 

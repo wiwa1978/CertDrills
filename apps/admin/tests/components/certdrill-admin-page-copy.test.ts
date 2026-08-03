@@ -123,6 +123,11 @@ describe("CertDrill admin page copy", () => {
     expect(detailRouteSource).toContain("questionSort");
   });
 
+  it("keeps category labels out of free-text question matches", () => {
+    expect(source).not.toContain("category?.code ??");
+    expect(source).not.toContain("category?.name ??");
+  });
+
   it("guards live question search state against stale navigations", () => {
     expect(questionFilterBarSource).toContain(
       "const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));",
