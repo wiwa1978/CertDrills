@@ -13,7 +13,6 @@ type QuestionFilters = {
   questionStatus?: string;
   questionDifficulty?: string;
   questionCategoryId?: string;
-  questionSort?: string;
 };
 
 type QuestionFilterName = keyof QuestionFilters;
@@ -24,7 +23,6 @@ const questionFilterNames: QuestionFilterName[] = [
   "questionStatus",
   "questionDifficulty",
   "questionCategoryId",
-  "questionSort",
 ];
 
 export function QuestionFilterBar({
@@ -65,6 +63,7 @@ export function QuestionFilterBar({
     const trimmedValue = value.trim();
 
     params.set("tab", "questions");
+    params.delete("questionPage");
     if (trimmedValue) {
       params.set(name, trimmedValue);
     } else {
@@ -139,6 +138,7 @@ export function QuestionFilterBar({
     }
 
     params.set("tab", "questions");
+    params.delete("questionPage");
     questionFilterNames.forEach((name) => params.delete(name));
     params.delete("categoryId");
     currentQueryParamsRef.current = params;
@@ -200,21 +200,6 @@ export function QuestionFilterBar({
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
-        </select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="question-sort">Sort by</Label>
-        <select
-          id="question-sort"
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-          value={filters.questionSort ?? "stem-asc"}
-          onChange={(event) => replaceFilter("questionSort", event.target.value)}
-        >
-          <option value="stem-asc">Stem A-Z</option>
-          <option value="stem-desc">Stem Z-A</option>
-          <option value="status-asc">Status</option>
-          <option value="difficulty-asc">Difficulty</option>
-          <option value="id-asc">ID</option>
         </select>
       </div>
       <div className="flex items-end">

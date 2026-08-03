@@ -109,7 +109,9 @@ describe("CertDrill admin page copy", () => {
     expect(questionFilterBarSource).toContain("Filter by category");
     expect(questionFilterBarSource).toContain("Filter by status");
     expect(questionFilterBarSource).toContain("Filter by difficulty");
-    expect(questionFilterBarSource).toContain("Sort by");
+    expect(questionFilterBarSource).not.toContain("Sort by");
+    expect(questionFilterBarSource).not.toContain('id="question-sort"');
+    expect(questionFilterBarSource).toContain('params.delete("questionPage");');
     expect(source).toContain("questionSearch");
     expect(source).toContain("questionStatus");
     expect(source).toContain("questionDifficulty");
