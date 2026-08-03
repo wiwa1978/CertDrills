@@ -32,6 +32,8 @@ const CLEAR_RELATIONSHIP_SENTINEL = "__none__";
 function revalidateCertDrillAdminPage() {
   revalidatePath("/[locale]/admin/certdrill", "page");
   revalidatePath("/admin/certdrill");
+  revalidatePath("/[locale]/admin/questions", "page");
+  revalidatePath("/admin/questions");
 }
 
 function requiredString(formData: FormData, name: string) {

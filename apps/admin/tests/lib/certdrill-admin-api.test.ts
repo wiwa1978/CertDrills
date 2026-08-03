@@ -114,6 +114,128 @@ describe("CertDrill admin API helpers", () => {
     });
   });
 
+  it("lists the centralized admin question index with only defined query params", async () => {
+    const payload = {
+      items: [
+        {
+          questionId: "question-1",
+          stem: "Which option is correct?",
+          status: "published",
+          difficulty: "hard",
+          certificationId: "cert-1",
+          certificationCode: "AZ-104",
+          certificationName: "Azure Administrator",
+          categoryId: "category-1",
+          categoryCode: "identity",
+          categoryName: "Identity",
+          answerOptions: [
+            {
+              id: "option-1",
+              questionId: "question-1",
+              text: "Correct",
+              isCorrect: true,
+              explanation: "Because it matches the requirement.",
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+      filterOptions: {
+        certifications: [{ id: "cert-1", code: "AZ-104", name: "Azure Administrator" }],
+        categories: [{ id: "category-1", certificationId: "cert-1", code: "identity", name: "Identity" }],
+      },
+      pagination: {
+        page: 3,
+        pageSize: 50,
+        pageCount: 4,
+        totalItems: 175,
+      },
+    };
+    serverApiRequestMock.mockResolvedValueOnce({ success: true, data: payload });
+
+    await expect(certdrillApi.listCertDrillAdminQuestionIndexServer({
+      search: "  zero trust  ",
+      certificationId: "cert-1",
+      categoryId: "",
+      status: "published",
+      difficulty: "hard",
+      sort: "stem-desc",
+      page: 3,
+    })).resolves.toEqual({
+      items: [
+        {
+          questionId: "question-1",
+          stem: "Which option is correct?",
+          status: "published",
+          difficulty: "hard",
+          certificationId: "cert-1",
+          certificationCode: "AZ-104",
+          certificationName: "Azure Administrator",
+          categoryId: "category-1",
+          categoryCode: "identity",
+          categoryName: "Identity",
+          options: [
+            {
+              id: "option-1",
+              questionId: "question-1",
+              text: "Correct",
+              isCorrect: true,
+              explanation: "Because it matches the requirement.",
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+      certifications: [{ id: "cert-1", code: "AZ-104", name: "Azure Administrator" }],
+      categories: [{ id: "category-1", certificationId: "cert-1", code: "identity", name: "Identity" }],
+      page: 3,
+      pageCount: 4,
+      pageSize: 50,
+      total: 175,
+    });
+
+    expect(serverApiRequestMock).toHaveBeenCalledWith(
+      "/api/admin/certdrill/questions?search=zero+trust&certificationId=cert-1&status=published&difficulty=hard&sort=stem-desc&page=3",
+    );
+  });
+
+  it("omits empty centralized admin question index query params", async () => {
+    const payload = {
+      items: [],
+      filterOptions: {
+        certifications: [],
+        categories: [],
+      },
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        pageCount: 1,
+        totalItems: 0,
+      },
+    };
+    serverApiRequestMock.mockResolvedValueOnce({ success: true, data: payload });
+
+    await expect(certdrillApi.listCertDrillAdminQuestionIndexServer({
+      search: "   ",
+      certificationId: undefined,
+      categoryId: "",
+      status: undefined,
+      difficulty: undefined,
+      sort: undefined,
+      page: undefined,
+    })).resolves.toEqual({
+      items: [],
+      certifications: [],
+      categories: [],
+      page: 1,
+      pageCount: 1,
+      pageSize: 50,
+      total: 0,
+    });
+
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/questions");
+  });
+
   it("lists, creates, and updates admin exam forms", async () => {
     const createPayload = {
       certificationId: "cert-1",

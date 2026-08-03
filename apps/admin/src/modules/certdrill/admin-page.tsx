@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import type { CertDrillCertificationListItem } from "@platform/contracts";
 import Link from "next/link";
-import { Archive, MoreHorizontal, Pencil } from "lucide-react";
+import { Archive, Pencil } from "lucide-react";
 
 import { Link as LocalizedLink } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClientOnly } from "@/components/client-only";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -57,6 +50,7 @@ import {
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
+import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
 import {
   buildQuestionPageQuery,
@@ -1544,40 +1538,13 @@ function QuestionTable({
                 <TableCell>{question.difficulty ?? "medium"}</TableCell>
                 <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label={`Actions for ${question.id}`}>
-                        <MoreHorizontal className="size-4" />
-                        <span className="sr-only">Actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>
-                      </DropdownMenuItem>
-                      {questionStatus !== "archived" ? <DropdownMenuSeparator /> : null}
-                      {questionStatus === "draft" ? (
-                        <DropdownMenuItem asChild>
-                          <button type="submit" form={`publish-question-${question.id}`}>Publish</button>
-                        </DropdownMenuItem>
-                      ) : null}
-                      {questionStatus !== "archived" ? (
-                        <DropdownMenuItem asChild variant="destructive">
-                          <button type="submit" form={`archive-question-${question.id}`}>Archive</button>
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  {questionStatus === "draft" ? (
-                    <form id={`publish-question-${question.id}`} action={publishAction}>
-                      <input type="hidden" name="questionId" value={question.id} />
-                    </form>
-                  ) : null}
-                  {questionStatus !== "archived" ? (
-                    <form id={`archive-question-${question.id}`} action={archiveAction}>
-                      <input type="hidden" name="questionId" value={question.id} />
-                    </form>
-                  ) : null}
+                  <QuestionActionsMenu
+                    questionId={question.id}
+                    status={questionStatus}
+                    edit={<LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>}
+                    publishAction={publishAction}
+                    archiveAction={archiveAction}
+                  />
                 </TableCell>
               </TableRow>
             );

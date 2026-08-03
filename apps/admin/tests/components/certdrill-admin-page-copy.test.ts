@@ -6,6 +6,10 @@ const questionFilterBarSource = readFileSync(
   new URL("../../src/modules/certdrill/question-filter-bar.tsx", import.meta.url),
   "utf8",
 );
+const questionActionsMenuSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-actions-menu.tsx", import.meta.url),
+  "utf8",
+);
 const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
 const routeSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/page.tsx", import.meta.url),
@@ -227,25 +231,43 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>');
   });
 
-  it("moves question publishing and archiving into table actions", () => {
-    expect(source).toContain('from "@/components/ui/dropdown-menu"');
-    expect(source).toContain("<DropdownMenu");
+  it("shares question publishing and archiving through a focused row actions menu", () => {
+    expect(source).toContain('import { QuestionActionsMenu } from "./question-actions-menu";');
+    expect(source).toContain("<QuestionActionsMenu");
     expect(source).toContain('<TableHead className="text-right">Actions</TableHead>');
-    expect(source).toContain(">Edit</LocalizedLink>");
-    expect(source).toContain(">Publish</button>");
-    expect(source).toContain(">Archive</button>");
+    expect(source).toContain('edit={<LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>}');
+    expect(source).toContain('publishAction={publishAction}');
+    expect(source).toContain('archiveAction={archiveAction}');
+    expect(source).not.toContain('from "@/components/ui/dropdown-menu"');
+    expect(source).not.toContain("<DropdownMenu");
+    expect(source).not.toContain("MoreHorizontal");
+    expect(questionActionsMenuSource).toContain('"use client"');
+    expect(questionActionsMenuSource).toContain("DropdownMenu");
+    expect(questionActionsMenuSource).toContain("DropdownMenuSeparator");
+    expect(questionActionsMenuSource).toContain("function stopPropagation(");
+    expect(questionActionsMenuSource).toContain("event.stopPropagation();");
+    expect(questionActionsMenuSource).toContain("onClick={stopPropagation}");
+    expect(questionActionsMenuSource).toContain('const questionStatus = status ?? "draft";');
+    expect(questionActionsMenuSource).toContain("{edit}");
     expect(source).toContain('const questionStatus = question.status ?? "draft";');
-    expect(source).toContain('questionStatus === "draft"');
-    expect(source).toContain('questionStatus !== "archived"');
-    expect(source).toContain('id={`publish-question-${question.id}`}');
-    expect(source).toContain('id={`archive-question-${question.id}`}');
-    expect(source).toContain("DropdownMenuItem asChild");
-    expect(source).toContain("DropdownMenuSeparator");
+    expect(questionActionsMenuSource).toContain('questionStatus === "draft"');
+    expect(questionActionsMenuSource).toContain('questionStatus !== "archived"');
+    expect(questionActionsMenuSource).toContain(">Publish</button>");
+    expect(questionActionsMenuSource).toContain(">Archive</button>");
+    expect(questionActionsMenuSource).toContain('id={`publish-question-${questionId}`}');
+    expect(questionActionsMenuSource).toContain('id={`archive-question-${questionId}`}');
     expect(source).not.toContain("<CardTitle>Publish question</CardTitle>");
     expect(source).toContain("publishAction={publishCertDrillQuestionAction}");
     expect(source).toContain("archiveAction={archiveCertDrillQuestionAction}");
     expect(actionsSource).toContain("archiveCertDrillQuestionAction");
     expect(actionsSource).toContain('updateCertDrillAdminQuestionServer(questionId, { status: "archived" })');
+  });
+
+  it("revalidates both certification and centralized questions pages after admin mutations", () => {
+    expect(actionsSource).toContain('revalidatePath("/[locale]/admin/certdrill", "page");');
+    expect(actionsSource).toContain('revalidatePath("/admin/certdrill");');
+    expect(actionsSource).toContain('revalidatePath("/[locale]/admin/questions", "page");');
+    expect(actionsSource).toContain('revalidatePath("/admin/questions");');
   });
 
   it("loads and identifies the selected certification in the dedicated question editor", () => {

@@ -73,6 +73,49 @@ export type CertDrillAdminQuestionInput = {
 
 export type CertDrillAdminQuestionUpdateInput = Partial<Omit<CertDrillAdminQuestionInput, "certificationId" | "createdBy">>;
 export type CertDrillAdminQuestion = CertDrillAdminQuestionInput & { id: string };
+export type CertDrillAdminQuestionIndexSort = "stem-asc" | "stem-desc";
+export type CertDrillAdminQuestionIndexQuery = {
+  search?: string | null;
+  certificationId?: string | null;
+  categoryId?: string | null;
+  status?: NonNullable<CertDrillAdminQuestion["status"]> | null;
+  difficulty?: CertDrillDifficulty | null;
+  sort?: CertDrillAdminQuestionIndexSort | null;
+  page?: number | string | null;
+};
+
+export type CertDrillAdminQuestionIndexOption = {
+  id: string;
+  questionId: string;
+  text: string;
+  isCorrect: boolean;
+  explanation: string;
+  sortOrder: number;
+};
+
+export type CertDrillAdminQuestionIndexItem = {
+  questionId: string;
+  stem: string;
+  status: NonNullable<CertDrillAdminQuestion["status"]>;
+  difficulty: CertDrillDifficulty;
+  certificationId: string;
+  certificationCode: string;
+  certificationName: string;
+  categoryId: string;
+  categoryCode: string;
+  categoryName: string;
+  options: CertDrillAdminQuestionIndexOption[];
+};
+
+export type CertDrillAdminQuestionIndexResult = {
+  items: CertDrillAdminQuestionIndexItem[];
+  certifications: Array<Pick<CertDrillAdminCertification, "id" | "code" | "name">>;
+  categories: Array<Pick<CertDrillAdminCategory, "id" | "certificationId" | "code" | "name">>;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+};
 
 export type CertDrillAdminExamFormInput = {
   certificationId: string;
@@ -132,6 +175,24 @@ export type CertDrillAdminQuestionFeedbackUpdateInput = {
   status: "reviewed" | "resolved";
 };
 
+type CertDrillAdminQuestionIndexApiItem = Omit<CertDrillAdminQuestionIndexItem, "options"> & {
+  answerOptions: CertDrillAdminQuestionIndexOption[];
+};
+
+type CertDrillAdminQuestionIndexApiResult = {
+  items: CertDrillAdminQuestionIndexApiItem[];
+  filterOptions: {
+    certifications: CertDrillAdminQuestionIndexResult["certifications"];
+    categories: CertDrillAdminQuestionIndexResult["categories"];
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    pageCount: number;
+    totalItems: number;
+  };
+};
+
 function jsonRequestInit(method: "POST" | "PATCH", payload: unknown): RequestInit {
   return {
     method,
@@ -144,6 +205,15 @@ async function certdrillAdminRequest<T>(path: string, init?: RequestInit): Promi
     ? await serverApiRequest<SuccessResult<T>>(`${CERTDRILL_ADMIN_BASE_PATH}${path}`, init)
     : await serverApiRequest<SuccessResult<T>>(`${CERTDRILL_ADMIN_BASE_PATH}${path}`);
   return result.data;
+}
+
+function appendSearchParam(params: URLSearchParams, name: string, value: string | number | null | undefined) {
+  if (value === undefined || value === null) return;
+
+  const normalizedValue = typeof value === "string" ? value.trim() : String(value);
+  if (!normalizedValue) return;
+
+  params.append(name, normalizedValue);
 }
 
 export async function getCertDrillCertificationsServer() {
@@ -197,6 +267,32 @@ export async function archiveCertDrillAdminCategoryServer(categoryId: string): P
 
 export async function listCertDrillAdminQuestionsServer(certificationId: string): Promise<CertDrillAdminQuestion[]> {
   return certdrillAdminRequest<CertDrillAdminQuestion[]>(`/certifications/${certificationId}/questions`);
+}
+
+export async function listCertDrillAdminQuestionIndexServer(
+  query: CertDrillAdminQuestionIndexQuery = {},
+): Promise<CertDrillAdminQuestionIndexResult> {
+  const searchParams = new URLSearchParams();
+  appendSearchParam(searchParams, "search", query.search);
+  appendSearchParam(searchParams, "certificationId", query.certificationId);
+  appendSearchParam(searchParams, "categoryId", query.categoryId);
+  appendSearchParam(searchParams, "status", query.status);
+  appendSearchParam(searchParams, "difficulty", query.difficulty);
+  appendSearchParam(searchParams, "sort", query.sort);
+  appendSearchParam(searchParams, "page", query.page);
+
+  const queryString = searchParams.toString();
+  const result = await certdrillAdminRequest<CertDrillAdminQuestionIndexApiResult>(queryString ? `/questions?${queryString}` : "/questions");
+
+  return {
+    items: result.items.map(({ answerOptions, ...item }) => ({ ...item, options: answerOptions })),
+    certifications: result.filterOptions.certifications,
+    categories: result.filterOptions.categories,
+    page: result.pagination.page,
+    pageCount: result.pagination.pageCount,
+    pageSize: result.pagination.pageSize,
+    total: result.pagination.totalItems,
+  };
 }
 
 export async function createCertDrillAdminQuestionServer(payload: CertDrillAdminQuestionInput): Promise<CertDrillAdminQuestion> {
