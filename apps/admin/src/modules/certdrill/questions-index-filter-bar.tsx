@@ -49,7 +49,9 @@ export function QuestionsIndexFilterBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentQueryString = searchParams.toString();
-  const [search, setSearch] = useState(query.search ?? "");
+  const serverSearch = query.search ?? "";
+  const [searchDraft, setSearchDraft] = useState({ value: serverSearch, base: serverSearch });
+  const search = searchDraft.base === serverSearch ? searchDraft.value : serverSearch;
   const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));
   const synchronizedQueryStringRef = useRef(currentQueryString);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,7 +94,6 @@ export function QuestionsIndexFilterBar({
   }, [categories, replaceQuery]);
 
   useEffect(() => {
-    const serverSearch = query.search ?? "";
     const matchingNavigationIndex = pendingSearchNavigationsRef.current
       .findIndex((navigation) => navigation.value === serverSearch);
 
@@ -107,11 +108,9 @@ export function QuestionsIndexFilterBar({
     hasLocalSearchChangeRef.current = false;
     searchNavigationVersionRef.current += 1;
     cancelSearchDebounce();
-    setSearch(serverSearch);
-  }, [cancelSearchDebounce, query.search]);
+  }, [cancelSearchDebounce, serverSearch]);
 
   useEffect(() => {
-    const serverSearch = query.search ?? "";
     if (search === serverSearch) {
       hasLocalSearchChangeRef.current = false;
       return;
@@ -137,7 +136,7 @@ export function QuestionsIndexFilterBar({
       clearTimeout(timeout);
       if (searchDebounceRef.current === timeout) searchDebounceRef.current = null;
     };
-  }, [query.search, replaceFilter, search]);
+  }, [replaceFilter, search, serverSearch]);
 
   function clearFilters() {
     const params = new URLSearchParams(currentQueryParamsRef.current);
@@ -145,8 +144,8 @@ export function QuestionsIndexFilterBar({
     searchNavigationVersionRef.current += 1;
     cancelSearchDebounce();
     hasLocalSearchChangeRef.current = false;
-    setSearch("");
-    if (query.search) {
+    setSearchDraft({ base: serverSearch, value: "" });
+    if (serverSearch) {
       pendingSearchNavigationsRef.current.push({
         value: "",
         version: searchNavigationVersionRef.current,
@@ -169,7 +168,7 @@ export function QuestionsIndexFilterBar({
           onChange={(event) => {
             searchNavigationVersionRef.current += 1;
             hasLocalSearchChangeRef.current = true;
-            setSearch(event.target.value);
+            setSearchDraft({ base: serverSearch, value: event.target.value });
           }}
         />
       </div>

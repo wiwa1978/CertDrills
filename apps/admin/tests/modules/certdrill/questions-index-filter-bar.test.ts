@@ -32,6 +32,16 @@ describe("questions index filter bar source", () => {
     expect(source).toContain("scroll: false");
   });
 
+  it("derives the displayed search from a draft keyed to the server search without syncing state in an effect", () => {
+    expect(source).toContain('const serverSearch = query.search ?? "";');
+    expect(source).toContain("const [searchDraft, setSearchDraft] = useState({ value: serverSearch, base: serverSearch });");
+    expect(source).toContain("const search = searchDraft.base === serverSearch ? searchDraft.value : serverSearch;");
+    expect(source).toContain("setSearchDraft({ base: serverSearch, value: event.target.value });");
+    expect(source).toContain('setSearchDraft({ base: serverSearch, value: "" });');
+    expect(source).not.toContain('const [search, setSearch] = useState(query.search ?? "");');
+    expect(source).not.toContain("setSearch(serverSearch);");
+  });
+
   it("uses compatibility helpers for certification-aware category behavior", () => {
     expect(source).toContain("getQuestionsIndexCategoryOptions");
     expect(source).toContain("buildQuestionsIndexHref");
