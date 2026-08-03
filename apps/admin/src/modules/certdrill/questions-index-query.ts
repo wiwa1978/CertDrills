@@ -110,14 +110,17 @@ function cloneQuery(query: QuestionsIndexQuery) {
   return { ...query };
 }
 
-function splitQuestionsIndexQuery(query: QuestionsIndexQuery) {
+function splitQuestionsIndexQuery(
+  query: QuestionsIndexQuery,
+  categories: readonly QuestionsIndexCategoryOption[] = [],
+) {
   const unrelatedQuery: QuestionsIndexQuery = {};
 
   for (const [key, value] of Object.entries(query)) {
     if (!managedKeySet.has(key)) unrelatedQuery[key] = value;
   }
 
-  const normalizedQuery = normalizeQuestionsIndexQuery(query);
+  const normalizedQuery = normalizeQuestionsIndexQuery(query, categories);
   const managedQuery: QuestionsIndexQuery = {
     search: normalizedQuery.search,
     certificationId: normalizedQuery.certificationId,
@@ -182,8 +185,9 @@ export function buildQuestionsIndexFilterQuery(
 export function buildQuestionsIndexSortQuery(
   currentQuery: QuestionsIndexQuery,
   sort: QuestionsIndexSearchParamValue,
+  categories: readonly QuestionsIndexCategoryOption[] = [],
 ): QuestionsIndexQuery {
-  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(currentQuery);
+  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(currentQuery, categories);
   const nextQuery = cloneQuery(managedQuery);
   applyKnownQuestionIndexValue(nextQuery, "sort", sort);
   nextQuery.page = undefined;
@@ -193,8 +197,9 @@ export function buildQuestionsIndexSortQuery(
 export function buildQuestionsIndexPageQuery(
   currentQuery: QuestionsIndexQuery,
   page: number,
+  categories: readonly QuestionsIndexCategoryOption[] = [],
 ): QuestionsIndexQuery {
-  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(currentQuery);
+  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(currentQuery, categories);
   const nextQuery = cloneQuery(managedQuery);
   nextQuery.page = String(normalizeQuestionsIndexPage(String(page)));
   return { ...unrelatedQuery, ...nextQuery };
@@ -206,8 +211,12 @@ export function buildQuestionsIndexClearQuery(currentQuery: QuestionsIndexQuery)
   return { ...unrelatedQuery, ...clearedManagedQuery };
 }
 
-export function buildQuestionsIndexHref(pathname: string, query: QuestionsIndexQuery) {
-  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(query);
+export function buildQuestionsIndexHref(
+  pathname: string,
+  query: QuestionsIndexQuery,
+  categories: readonly QuestionsIndexCategoryOption[] = [],
+) {
+  const { unrelatedQuery, managedQuery } = splitQuestionsIndexQuery(query, categories);
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(unrelatedQuery)) {

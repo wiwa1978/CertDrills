@@ -177,6 +177,36 @@ describe("questions index query", () => {
     });
   });
 
+  it("clears incompatible categories for sort, pagination, and href builders when category options are known", () => {
+    const currentQuery = {
+      certificationId: "cert-1",
+      categoryId: "category-2",
+      sort: "stem-asc",
+      page: "3",
+      foo: "bar",
+    };
+
+    expect(buildQuestionsIndexSortQuery(currentQuery, "stem-desc", categories)).toMatchObject({
+      certificationId: "cert-1",
+      categoryId: undefined,
+      sort: "stem-desc",
+      page: undefined,
+      foo: "bar",
+    });
+
+    expect(buildQuestionsIndexPageQuery(currentQuery, 2, categories)).toMatchObject({
+      certificationId: "cert-1",
+      categoryId: undefined,
+      sort: "stem-asc",
+      page: "2",
+      foo: "bar",
+    });
+
+    expect(buildQuestionsIndexHref("/admin/questions", currentQuery, categories)).toBe(
+      "/admin/questions?foo=bar&certificationId=cert-1&sort=stem-asc&page=3",
+    );
+  });
+
   it("clears only centralized filters while preserving unrelated query params", () => {
     expect(buildQuestionsIndexClearQuery({
       search: "zero trust",

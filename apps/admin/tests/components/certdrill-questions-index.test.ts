@@ -12,6 +12,8 @@ function readSource(relativePath: string) {
 const tableSource = readSource("../../src/modules/certdrill/questions-index-table.tsx");
 const helperSource = readSource("../../src/modules/certdrill/question-editor-href.ts");
 const adminPageSource = readSource("../../src/modules/certdrill/admin-page.tsx");
+const questionsIndexPageSource = readSource("../../src/modules/certdrill/questions-index-page.tsx");
+const questionsRouteSource = readSource("../../src/app/[locale]/(backend)/(admin)/admin/questions/page.tsx");
 
 describe("questions index table source", () => {
   it("defines a focused client component around the centralized question index result", () => {
@@ -99,5 +101,58 @@ describe("question editor href helper source", () => {
     expect(helperSource).toContain("return `/admin/certdrill/${certificationId}/questions/${questionId}`;");
     expect(adminPageSource).toContain('from "./question-editor-href"');
     expect(tableSource).toContain('from "./question-editor-href"');
+  });
+});
+
+describe("questions index page source", () => {
+  it("defines a server component that fetches the centralized admin question index and composes the filter bar and table", () => {
+    expect(questionsIndexPageSource).toContain("export async function QuestionsIndexPage(");
+    expect(questionsIndexPageSource).toContain("listCertDrillAdminQuestionIndexServer");
+    expect(questionsIndexPageSource).toContain("QuestionsIndexFilterBar");
+    expect(questionsIndexPageSource).toContain("QuestionsIndexTable");
+    expect(questionsIndexPageSource).toContain("publishCertDrillQuestionAction");
+    expect(questionsIndexPageSource).toContain("archiveCertDrillQuestionAction");
+    expect(questionsIndexPageSource).toContain("await listCertDrillAdminQuestionIndexServer(");
+    expect(questionsIndexPageSource).toContain("<QuestionsIndexFilterBar");
+    expect(questionsIndexPageSource).toContain("<QuestionsIndexTable");
+  });
+
+  it("shows the approved copy without a create question control", () => {
+    expect(questionsIndexPageSource).toContain("<Badge variant=\"secondary\">Questions</Badge>");
+    expect(questionsIndexPageSource).toContain("<h1");
+    expect(questionsIndexPageSource).toContain(">Questions</h1>");
+    expect(questionsIndexPageSource).toContain("Search and manage questions across every certification and category.");
+    expect(questionsIndexPageSource).toContain("<CardTitle>Question bank</CardTitle>");
+    expect(questionsIndexPageSource).toContain("Click any row to review answers, edit the question, or manage its status.");
+    expect(questionsIndexPageSource).not.toContain("Create question");
+  });
+
+  it("uses the effective category-cleared query for filter state and sort or pagination hrefs", () => {
+    expect(questionsIndexPageSource).toContain("const effectiveQuery = normalizeQuestionsIndexQuery(searchParams, result.categories);");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexSortQuery(searchParams,");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(searchParams, result.page - 1, result.categories)");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(searchParams, result.page + 1, result.categories)");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexHref(\"/admin/questions\"");
+    expect(questionsIndexPageSource).toContain("result.page > 1");
+    expect(questionsIndexPageSource).toContain("result.page < result.pageCount");
+  });
+
+  it("renders filters even when the current page is empty and shows the focused empty state", () => {
+    expect(questionsIndexPageSource).toContain("<QuestionsIndexFilterBar");
+    expect(questionsIndexPageSource).toContain("No questions match the current filters.");
+    expect(questionsIndexPageSource).toContain("result.items.length > 0 ? (");
+    expect(questionsIndexPageSource).toContain(": <EmptyState>No questions match the current filters.</EmptyState>");
+  });
+});
+
+describe("centralized admin questions route source", () => {
+  it("accepts promise-based search params, normalizes them with the task 4 helper, and renders the page in the standard container", () => {
+    expect(questionsRouteSource).toContain("type SearchParamValue = string | string[] | undefined;");
+    expect(questionsRouteSource).toContain("searchParams: Promise<Record<string, SearchParamValue>>");
+    expect(questionsRouteSource).toContain("normalizeQuestionsIndexQuery");
+    expect(questionsRouteSource).toContain("const query = await searchParams;");
+    expect(questionsRouteSource).toContain("const normalizedQuery = normalizeQuestionsIndexQuery(query);");
+    expect(questionsRouteSource).toContain("<Container className=\"py-6\">");
+    expect(questionsRouteSource).toContain("<QuestionsIndexPage searchParams={query} initialQuery={normalizedQuery} />");
   });
 });
