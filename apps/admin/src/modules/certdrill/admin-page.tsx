@@ -58,8 +58,11 @@ import {
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
 import { QuestionFilterBar } from "./question-filter-bar";
-
-const questionsPerPage = 50;
+import {
+  buildQuestionPageQuery,
+  buildQuestionSortQuery,
+  paginateQuestions,
+} from "./question-pagination";
 
 type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
@@ -280,26 +283,33 @@ export async function CertDrillAdminPage({
     questionSort,
   });
   const filteredQuestions = filterCertDrillAdminQuestions(questions, questionFilters);
-  const requestedQuestionPage = normalizeQuestionPage(questionPage);
-  const questionPageCount = Math.max(1, Math.ceil(filteredQuestions.length / questionsPerPage));
-  const currentQuestionPage = Math.min(requestedQuestionPage, questionPageCount);
-  const questionPageOffset = (currentQuestionPage - 1) * questionsPerPage;
-  const pagedQuestions = filteredQuestions.slice(questionPageOffset, questionPageOffset + questionsPerPage);
-  const questionTableHref = (params: Pick<CertDrillAdminHrefParams, "questionPage"> = {}) => selectedCertificationHref({
-    ...questionFilters,
-    tab: "questions",
-    ...params,
-  });
-  const stemSortHref = selectedCertificationHref({
-    ...questionFilters,
-    questionSort: questionFilters.questionSort === "stem-desc" ? "stem-asc" : "stem-desc",
-    tab: "questions",
-  });
+  const {
+    items: pagedQuestions,
+    page: currentQuestionPage,
+    pageCount: questionPageCount,
+  } = paginateQuestions(filteredQuestions, questionPage);
+  const currentQuestionTableQuery: CertDrillAdminHrefParams = {
+    categoryId: requestedCategoryId,
+    examFormId: requestedExamFormId,
+    resourceId: requestedResourceId,
+    questionSearch,
+    questionStatus,
+    questionDifficulty,
+    questionCategoryId,
+    questionSort,
+    questionPage,
+    feedbackStatus,
+    tab: selectedTab,
+  };
+  const stemSortHref = selectedCertificationHref(buildQuestionSortQuery(
+    currentQuestionTableQuery,
+    questionFilters.questionSort === "stem-desc" ? "stem-asc" : "stem-desc",
+  ));
   const previousPageHref = currentQuestionPage > 1
-    ? questionTableHref({ questionPage: String(currentQuestionPage - 1) })
+    ? selectedCertificationHref(buildQuestionPageQuery(currentQuestionTableQuery, currentQuestionPage - 1))
     : undefined;
   const nextPageHref = currentQuestionPage < questionPageCount
-    ? questionTableHref({ questionPage: String(currentQuestionPage + 1) })
+    ? selectedCertificationHref(buildQuestionPageQuery(currentQuestionTableQuery, currentQuestionPage + 1))
     : undefined;
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
   const defaultTab = selectedTab === "categories"
@@ -646,11 +656,6 @@ function normalizeQuestionFilters(filters: QuestionFilters): QuestionFilters {
     questionCategoryId,
     questionSort,
   };
-}
-
-function normalizeQuestionPage(value?: string) {
-  const page = Number(value);
-  return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function filterCertDrillAdminQuestions(

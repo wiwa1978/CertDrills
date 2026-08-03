@@ -127,9 +127,7 @@ describe("CertDrill admin page copy", () => {
 
   it("paginates the server-filtered question table and preserves page routing", () => {
     expect(source).toContain("questionPage?: string;");
-    expect(source).toContain("normalizeQuestionPage");
-    expect(source).toContain("const questionsPerPage = 50;");
-    expect(source).toContain("slice(questionPageOffset, questionPageOffset + questionsPerPage)");
+    expect(source).toContain("paginateQuestions");
     expect(source).toContain("Stem A-Z");
     expect(source).toContain("Stem Z-A");
     expect(source).toContain("questionPage");
