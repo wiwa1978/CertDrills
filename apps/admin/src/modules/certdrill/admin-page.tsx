@@ -50,6 +50,7 @@ import {
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
+import { questionEditorHref, questionEditorNewHref } from "./question-editor-href";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
 import {
@@ -606,14 +607,6 @@ function buildCertificationOptions(
 
 function certdrillAdminOverviewHref() {
   return "/admin/certdrill";
-}
-
-export function questionEditorNewHref(certificationId: string) {
-  return `/admin/certdrill/${certificationId}/questions/new`;
-}
-
-export function questionEditorHref(certificationId: string, questionId: string) {
-  return `/admin/certdrill/${certificationId}/questions/${questionId}`;
 }
 
 function certdrillAdminDetailHref(certificationId: string, params: CertDrillAdminHrefParams = {}) {
