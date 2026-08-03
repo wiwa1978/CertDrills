@@ -124,6 +124,13 @@ describe("CertDrill admin page copy", () => {
   });
 
   it("guards live question search state against stale navigations", () => {
+    expect(questionFilterBarSource).toContain(
+      "const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));",
+    );
+    expect(questionFilterBarSource).toContain(
+      "const params = new URLSearchParams(currentQueryParamsRef.current);",
+    );
+    expect(questionFilterBarSource).toContain("currentQueryParamsRef.current = params;");
     expect(questionFilterBarSource).toContain("searchDebounceRef");
     expect(questionFilterBarSource).toContain("searchNavigationVersionRef");
     expect(questionFilterBarSource).toContain("pendingSearchNavigationsRef");

@@ -37,11 +37,21 @@ export function QuestionFilterBar({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const currentQueryString = searchParams.toString();
   const [search, setSearch] = useState(filters.questionSearch ?? "");
+  const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));
+  const synchronizedQueryStringRef = useRef(currentQueryString);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchNavigationVersionRef = useRef(0);
   const pendingSearchNavigationsRef = useRef<SearchNavigation[]>([]);
   const hasLocalSearchChangeRef = useRef(false);
+
+  useEffect(() => {
+    if (synchronizedQueryStringRef.current === currentQueryString) return;
+
+    synchronizedQueryStringRef.current = currentQueryString;
+    currentQueryParamsRef.current = new URLSearchParams(currentQueryString);
+  }, [currentQueryString]);
 
   const cancelSearchDebounce = useCallback(() => {
     if (searchDebounceRef.current) {
@@ -51,7 +61,7 @@ export function QuestionFilterBar({
   }, []);
 
   const replaceFilter = useCallback((name: QuestionFilterName, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(currentQueryParamsRef.current);
     const trimmedValue = value.trim();
 
     params.set("tab", "questions");
@@ -61,8 +71,9 @@ export function QuestionFilterBar({
       params.delete(name);
     }
 
+    currentQueryParamsRef.current = params;
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [pathname, router]);
 
   useEffect(() => {
     const serverSearch = filters.questionSearch ?? "";
@@ -113,7 +124,7 @@ export function QuestionFilterBar({
   }, [filters.questionSearch, replaceFilter, search]);
 
   function clearFilters() {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(currentQueryParamsRef.current);
 
     searchNavigationVersionRef.current += 1;
     cancelSearchDebounce();
@@ -128,6 +139,7 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     questionFilterNames.forEach((name) => params.delete(name));
+    currentQueryParamsRef.current = params;
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
