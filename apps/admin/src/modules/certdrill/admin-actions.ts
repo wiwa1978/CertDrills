@@ -341,6 +341,13 @@ export async function publishCertDrillQuestionAction(formData: FormData) {
   revalidateCertDrillAdminPage();
 }
 
+export async function archiveCertDrillQuestionAction(formData: FormData) {
+  const questionId = requiredString(formData, "questionId");
+  if (!questionId) return;
+  await updateCertDrillAdminQuestionServer(questionId, { status: "archived" });
+  revalidateCertDrillAdminPage();
+}
+
 export async function createCertDrillExamFormAction(formData: FormData) {
   await createCertDrillAdminExamFormServer({
     certificationId: requiredString(formData, "certificationId"),

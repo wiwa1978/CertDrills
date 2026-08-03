@@ -72,7 +72,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Pencil");
     expect(source).toContain("Archive");
     expect(source).toContain("Create or update question");
-    expect(source).toContain("Publish question");
+    expect(source).toContain("Publish");
     expect(source).toContain("Create or update exam form");
     expect(source).toContain("Create or update resource");
     expect(source).toContain("Mock generation");
@@ -195,6 +195,27 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('<LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>');
     expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>');
     expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>');
+  });
+
+  it("moves question publishing and archiving into table actions", () => {
+    expect(source).toContain('from "@/components/ui/dropdown-menu"');
+    expect(source).toContain("<DropdownMenu");
+    expect(source).toContain('<TableHead className="text-right">Actions</TableHead>');
+    expect(source).toContain(">Edit</LocalizedLink>");
+    expect(source).toContain(">Publish</button>");
+    expect(source).toContain(">Archive</button>");
+    expect(source).toContain('const questionStatus = question.status ?? "draft";');
+    expect(source).toContain('questionStatus === "draft"');
+    expect(source).toContain('questionStatus !== "archived"');
+    expect(source).toContain('id={`publish-question-${question.id}`}');
+    expect(source).toContain('id={`archive-question-${question.id}`}');
+    expect(source).toContain("DropdownMenuItem asChild");
+    expect(source).toContain("DropdownMenuSeparator");
+    expect(source).not.toContain("<CardTitle>Publish question</CardTitle>");
+    expect(source).toContain("publishAction={publishCertDrillQuestionAction}");
+    expect(source).toContain("archiveAction={archiveCertDrillQuestionAction}");
+    expect(actionsSource).toContain("archiveCertDrillQuestionAction");
+    expect(actionsSource).toContain('updateCertDrillAdminQuestionServer(questionId, { status: "archived" })');
   });
 
   it("loads and identifies the selected certification in the dedicated question editor", () => {

@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import type { CertDrillCertificationListItem } from "@platform/contracts";
 import Link from "next/link";
-import { Archive, Pencil } from "lucide-react";
+import { Archive, MoreHorizontal, Pencil } from "lucide-react";
 
 import { Link as LocalizedLink } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClientOnly } from "@/components/client-only";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,6 +42,7 @@ import {
   createCertDrillCertificationAction,
   archiveCertDrillCertificationAction,
   archiveCertDrillCategoryAction,
+  archiveCertDrillQuestionAction,
   createCertDrillExamFormAction,
   createCertDrillMockGenerationAction,
   createCertDrillQuestionAction,
@@ -428,20 +436,7 @@ export async function CertDrillAdminPage({
             </CardHeader>
             <CardContent className="space-y-4">
               {selectedCertificationId ? <QuestionFilterBar categories={categories} filters={questionFilters} /> : null}
-              {filteredQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={filteredQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} /> : <EmptyState>No questions yet.</EmptyState>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Publish question</CardTitle>
-              <CardDescription>Promote a validated draft question to the published pool.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={publishCertDrillQuestionAction} className="flex flex-col gap-3 md:flex-row md:items-end">
-                <QuestionSelect id="publish-question-id" name="questionId" questions={filteredQuestions} label="Question" />
-                <Button type="submit">Publish question</Button>
-              </form>
+              {filteredQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={filteredQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -559,7 +554,7 @@ export async function CertDrillAdminPage({
               <CardTitle>Draft questions</CardTitle>
               <CardDescription>Draft result list, including mock-generated questions ready for review.</CardDescription>
             </CardHeader>
-            <CardContent>{draftQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={draftQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} /> : <EmptyState>No draft questions yet.</EmptyState>}</CardContent>
+            <CardContent>{draftQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={draftQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} /> : <EmptyState>No draft questions yet.</EmptyState>}</CardContent>
           </Card>
         </TabsContent>
 
@@ -1467,9 +1462,13 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
 function QuestionTable({
   questions,
   questionHref,
+  publishAction,
+  archiveAction,
 }: {
   questions: CertDrillAdminQuestion[];
   questionHref: (question: CertDrillAdminQuestion) => string;
+  publishAction: (formData: FormData) => void | Promise<void>;
+  archiveAction: (formData: FormData) => void | Promise<void>;
 }) {
   return (
     <Table>
@@ -1480,22 +1479,63 @@ function QuestionTable({
           <TableHead>Status</TableHead>
           <TableHead>Difficulty</TableHead>
           <TableHead className="text-right">Options</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {questions.map((question) => (
-          <TableRow key={question.id}>
-            <TableCell className="font-mono text-xs">
-              <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
-            </TableCell>
-            <TableCell className="max-w-xl whitespace-normal">
-              <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
-            </TableCell>
-            <TableCell><Badge variant="outline">{question.status ?? "draft"}</Badge></TableCell>
-            <TableCell>{question.difficulty ?? "medium"}</TableCell>
-            <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
-          </TableRow>
-        ))}
+        {questions.map((question) => {
+          const questionStatus = question.status ?? "draft";
+
+          return (
+            <TableRow key={question.id}>
+              <TableCell className="font-mono text-xs">
+                <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
+              </TableCell>
+              <TableCell className="max-w-xl whitespace-normal">
+                <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
+              </TableCell>
+              <TableCell><Badge variant="outline">{questionStatus}</Badge></TableCell>
+              <TableCell>{question.difficulty ?? "medium"}</TableCell>
+              <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
+              <TableCell className="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`Actions for ${question.id}`}>
+                      <MoreHorizontal className="size-4" />
+                      <span className="sr-only">Actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>
+                    </DropdownMenuItem>
+                    {questionStatus !== "archived" ? <DropdownMenuSeparator /> : null}
+                    {questionStatus === "draft" ? (
+                      <DropdownMenuItem asChild>
+                        <button type="submit" form={`publish-question-${question.id}`}>Publish</button>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {questionStatus !== "archived" ? (
+                      <DropdownMenuItem asChild variant="destructive">
+                        <button type="submit" form={`archive-question-${question.id}`}>Archive</button>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {questionStatus === "draft" ? (
+                  <form id={`publish-question-${question.id}`} action={publishAction}>
+                    <input type="hidden" name="questionId" value={question.id} />
+                  </form>
+                ) : null}
+                {questionStatus !== "archived" ? (
+                  <form id={`archive-question-${question.id}`} action={archiveAction}>
+                    <input type="hidden" name="questionId" value={question.id} />
+                  </form>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
