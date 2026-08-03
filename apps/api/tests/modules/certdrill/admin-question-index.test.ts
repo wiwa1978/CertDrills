@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ADMIN_QUESTION_INDEX_PAGE_SIZE,
   createCertDrillAdminQuestionIndex,
+  escapeAdminQuestionIndexLikePattern,
   normalizeAdminQuestionIndexQuery,
   type AdminQuestionIndexAnswerOptionRecord,
   type AdminQuestionIndexCategoryFilterOption,
@@ -25,6 +26,18 @@ const ids = {
 };
 
 describe("admin question index", () => {
+  it("escapes percent signs in free-text search patterns", () => {
+    expect(escapeAdminQuestionIndexLikePattern("50%")).toBe("%50\\%%");
+  });
+
+  it("escapes underscores in free-text search patterns", () => {
+    expect(escapeAdminQuestionIndexLikePattern("test_case")).toBe("%test\\_case%");
+  });
+
+  it("escapes backslashes in free-text search patterns", () => {
+    expect(escapeAdminQuestionIndexLikePattern("path\\segment")).toBe("%path\\\\segment%");
+  });
+
   it("normalizes invalid and trimmed query values", () => {
     expect(normalizeAdminQuestionIndexQuery({
       search: "  zero trust  ",

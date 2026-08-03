@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, exists, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, or, sql, type SQLWrapper } from "drizzle-orm";
 
 import {
   certdrillAnswerOptions,
@@ -15,6 +15,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const QUESTION_STATUSES = new Set<CertDrillQuestionStatus>(["draft", "published", "archived"]);
 const QUESTION_DIFFICULTIES = new Set<CertDrillDifficulty>(["easy", "medium", "hard"]);
 const QUESTION_SORTS = new Set<AdminQuestionIndexSort>(["stem-asc", "stem-desc"]);
+const LIKE_ESCAPE_CHARACTER = "\\";
+const LIKE_META_CHARACTERS = /[%_\\]/g;
 
 export type AdminQuestionIndexSort = "stem-asc" | "stem-desc";
 
@@ -327,17 +329,17 @@ function buildWhere(query: AdminQuestionIndexQuery, db: any) {
 }
 
 function buildSearchCondition(search: string, db: any) {
-  const pattern = `%${search}%`;
+  const pattern = escapeAdminQuestionIndexLikePattern(search);
 
   return or(
-    sql<boolean>`${certdrillQuestions.id}::text ilike ${pattern}`,
-    ilike(certdrillQuestions.stem, pattern),
-    ilike(certdrillCertifications.code, pattern),
-    ilike(certdrillCertifications.name, pattern),
-    ilike(certdrillExamCategories.code, pattern),
-    ilike(certdrillExamCategories.name, pattern),
-    ilike(certdrillQuestions.status, pattern),
-    ilike(certdrillQuestions.difficulty, pattern),
+    buildEscapedIlikeCondition(sql`${certdrillQuestions.id}::text`, pattern),
+    buildEscapedIlikeCondition(certdrillQuestions.stem, pattern),
+    buildEscapedIlikeCondition(certdrillCertifications.code, pattern),
+    buildEscapedIlikeCondition(certdrillCertifications.name, pattern),
+    buildEscapedIlikeCondition(certdrillExamCategories.code, pattern),
+    buildEscapedIlikeCondition(certdrillExamCategories.name, pattern),
+    buildEscapedIlikeCondition(certdrillQuestions.status, pattern),
+    buildEscapedIlikeCondition(certdrillQuestions.difficulty, pattern),
     exists(
       db
         .select({ id: certdrillAnswerOptions.id })
@@ -345,12 +347,20 @@ function buildSearchCondition(search: string, db: any) {
         .where(and(
           eq(certdrillAnswerOptions.questionId, certdrillQuestions.id),
           or(
-            ilike(certdrillAnswerOptions.text, pattern),
-            ilike(certdrillAnswerOptions.explanation, pattern),
+            buildEscapedIlikeCondition(certdrillAnswerOptions.text, pattern),
+            buildEscapedIlikeCondition(certdrillAnswerOptions.explanation, pattern),
           ),
         )),
     ),
   );
+}
+
+export function escapeAdminQuestionIndexLikePattern(search: string) {
+  return `%${search.replace(LIKE_META_CHARACTERS, (character) => `${LIKE_ESCAPE_CHARACTER}${character}`)}%`;
+}
+
+function buildEscapedIlikeCondition(column: SQLWrapper, pattern: string) {
+  return sql<boolean>`${column} ILIKE ${pattern} ESCAPE ${sql.raw(`'${LIKE_ESCAPE_CHARACTER}'`)}`;
 }
 
 function groupAnswerOptions(
