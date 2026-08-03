@@ -127,11 +127,12 @@ describe("questions index page source", () => {
     expect(questionsIndexPageSource).not.toContain("Create question");
   });
 
-  it("uses the effective category-cleared query for filter state and sort or pagination hrefs", () => {
-    expect(questionsIndexPageSource).toContain("const effectiveQuery = normalizeQuestionsIndexQuery(searchParams, result.categories);");
-    expect(questionsIndexPageSource).toContain("buildQuestionsIndexSortQuery(searchParams,");
-    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(searchParams, result.page - 1, result.categories)");
-    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(searchParams, result.page + 1, result.categories)");
+  it("uses the server-authoritative query for filter state and sort or pagination hrefs", () => {
+    expect(questionsIndexPageSource).toContain("const effectiveQuery = result.query;");
+    expect(questionsIndexPageSource).toContain("const hrefQuery = mergeQuestionsIndexQuery(searchParams, effectiveQuery);");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexSortQuery(hrefQuery,");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(hrefQuery, result.page - 1");
+    expect(questionsIndexPageSource).toContain("buildQuestionsIndexPageQuery(hrefQuery, result.page + 1");
     expect(questionsIndexPageSource).toContain("buildQuestionsIndexHref(\"/admin/questions\"");
     expect(questionsIndexPageSource).toContain("result.page > 1");
     expect(questionsIndexPageSource).toContain("result.page < result.pageCount");
@@ -146,13 +147,11 @@ describe("questions index page source", () => {
 });
 
 describe("centralized admin questions route source", () => {
-  it("accepts promise-based search params, normalizes them with the task 4 helper, and renders the page in the standard container", () => {
+  it("accepts promise-based search params and renders the page in the standard container without pre-normalizing managed filters", () => {
     expect(questionsRouteSource).toContain("type SearchParamValue = string | string[] | undefined;");
     expect(questionsRouteSource).toContain("searchParams: Promise<Record<string, SearchParamValue>>");
-    expect(questionsRouteSource).toContain("normalizeQuestionsIndexQuery");
     expect(questionsRouteSource).toContain("const query = await searchParams;");
-    expect(questionsRouteSource).toContain("const normalizedQuery = normalizeQuestionsIndexQuery(query);");
     expect(questionsRouteSource).toContain("<Container className=\"py-6\">");
-    expect(questionsRouteSource).toContain("<QuestionsIndexPage searchParams={query} initialQuery={normalizedQuery} />");
+    expect(questionsRouteSource).toContain("<QuestionsIndexPage searchParams={query} />");
   });
 });

@@ -116,6 +116,15 @@ describe("CertDrill admin API helpers", () => {
 
   it("lists the centralized admin question index with only defined query params", async () => {
     const payload = {
+      query: {
+        search: "zero trust",
+        certificationId: "cert-1",
+        categoryId: undefined,
+        status: "published",
+        difficulty: "hard",
+        sort: "stem-desc" as const,
+        page: 3,
+      },
       items: [
         {
           questionId: "question-1",
@@ -162,6 +171,15 @@ describe("CertDrill admin API helpers", () => {
       sort: "stem-desc",
       page: 3,
     })).resolves.toEqual({
+      query: {
+        search: "zero trust",
+        certificationId: "cert-1",
+        categoryId: undefined,
+        status: "published",
+        difficulty: "hard",
+        sort: "stem-desc",
+        page: 3,
+      },
       items: [
         {
           questionId: "question-1",
@@ -201,6 +219,15 @@ describe("CertDrill admin API helpers", () => {
 
   it("omits empty centralized admin question index query params", async () => {
     const payload = {
+      query: {
+        search: undefined,
+        certificationId: undefined,
+        categoryId: undefined,
+        status: undefined,
+        difficulty: undefined,
+        sort: "stem-asc" as const,
+        page: 1,
+      },
       items: [],
       filterOptions: {
         certifications: [],
@@ -224,6 +251,15 @@ describe("CertDrill admin API helpers", () => {
       sort: undefined,
       page: undefined,
     })).resolves.toEqual({
+      query: {
+        search: undefined,
+        certificationId: undefined,
+        categoryId: undefined,
+        status: undefined,
+        difficulty: undefined,
+        sort: "stem-asc",
+        page: 1,
+      },
       items: [],
       certifications: [],
       categories: [],

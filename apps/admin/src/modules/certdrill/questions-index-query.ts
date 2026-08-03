@@ -21,7 +21,7 @@ export type QuestionsIndexQuery = {
 export type QuestionsIndexCertificationOption = CertDrillAdminQuestionIndexResult["certifications"][number];
 export type QuestionsIndexCategoryOption = CertDrillAdminQuestionIndexResult["categories"][number];
 export type QuestionsIndexStatus = NonNullable<CertDrillAdminQuestion["status"]>;
-export type QuestionsIndexDifficulty = NonNullable<CertDrillAdminQuestionIndexQuery["difficulty"]>;
+export type QuestionsIndexDifficulty = NonNullable<CertDrillAdminQuestion["difficulty"]>;
 
 export type NormalizedQuestionsIndexQuery = {
   search?: string;
@@ -103,6 +103,40 @@ export function normalizeQuestionsIndexQuery(
     difficulty: normalizeEnumValue(query.difficulty, allowedDifficulties),
     sort: normalizeEnumValue(query.sort, allowedSorts) ?? "stem-asc",
     page: normalizeQuestionsIndexPage(query.page),
+  };
+}
+
+export function extractQuestionsIndexRequestQuery(query: QuestionsIndexQuery): CertDrillAdminQuestionIndexQuery {
+  return {
+    search: trimSearchParamValue(query.search),
+    certificationId: trimSearchParamValue(query.certificationId),
+    categoryId: trimSearchParamValue(query.categoryId),
+    status: trimSearchParamValue(query.status),
+    difficulty: trimSearchParamValue(query.difficulty),
+    sort: trimSearchParamValue(query.sort),
+    page: trimSearchParamValue(query.page),
+  };
+}
+
+export function mergeQuestionsIndexQuery(
+  currentQuery: QuestionsIndexQuery,
+  managedQuery: NormalizedQuestionsIndexQuery,
+): QuestionsIndexQuery {
+  const unrelatedQuery: QuestionsIndexQuery = {};
+
+  for (const [key, value] of Object.entries(currentQuery)) {
+    if (!managedKeySet.has(key)) unrelatedQuery[key] = value;
+  }
+
+  return {
+    ...unrelatedQuery,
+    search: managedQuery.search,
+    certificationId: managedQuery.certificationId,
+    categoryId: managedQuery.categoryId,
+    status: managedQuery.status,
+    difficulty: managedQuery.difficulty,
+    sort: managedQuery.sort,
+    page: String(managedQuery.page),
   };
 }
 

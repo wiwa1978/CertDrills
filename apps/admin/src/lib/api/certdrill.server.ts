@@ -78,9 +78,9 @@ export type CertDrillAdminQuestionIndexQuery = {
   search?: string | null;
   certificationId?: string | null;
   categoryId?: string | null;
-  status?: NonNullable<CertDrillAdminQuestion["status"]> | null;
-  difficulty?: CertDrillDifficulty | null;
-  sort?: CertDrillAdminQuestionIndexSort | null;
+  status?: NonNullable<CertDrillAdminQuestion["status"]> | string | null;
+  difficulty?: CertDrillDifficulty | string | null;
+  sort?: CertDrillAdminQuestionIndexSort | string | null;
   page?: number | string | null;
 };
 
@@ -107,7 +107,18 @@ export type CertDrillAdminQuestionIndexItem = {
   options: CertDrillAdminQuestionIndexOption[];
 };
 
+export type CertDrillAdminQuestionIndexEffectiveQuery = {
+  search?: string;
+  certificationId?: string;
+  categoryId?: string;
+  status?: NonNullable<CertDrillAdminQuestion["status"]>;
+  difficulty?: CertDrillDifficulty;
+  sort: CertDrillAdminQuestionIndexSort;
+  page: number;
+};
+
 export type CertDrillAdminQuestionIndexResult = {
+  query: CertDrillAdminQuestionIndexEffectiveQuery;
   items: CertDrillAdminQuestionIndexItem[];
   certifications: Array<Pick<CertDrillAdminCertification, "id" | "code" | "name">>;
   categories: Array<Pick<CertDrillAdminCategory, "id" | "certificationId" | "code" | "name">>;
@@ -180,6 +191,7 @@ type CertDrillAdminQuestionIndexApiItem = Omit<CertDrillAdminQuestionIndexItem, 
 };
 
 type CertDrillAdminQuestionIndexApiResult = {
+  query: CertDrillAdminQuestionIndexResult["query"];
   items: CertDrillAdminQuestionIndexApiItem[];
   filterOptions: {
     certifications: CertDrillAdminQuestionIndexResult["certifications"];
@@ -285,6 +297,7 @@ export async function listCertDrillAdminQuestionIndexServer(
   const result = await certdrillAdminRequest<CertDrillAdminQuestionIndexApiResult>(queryString ? `/questions?${queryString}` : "/questions");
 
   return {
+    query: result.query,
     items: result.items.map(({ answerOptions, ...item }) => ({ ...item, options: answerOptions })),
     certifications: result.filterOptions.certifications,
     categories: result.filterOptions.categories,

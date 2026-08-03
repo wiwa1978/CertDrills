@@ -8,30 +8,29 @@ import {
   buildQuestionsIndexHref,
   buildQuestionsIndexPageQuery,
   buildQuestionsIndexSortQuery,
-  normalizeQuestionsIndexQuery,
-  type NormalizedQuestionsIndexQuery,
+  extractQuestionsIndexRequestQuery,
+  mergeQuestionsIndexQuery,
   type QuestionsIndexQuery,
 } from "./questions-index-query";
 import { QuestionsIndexTable } from "./questions-index-table";
 
 type QuestionsIndexPageProps = {
   searchParams: QuestionsIndexQuery;
-  initialQuery: NormalizedQuestionsIndexQuery;
 };
 
-export async function QuestionsIndexPage({ searchParams, initialQuery }: QuestionsIndexPageProps) {
-  const result = await listCertDrillAdminQuestionIndexServer(initialQuery);
-  const effectiveQuery = normalizeQuestionsIndexQuery(searchParams, result.categories);
+export async function QuestionsIndexPage({ searchParams }: QuestionsIndexPageProps) {
+  const result = await listCertDrillAdminQuestionIndexServer(extractQuestionsIndexRequestQuery(searchParams));
+  const effectiveQuery = result.query;
+  const hrefQuery = mergeQuestionsIndexQuery(searchParams, effectiveQuery);
   const sortHref = buildQuestionsIndexHref(
     "/admin/questions",
-    buildQuestionsIndexSortQuery(searchParams, effectiveQuery.sort === "stem-desc" ? "stem-asc" : "stem-desc", result.categories),
-    result.categories,
+    buildQuestionsIndexSortQuery(hrefQuery, effectiveQuery.sort === "stem-desc" ? "stem-asc" : "stem-desc"),
   );
   const previousHref = result.page > 1
-    ? buildQuestionsIndexHref("/admin/questions", buildQuestionsIndexPageQuery(searchParams, result.page - 1, result.categories), result.categories)
+    ? buildQuestionsIndexHref("/admin/questions", buildQuestionsIndexPageQuery(hrefQuery, result.page - 1))
     : undefined;
   const nextHref = result.page < result.pageCount
-    ? buildQuestionsIndexHref("/admin/questions", buildQuestionsIndexPageQuery(searchParams, result.page + 1, result.categories), result.categories)
+    ? buildQuestionsIndexHref("/admin/questions", buildQuestionsIndexPageQuery(hrefQuery, result.page + 1))
     : undefined;
 
   return (
