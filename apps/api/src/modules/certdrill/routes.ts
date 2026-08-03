@@ -11,6 +11,7 @@ import {
 import type { AppEnv } from "../../context";
 import { badRequest, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
 import { CertDrillAccessDeniedError } from "./access";
+import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
 import { isSafeCitationUrl } from "./validation";
@@ -269,6 +270,18 @@ function adminCertificationIdParam(c: Context<AppEnv>) {
   return parsedParams.data.certificationId;
 }
 
+function adminQuestionIndexQuery(c: Context<AppEnv>): AdminQuestionIndexQueryInput {
+  return {
+    search: c.req.query("search"),
+    certificationId: c.req.query("certificationId"),
+    categoryId: c.req.query("categoryId"),
+    status: c.req.query("status"),
+    difficulty: c.req.query("difficulty"),
+    sort: c.req.query("sort"),
+    page: c.req.query("page"),
+  };
+}
+
 async function withAdminAction<T>(c: Context<AppEnv>, action: () => Promise<T>) {
   try {
     return ok(c, await action());
@@ -417,6 +430,7 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (!certificationId) return validationError(c, "Invalid certification id");
     return withAdminAction(c, () => deps.service.listQuestions(certificationId));
   });
+  router.get("/questions", (c) => withAdminAction(c, () => deps.service.listQuestionIndex(adminQuestionIndexQuery(c))));
   router.post("/questions", async (c) => {
     const parsedBody = await adminJson(c, questionCreateSchema);
     if (!parsedBody.success) return parsedValidationError(c, "Invalid question payload", parsedBody.error);

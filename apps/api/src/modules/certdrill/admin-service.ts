@@ -15,10 +15,21 @@ import {
   type CertDrillQuestionFeedbackStatus,
 } from "@platform/platform-db";
 
+import {
+  createCertDrillAdminQuestionIndex,
+  createDrizzleAdminQuestionIndexRepository,
+  type AdminQuestionIndexQueryInput,
+} from "./admin-question-index";
 import { validateCategorySiblingWeights, validateQuestionForPublish } from "./validation";
+
+type CertDrillAdminQuestionIndex = Pick<
+  ReturnType<typeof createCertDrillAdminQuestionIndex>,
+  "query"
+>;
 
 type CertDrillAdminServiceDeps = {
   db: any;
+  questionIndex?: CertDrillAdminQuestionIndex;
 };
 
 export type CertDrillAdminServiceErrorCode =
@@ -152,6 +163,10 @@ type QuestionFeedbackRow = {
 };
 
 export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
+  const questionIndex = deps.questionIndex ?? createCertDrillAdminQuestionIndex({
+    repository: createDrizzleAdminQuestionIndexRepository({ db: deps.db }),
+  });
+
   async function createCertification(input: CertificationInput) {
     const vendor = await resolveVendor(input.vendorId, input.vendor);
     const [row] = await deps.db.insert(certdrillCertifications).values({
@@ -303,6 +318,10 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
       with: { options: true, category: true },
       orderBy: [asc(certdrillQuestions.createdAt)],
     });
+  }
+
+  async function listQuestionIndex(input: AdminQuestionIndexQueryInput = {}) {
+    return questionIndex.query(input);
   }
 
   async function createQuestion(input: QuestionInput) {
@@ -645,6 +664,7 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     listCategories,
     updateCategory,
     archiveCategory,
+    listQuestionIndex,
     listQuestions,
     createQuestion,
     updateQuestion,

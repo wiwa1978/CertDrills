@@ -23,6 +23,47 @@ const ids = {
 };
 
 describe("CertDrill admin service", () => {
+  it("delegates question index queries to the shared admin question index", async () => {
+    const { db } = createAdminDb({});
+    const questionIndexResult = {
+      query: {
+        search: "zero trust",
+        certificationId: undefined,
+        categoryId: ids.category,
+        status: undefined,
+        difficulty: undefined,
+        sort: "stem-asc" as const,
+        page: 1,
+      },
+      items: [],
+      filterOptions: {
+        certifications: [],
+        categories: [],
+      },
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        pageCount: 1,
+        totalItems: 0,
+      },
+    };
+    const query = vi.fn().mockResolvedValue(questionIndexResult);
+    const service = createCertDrillAdminService({ db, questionIndex: { query } });
+    const input = {
+      search: "  zero trust  ",
+      certificationId: "invalid",
+      categoryId: ids.category,
+      status: "review",
+      difficulty: "expert",
+      sort: "newest",
+      page: "0",
+    };
+
+    await expect(service.listQuestionIndex(input)).resolves.toEqual(questionIndexResult);
+
+    expect(query).toHaveBeenCalledWith(input);
+  });
+
   it("creates, lists, and updates certifications", async () => {
     const { db, inserts, updates } = createAdminDb({
       certifications: [{ id: ids.cert, code: "AWS-SAA-C03", name: "AWS Architect", vendor: "AWS", isActive: true }],

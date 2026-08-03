@@ -19,6 +19,7 @@ const service = {
   listCategories: vi.fn(),
   createCategory: vi.fn(),
   updateCategory: vi.fn(),
+  listQuestionIndex: vi.fn(),
   listQuestions: vi.fn(),
   createQuestion: vi.fn(),
   updateQuestion: vi.fn(),
@@ -124,6 +125,90 @@ describe("CertDrill admin routes", () => {
     expect(service.createQuestion).toHaveBeenCalledWith(body);
     expect(service.updateQuestion).toHaveBeenCalledWith(questionId, { stem: "Updated?" });
     expect(service.publishQuestion).toHaveBeenCalledWith(questionId);
+  });
+
+  it("delegates question index requests with supported query filters", async () => {
+    const questionIndexResult = {
+      query: {
+        search: "zero trust",
+        certificationId,
+        categoryId,
+        status: "published",
+        difficulty: "hard",
+        sort: "stem-desc",
+        page: 3,
+      },
+      items: [],
+      filterOptions: {
+        certifications: [],
+        categories: [],
+      },
+      pagination: {
+        page: 3,
+        pageSize: 50,
+        pageCount: 1,
+        totalItems: 0,
+      },
+    };
+    service.listQuestionIndex.mockResolvedValueOnce(questionIndexResult);
+
+    const response = await createApp().request(
+      `/api/admin/certdrill/questions?search=zero%20trust&certificationId=${certificationId}&categoryId=${categoryId}&status=published&difficulty=hard&sort=stem-desc&page=3`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, data: questionIndexResult });
+    expect(service.listQuestionIndex).toHaveBeenCalledWith({
+      search: "zero trust",
+      certificationId,
+      categoryId,
+      status: "published",
+      difficulty: "hard",
+      sort: "stem-desc",
+      page: "3",
+    });
+  });
+
+  it("does not reject invalid question index query values before service normalization", async () => {
+    const questionIndexResult = {
+      query: {
+        search: "zero trust",
+        certificationId: undefined,
+        categoryId: undefined,
+        status: undefined,
+        difficulty: undefined,
+        sort: "stem-asc",
+        page: 1,
+      },
+      items: [],
+      filterOptions: {
+        certifications: [],
+        categories: [],
+      },
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        pageCount: 1,
+        totalItems: 0,
+      },
+    };
+    service.listQuestionIndex.mockResolvedValueOnce(questionIndexResult);
+
+    const response = await createApp().request(
+      "/api/admin/certdrill/questions?search=%20%20zero%20trust%20%20&certificationId=invalid&categoryId=also-invalid&status=review&difficulty=expert&sort=newest&page=0",
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, data: questionIndexResult });
+    expect(service.listQuestionIndex).toHaveBeenCalledWith({
+      search: "  zero trust  ",
+      certificationId: "invalid",
+      categoryId: "also-invalid",
+      status: "review",
+      difficulty: "expert",
+      sort: "newest",
+      page: "0",
+    });
   });
 
   it("rejects unsafe option citation URL schemes before question delegation", async () => {
