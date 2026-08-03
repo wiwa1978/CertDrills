@@ -1,0 +1,169 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  getQuestionsIndexDisplayedSearch,
+  reconcileQuestionsIndexSearchOwnership,
+  type QuestionsIndexSearchDraft,
+  type QuestionsIndexSearchOwnership,
+} from "../../../src/modules/certdrill/questions-index-search-draft";
+
+type SearchDraftHarnessState = {
+  serverSearch: string;
+  searchDraft: QuestionsIndexSearchDraft;
+  searchOwnership: QuestionsIndexSearchOwnership;
+};
+
+function createHarness(serverSearch = ""): SearchDraftHarnessState {
+  return {
+    serverSearch,
+    searchDraft: {
+      value: serverSearch,
+      base: serverSearch,
+      version: 0,
+    },
+    searchOwnership: {
+      activeDraftVersion: 0,
+      pendingNavigations: [],
+      reconciledNavigations: [],
+      hasLocalSearchChange: false,
+    },
+  };
+}
+
+function typeSearch(state: SearchDraftHarnessState, value: string): SearchDraftHarnessState {
+  const version = state.searchOwnership.activeDraftVersion + 1;
+  return {
+    ...state,
+    searchDraft: {
+      value,
+      base: state.serverSearch,
+      version,
+    },
+    searchOwnership: {
+      ...state.searchOwnership,
+      activeDraftVersion: version,
+      hasLocalSearchChange: true,
+    },
+  };
+}
+
+function queueOwnNavigation(state: SearchDraftHarnessState): SearchDraftHarnessState {
+  return {
+    ...state,
+    searchOwnership: {
+      ...state.searchOwnership,
+      pendingNavigations: [
+        ...state.searchOwnership.pendingNavigations.filter((navigation) => navigation.value !== state.searchDraft.value),
+        { value: state.searchDraft.value, version: state.searchDraft.version },
+      ],
+    },
+  };
+}
+
+function displayedSearch(state: SearchDraftHarnessState) {
+  return getQuestionsIndexDisplayedSearch({
+    serverSearch: state.serverSearch,
+    searchDraft: state.searchDraft,
+    activeDraftVersion: state.searchOwnership.activeDraftVersion,
+    pendingNavigations: state.searchOwnership.pendingNavigations,
+    reconciledNavigations: state.searchOwnership.reconciledNavigations,
+  });
+}
+
+function renderWithServerSearch(state: SearchDraftHarnessState, serverSearch: string) {
+  return displayedSearch({ ...state, serverSearch });
+}
+
+function applyServerSearch(state: SearchDraftHarnessState, serverSearch: string): SearchDraftHarnessState {
+  const result = reconcileQuestionsIndexSearchOwnership({
+    serverSearch,
+    searchOwnership: state.searchOwnership,
+  });
+
+  return {
+    ...state,
+    serverSearch,
+    searchOwnership: result.nextSearchOwnership,
+  };
+}
+
+function flushOwnNavigationForDisplayedSearch(state: SearchDraftHarnessState): SearchDraftHarnessState {
+  if (!state.searchOwnership.hasLocalSearchChange) return state;
+  if (displayedSearch(state) === state.serverSearch) return state;
+  return queueOwnNavigation(state);
+}
+
+describe("questions index search draft", () => {
+  it("keeps a newer local draft visible after an older own navigation resolves and after that navigation is reconciled", () => {
+    let state = createHarness();
+
+    state = typeSearch(state, "a");
+    expect(displayedSearch(state)).toBe("a");
+
+    state = queueOwnNavigation(state);
+    state = typeSearch(state, "ab");
+    expect(displayedSearch(state)).toBe("ab");
+
+    expect(renderWithServerSearch(state, "a")).toBe("ab");
+
+    state = applyServerSearch(state, "a");
+    expect(state.searchOwnership.pendingNavigations).toEqual([]);
+    expect(displayedSearch(state)).toBe("ab");
+
+    state = queueOwnNavigation(state);
+    expect(renderWithServerSearch(state, "ab")).toBe("ab");
+
+    state = applyServerSearch(state, "ab");
+    expect(state.searchOwnership.reconciledNavigations).toEqual([
+      { value: "a", version: 1 },
+      { value: "ab", version: 2 },
+    ]);
+    expect(displayedSearch(state)).toBe("ab");
+  });
+
+  it("replaces the local draft when the server search changes externally without a matching own navigation", () => {
+    let state = createHarness();
+
+    state = typeSearch(state, "a");
+    state = queueOwnNavigation(state);
+    state = typeSearch(state, "ab");
+    state = applyServerSearch(state, "a");
+
+    expect(renderWithServerSearch(state, "external-search")).toBe("external-search");
+
+    state = applyServerSearch(state, "external-search");
+    expect(state.searchOwnership.pendingNavigations).toEqual([]);
+    expect(state.searchOwnership.reconciledNavigations).toEqual([]);
+    expect(displayedSearch(state)).toBe("external-search");
+    expect(renderWithServerSearch(state, "")).toBe("");
+  });
+
+  it("treats older previously reconciled own searches as local even after a newer own search is confirmed", () => {
+    let state = createHarness();
+
+    state = typeSearch(state, "a");
+    state = queueOwnNavigation(state);
+    state = typeSearch(state, "ab");
+    state = queueOwnNavigation(state);
+
+    state = applyServerSearch(state, "a");
+    state = applyServerSearch(state, "ab");
+    expect(state.searchOwnership.hasLocalSearchChange).toBe(false);
+    expect(displayedSearch(state)).toBe("ab");
+
+    expect(renderWithServerSearch(state, "a")).toBe("ab");
+
+    state = applyServerSearch(state, "a");
+    expect(state.searchOwnership.hasLocalSearchChange).toBe(true);
+    expect(displayedSearch(state)).toBe("ab");
+
+    state = flushOwnNavigationForDisplayedSearch(state);
+    expect(state.searchOwnership.pendingNavigations).toEqual([{ value: "ab", version: 2 }]);
+
+    expect(renderWithServerSearch(state, "ab")).toBe("ab");
+
+    state = applyServerSearch(state, "ab");
+    expect(state.searchOwnership.hasLocalSearchChange).toBe(false);
+    expect(displayedSearch(state)).toBe("ab");
+  });
+});

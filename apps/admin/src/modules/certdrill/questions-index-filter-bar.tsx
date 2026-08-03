@@ -17,8 +17,58 @@ import {
   type QuestionsIndexCertificationOption,
   type QuestionsIndexQuery,
 } from "./questions-index-query";
+import {
+  getQuestionsIndexDisplayedSearch,
+  reconcileQuestionsIndexSearchOwnership,
+  type QuestionsIndexSearchDraft,
+  type QuestionsIndexSearchNavigation,
+  type QuestionsIndexSearchOwnership,
+} from "./questions-index-search-draft";
 
-type SearchNavigation = { value: string; version: number };
+function createSearchOwnership() {
+  let snapshot: QuestionsIndexSearchOwnership = {
+    activeDraftVersion: 0,
+    pendingNavigations: [],
+    reconciledNavigations: [],
+    hasLocalSearchChange: false,
+  };
+
+  return {
+    getSnapshot() {
+      return snapshot;
+    },
+    incrementDraftVersion() {
+      snapshot = {
+        ...snapshot,
+        activeDraftVersion: snapshot.activeDraftVersion + 1,
+      };
+      return snapshot.activeDraftVersion;
+    },
+    setHasLocalSearchChange(hasLocalSearchChange: boolean) {
+      snapshot = {
+        ...snapshot,
+        hasLocalSearchChange,
+      };
+    },
+    queuePendingNavigation(navigation: QuestionsIndexSearchNavigation) {
+      snapshot = {
+        ...snapshot,
+        pendingNavigations: [
+          ...snapshot.pendingNavigations.filter((currentNavigation) => currentNavigation.value !== navigation.value),
+          navigation,
+        ],
+      };
+    },
+    reconcileServerSearch(serverSearch: string) {
+      const result = reconcileQuestionsIndexSearchOwnership({
+        searchOwnership: snapshot,
+        serverSearch,
+      });
+      snapshot = result.nextSearchOwnership;
+      return result.reconciliation;
+    },
+  };
+}
 
 function searchParamsToQuery(params: URLSearchParams): QuestionsIndexQuery {
   const query: QuestionsIndexQuery = {};
@@ -50,14 +100,23 @@ export function QuestionsIndexFilterBar({
   const searchParams = useSearchParams();
   const currentQueryString = searchParams.toString();
   const serverSearch = query.search ?? "";
-  const [searchDraft, setSearchDraft] = useState({ value: serverSearch, base: serverSearch });
-  const search = searchDraft.base === serverSearch ? searchDraft.value : serverSearch;
+  const [searchDraft, setSearchDraft] = useState<QuestionsIndexSearchDraft>({
+    value: serverSearch,
+    base: serverSearch,
+    version: 0,
+  });
+  const [searchOwnership] = useState(createSearchOwnership);
   const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));
   const synchronizedQueryStringRef = useRef(currentQueryString);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchNavigationVersionRef = useRef(0);
-  const pendingSearchNavigationsRef = useRef<SearchNavigation[]>([]);
-  const hasLocalSearchChangeRef = useRef(false);
+  const searchOwnershipSnapshot = searchOwnership.getSnapshot();
+  const search = getQuestionsIndexDisplayedSearch({
+    serverSearch,
+    searchDraft,
+    activeDraftVersion: searchOwnershipSnapshot.activeDraftVersion,
+    pendingNavigations: searchOwnershipSnapshot.pendingNavigations,
+    reconciledNavigations: searchOwnershipSnapshot.reconciledNavigations,
+  });
   const categoryOptions = useMemo(
     () => getQuestionsIndexCategoryOptions(query.certificationId, categories),
     [categories, query.certificationId],
@@ -94,39 +153,30 @@ export function QuestionsIndexFilterBar({
   }, [categories, replaceQuery]);
 
   useEffect(() => {
-    const matchingNavigationIndex = pendingSearchNavigationsRef.current
-      .findIndex((navigation) => navigation.value === serverSearch);
-
-    if (matchingNavigationIndex >= 0) {
-      const [matchingNavigation] = pendingSearchNavigationsRef.current.splice(matchingNavigationIndex, 1);
-      if (matchingNavigation.version === searchNavigationVersionRef.current) {
-        hasLocalSearchChangeRef.current = false;
-      }
-      return;
-    }
-
-    hasLocalSearchChangeRef.current = false;
-    searchNavigationVersionRef.current += 1;
+    const reconciliation = searchOwnership.reconcileServerSearch(serverSearch);
+    if (!reconciliation.isExternal) return;
     cancelSearchDebounce();
-  }, [cancelSearchDebounce, serverSearch]);
+  }, [cancelSearchDebounce, searchOwnership, serverSearch]);
 
   useEffect(() => {
+    const currentSearchOwnership = searchOwnership.getSnapshot();
+
     if (search === serverSearch) {
-      hasLocalSearchChangeRef.current = false;
+      searchOwnership.setHasLocalSearchChange(false);
       return;
     }
 
-    if (!hasLocalSearchChangeRef.current) return;
+    if (!currentSearchOwnership.hasLocalSearchChange) return;
 
-    const version = searchNavigationVersionRef.current;
-    if (pendingSearchNavigationsRef.current.some(
+    const version = currentSearchOwnership.activeDraftVersion;
+    if (currentSearchOwnership.pendingNavigations.some(
       (navigation) => navigation.value === search && navigation.version === version,
     )) return;
 
     const timeout = setTimeout(() => {
-      if (searchNavigationVersionRef.current !== version) return;
+      if (searchOwnership.getSnapshot().activeDraftVersion !== version) return;
 
-      pendingSearchNavigationsRef.current.push({ value: search, version });
+      searchOwnership.queuePendingNavigation({ value: search, version });
       searchDebounceRef.current = null;
       replaceFilter({ search });
     }, 250);
@@ -136,19 +186,23 @@ export function QuestionsIndexFilterBar({
       clearTimeout(timeout);
       if (searchDebounceRef.current === timeout) searchDebounceRef.current = null;
     };
-  }, [replaceFilter, search, serverSearch]);
+  }, [replaceFilter, search, searchOwnership, serverSearch]);
 
   function clearFilters() {
     const params = new URLSearchParams(currentQueryParamsRef.current);
+    const version = searchOwnership.incrementDraftVersion();
 
-    searchNavigationVersionRef.current += 1;
     cancelSearchDebounce();
-    hasLocalSearchChangeRef.current = false;
-    setSearchDraft({ base: serverSearch, value: "" });
+    searchOwnership.setHasLocalSearchChange(false);
+    setSearchDraft({
+      base: serverSearch,
+      value: "",
+      version,
+    });
     if (serverSearch) {
-      pendingSearchNavigationsRef.current.push({
+      searchOwnership.queuePendingNavigation({
         value: "",
-        version: searchNavigationVersionRef.current,
+        version,
       });
     }
 
@@ -166,9 +220,13 @@ export function QuestionsIndexFilterBar({
           placeholder="Question stem, answer, certification, or category"
           value={search}
           onChange={(event) => {
-            searchNavigationVersionRef.current += 1;
-            hasLocalSearchChangeRef.current = true;
-            setSearchDraft({ base: serverSearch, value: event.target.value });
+            const version = searchOwnership.incrementDraftVersion();
+            searchOwnership.setHasLocalSearchChange(true);
+            setSearchDraft({
+              base: serverSearch,
+              value: event.target.value,
+              version,
+            });
           }}
         />
       </div>

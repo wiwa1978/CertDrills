@@ -15,9 +15,11 @@ describe("questions index filter bar source", () => {
     expect(source).toContain("setTimeout");
     expect(source).toContain("250");
     expect(source).toContain("searchDebounceRef");
-    expect(source).toContain("searchNavigationVersionRef");
-    expect(source).toContain("pendingSearchNavigationsRef");
-    expect(source).toContain("matchingNavigationIndex");
+    expect(source).toContain("createSearchOwnership");
+    expect(source).toContain("searchOwnership.getSnapshot()");
+    expect(source).toContain("searchOwnership.queuePendingNavigation");
+    expect(source).toContain("reconcileQuestionsIndexSearchOwnership");
+    expect(source).toContain("if (!currentSearchOwnership.hasLocalSearchChange) return;");
     expect(source).toContain("clearTimeout(searchDebounceRef.current)");
   });
 
@@ -32,12 +34,18 @@ describe("questions index filter bar source", () => {
     expect(source).toContain("scroll: false");
   });
 
-  it("derives the displayed search from a draft keyed to the server search without syncing state in an effect", () => {
+  it("derives the displayed search from a draft helper keyed to the server search without syncing state in an effect", () => {
     expect(source).toContain('const serverSearch = query.search ?? "";');
-    expect(source).toContain("const [searchDraft, setSearchDraft] = useState({ value: serverSearch, base: serverSearch });");
-    expect(source).toContain("const search = searchDraft.base === serverSearch ? searchDraft.value : serverSearch;");
-    expect(source).toContain("setSearchDraft({ base: serverSearch, value: event.target.value });");
-    expect(source).toContain('setSearchDraft({ base: serverSearch, value: "" });');
+    expect(source).toContain("const [searchDraft, setSearchDraft] = useState<QuestionsIndexSearchDraft>({");
+    expect(source).toContain("const [searchOwnership] = useState(createSearchOwnership);");
+    expect(source).toContain("getQuestionsIndexDisplayedSearch({");
+    expect(source).toContain("activeDraftVersion: searchOwnershipSnapshot.activeDraftVersion");
+    expect(source).toContain("reconciledNavigations: searchOwnershipSnapshot.reconciledNavigations");
+    expect(source).toContain("setSearchDraft({");
+    expect(source).toContain("base: serverSearch,");
+    expect(source).toContain("value: event.target.value,");
+    expect(source).toContain('value: "",');
+    expect(source).toContain("const version = searchOwnership.incrementDraftVersion();");
     expect(source).not.toContain('const [search, setSearch] = useState(query.search ?? "");');
     expect(source).not.toContain("setSearch(serverSearch);");
   });
