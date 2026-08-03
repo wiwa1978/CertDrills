@@ -22,13 +22,14 @@ export default async function AdminCertDrillCertificationPage({
     questionDifficulty?: SearchParamValue;
     questionCategoryId?: SearchParamValue;
     questionSort?: SearchParamValue;
+    questionPage?: SearchParamValue;
     feedbackStatus?: SearchParamValue;
     tab?: SearchParamValue;
   }>;
 }) {
   const [
     { certificationId },
-    { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, feedbackStatus, tab },
+    { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab },
   ] = await Promise.all([params, searchParams]);
   const certifications = await getCertDrillCertificationsServer();
 
@@ -45,6 +46,7 @@ export default async function AdminCertDrillCertificationPage({
         questionDifficulty={firstSearchParamString(questionDifficulty)}
         questionCategoryId={firstSearchParamString(questionCategoryId)}
         questionSort={firstSearchParamString(questionSort)}
+        questionPage={firstSearchParamString(questionPage)}
         feedbackStatus={firstSearchParamString(feedbackStatus)}
         selectedTab={firstSearchParamString(tab)}
       />

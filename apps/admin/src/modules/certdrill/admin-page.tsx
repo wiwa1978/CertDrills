@@ -59,6 +59,8 @@ import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
 import { QuestionFilterBar } from "./question-filter-bar";
 
+const questionsPerPage = 50;
+
 type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
   selectedCertificationId?: string;
@@ -70,6 +72,7 @@ type CertDrillAdminPageProps = {
   questionDifficulty?: string;
   questionCategoryId?: string;
   questionSort?: string;
+  questionPage?: string;
   feedbackStatus?: string;
   selectedTab?: string;
 };
@@ -89,6 +92,7 @@ type CertDrillAdminHrefParams = {
   questionDifficulty?: string;
   questionCategoryId?: string;
   questionSort?: string;
+  questionPage?: string;
   feedbackStatus?: string;
   tab?: string;
 };
@@ -221,6 +225,7 @@ export async function CertDrillAdminPage({
   questionDifficulty,
   questionCategoryId,
   questionSort,
+  questionPage,
   feedbackStatus,
   selectedTab,
 }: CertDrillAdminPageProps) {
@@ -275,6 +280,27 @@ export async function CertDrillAdminPage({
     questionSort,
   });
   const filteredQuestions = filterCertDrillAdminQuestions(questions, questionFilters);
+  const requestedQuestionPage = normalizeQuestionPage(questionPage);
+  const questionPageCount = Math.max(1, Math.ceil(filteredQuestions.length / questionsPerPage));
+  const currentQuestionPage = Math.min(requestedQuestionPage, questionPageCount);
+  const questionPageOffset = (currentQuestionPage - 1) * questionsPerPage;
+  const pagedQuestions = filteredQuestions.slice(questionPageOffset, questionPageOffset + questionsPerPage);
+  const questionTableHref = (params: Pick<CertDrillAdminHrefParams, "questionPage"> = {}) => selectedCertificationHref({
+    ...questionFilters,
+    tab: "questions",
+    ...params,
+  });
+  const stemSortHref = selectedCertificationHref({
+    ...questionFilters,
+    questionSort: questionFilters.questionSort === "stem-desc" ? "stem-asc" : "stem-desc",
+    tab: "questions",
+  });
+  const previousPageHref = currentQuestionPage > 1
+    ? questionTableHref({ questionPage: String(currentQuestionPage - 1) })
+    : undefined;
+  const nextPageHref = currentQuestionPage < questionPageCount
+    ? questionTableHref({ questionPage: String(currentQuestionPage + 1) })
+    : undefined;
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
   const defaultTab = selectedTab === "categories"
     || selectedTab === "questions"
@@ -436,7 +462,7 @@ export async function CertDrillAdminPage({
             </CardHeader>
             <CardContent className="space-y-4">
               {selectedCertificationId ? <QuestionFilterBar categories={categories} filters={questionFilters} /> : null}
-              {filteredQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={filteredQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} /> : <EmptyState>No questions yet.</EmptyState>}
+              {pagedQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={pagedQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} sort={questionFilters.questionSort} stemSortHref={stemSortHref} page={currentQuestionPage} pageCount={questionPageCount} previousPageHref={previousPageHref} nextPageHref={nextPageHref} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -609,7 +635,7 @@ function certdrillAdminDetailHref(certificationId: string, params: CertDrillAdmi
 function normalizeQuestionFilters(filters: QuestionFilters): QuestionFilters {
   const questionStatus = ["draft", "published", "archived"].includes(filters.questionStatus ?? "") ? filters.questionStatus : undefined;
   const questionDifficulty = ["easy", "medium", "hard"].includes(filters.questionDifficulty ?? "") ? filters.questionDifficulty : undefined;
-  const questionSort = ["stem-asc", "stem-desc", "status-asc", "difficulty-asc", "id-asc"].includes(filters.questionSort ?? "") ? filters.questionSort : undefined;
+  const questionSort = ["stem-asc", "stem-desc"].includes(filters.questionSort ?? "") ? filters.questionSort : undefined;
   const questionSearch = filters.questionSearch?.trim() || undefined;
   const questionCategoryId = filters.questionCategoryId?.trim() || undefined;
 
@@ -620,6 +646,11 @@ function normalizeQuestionFilters(filters: QuestionFilters): QuestionFilters {
     questionCategoryId,
     questionSort,
   };
+}
+
+function normalizeQuestionPage(value?: string) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
 function filterCertDrillAdminQuestions(
@@ -1458,80 +1489,113 @@ function QuestionTable({
   questionHref,
   publishAction,
   archiveAction,
+  sort,
+  stemSortHref,
+  page,
+  pageCount,
+  previousPageHref,
+  nextPageHref,
 }: {
   questions: CertDrillAdminQuestion[];
   questionHref: (question: CertDrillAdminQuestion) => string;
   publishAction: (formData: FormData) => void | Promise<void>;
   archiveAction: (formData: FormData) => void | Promise<void>;
+  sort?: string;
+  stemSortHref?: string;
+  page?: number;
+  pageCount?: number;
+  previousPageHref?: string;
+  nextPageHref?: string;
 }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>ID</TableHead>
-          <TableHead>Stem</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Difficulty</TableHead>
-          <TableHead className="text-right">Options</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {questions.map((question) => {
-          const questionStatus = question.status ?? "draft";
+    <div className="space-y-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ID</TableHead>
+            <TableHead>
+              {stemSortHref ? <LocalizedLink href={stemSortHref} aria-label="Toggle stem sort" className="hover:underline">{sort === "stem-desc" ? "Stem Z-A" : "Stem A-Z"}</LocalizedLink> : "Stem"}
+            </TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Difficulty</TableHead>
+            <TableHead className="text-right">Options</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {questions.map((question) => {
+            const questionStatus = question.status ?? "draft";
 
-          return (
-            <TableRow key={question.id}>
-              <TableCell className="font-mono text-xs">
-                <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
-              </TableCell>
-              <TableCell className="max-w-xl whitespace-normal">
-                <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
-              </TableCell>
-              <TableCell><Badge variant="outline">{questionStatus}</Badge></TableCell>
-              <TableCell>{question.difficulty ?? "medium"}</TableCell>
-              <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label={`Actions for ${question.id}`}>
-                      <MoreHorizontal className="size-4" />
-                      <span className="sr-only">Actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>
-                    </DropdownMenuItem>
-                    {questionStatus !== "archived" ? <DropdownMenuSeparator /> : null}
-                    {questionStatus === "draft" ? (
+            return (
+              <TableRow key={question.id}>
+                <TableCell className="font-mono text-xs">
+                  <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
+                </TableCell>
+                <TableCell className="max-w-xl whitespace-normal">
+                  <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
+                </TableCell>
+                <TableCell><Badge variant="outline">{questionStatus}</Badge></TableCell>
+                <TableCell>{question.difficulty ?? "medium"}</TableCell>
+                <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label={`Actions for ${question.id}`}>
+                        <MoreHorizontal className="size-4" />
+                        <span className="sr-only">Actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <button type="submit" form={`publish-question-${question.id}`}>Publish</button>
+                        <LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>
                       </DropdownMenuItem>
-                    ) : null}
-                    {questionStatus !== "archived" ? (
-                      <DropdownMenuItem asChild variant="destructive">
-                        <button type="submit" form={`archive-question-${question.id}`}>Archive</button>
-                      </DropdownMenuItem>
-                    ) : null}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {questionStatus === "draft" ? (
-                  <form id={`publish-question-${question.id}`} action={publishAction}>
-                    <input type="hidden" name="questionId" value={question.id} />
-                  </form>
-                ) : null}
-                {questionStatus !== "archived" ? (
-                  <form id={`archive-question-${question.id}`} action={archiveAction}>
-                    <input type="hidden" name="questionId" value={question.id} />
-                  </form>
-                ) : null}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+                      {questionStatus !== "archived" ? <DropdownMenuSeparator /> : null}
+                      {questionStatus === "draft" ? (
+                        <DropdownMenuItem asChild>
+                          <button type="submit" form={`publish-question-${question.id}`}>Publish</button>
+                        </DropdownMenuItem>
+                      ) : null}
+                      {questionStatus !== "archived" ? (
+                        <DropdownMenuItem asChild variant="destructive">
+                          <button type="submit" form={`archive-question-${question.id}`}>Archive</button>
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {questionStatus === "draft" ? (
+                    <form id={`publish-question-${question.id}`} action={publishAction}>
+                      <input type="hidden" name="questionId" value={question.id} />
+                    </form>
+                  ) : null}
+                  {questionStatus !== "archived" ? (
+                    <form id={`archive-question-${question.id}`} action={archiveAction}>
+                      <input type="hidden" name="questionId" value={question.id} />
+                    </form>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {page && pageCount ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">Page {page} of {pageCount}</p>
+          <div className="flex gap-2">
+            {previousPageHref ? (
+              <Button asChild variant="outline" size="sm">
+                <LocalizedLink href={previousPageHref}>Previous</LocalizedLink>
+              </Button>
+            ) : <Button variant="outline" size="sm" disabled>Previous</Button>}
+            {nextPageHref ? (
+              <Button asChild variant="outline" size="sm">
+                <LocalizedLink href={nextPageHref}>Next</LocalizedLink>
+              </Button>
+            ) : <Button variant="outline" size="sm" disabled>Next</Button>}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
