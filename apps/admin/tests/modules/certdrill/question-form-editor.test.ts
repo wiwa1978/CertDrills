@@ -67,4 +67,45 @@ describe("Question form editor", () => {
 
     expect(markup).not.toContain("aria-invalid=");
   });
+
+  it("renders overview and four answer tabs", () => {
+    expect(questionFormSource).toContain('"use client"');
+    expect(questionFormSource).toContain('useState<QuestionAnswerTab>("overview")');
+    expect(questionFormSource).toContain("Overview");
+    expect(questionFormSource).toContain("Answer {index + 1}");
+    expect(questionFormSource).toContain("TabsContent");
+    expect(questionFormSource).toContain("forceMount");
+  });
+
+  it("uses Markdown for Stem, answer text, and explanation without previews", () => {
+    expect(questionFormSource).toContain('label="Stem"');
+    expect(questionFormSource).toContain('label={`Answer ${index + 1} text`}');
+    expect(questionFormSource).toContain('label={`Answer ${index + 1} explanation`}');
+    expect(questionFormSource).toContain("<MarkdownTextarea");
+    expect(questionFormSource).not.toContain("MarkdownTextareaWithPreview");
+    expect(questionFormSource).not.toContain("Stem preview");
+    expect(questionFormSource).not.toContain("Explanation preview");
+  });
+
+  it("preserves source resources without showing source controls", () => {
+    expect(questionFormSource).toContain('type="hidden"');
+    expect(questionFormSource).toContain('name="sourceResourceId"');
+    expect(questionFormSource).not.toContain("Source resource ID");
+    expect(questionFormSource).not.toContain("Clear source resource");
+  });
+
+  it("keeps one optional correct answer and disables empty choices", () => {
+    expect(questionFormSource).toContain('name="correctOption"');
+    expect(questionFormSource).toContain("checked={correctOption === String(index)}");
+    expect(questionFormSource).toContain("disabled={!answer.text.trim()}");
+    expect(questionFormSource).not.toContain("selectedCorrectOption ?? 0");
+  });
+
+  it("marks invalid answer tabs and activates the first invalid field", () => {
+    expect(questionFormSource).toContain("questionTabForField");
+    expect(questionFormSource).toContain("firstQuestionFieldError");
+    expect(questionFormSource).toContain('aria-label={`Answer ${index + 1}${hasError ? " has errors" : ""}`}');
+    expect(questionFormSource).toContain("document.getElementById");
+    expect(questionFormSource).toContain(".focus()");
+  });
 });
