@@ -47,15 +47,15 @@ export function MarkdownTextarea({
         id={id}
         className={className}
         required={required}
-        aria-invalid={errorMessages.length > 0}
+        aria-invalid={errorMessages.length > 0 || undefined}
         aria-describedby={describedBy}
         {...props}
       />
       {errorMessages.length > 0 ? (
         <div id={errorId} role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           <ul className="list-disc space-y-1 pl-5">
-            {errorMessages.map((message) => (
-              <li key={message}>{message}</li>
+            {errorMessages.map((message, index) => (
+              <li key={`${message}-${index}`}>{message}</li>
             ))}
           </ul>
         </div>
