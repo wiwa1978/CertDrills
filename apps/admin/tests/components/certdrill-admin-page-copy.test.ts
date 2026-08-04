@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(new URL("../../src/modules/certdrill/admin-page.tsx", import.meta.url), "utf8");
+const questionFormSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-form.tsx", import.meta.url),
+  "utf8",
+);
 const questionFilterBarSource = readFileSync(
   new URL("../../src/modules/certdrill/question-filter-bar.tsx", import.meta.url),
   "utf8",
@@ -196,11 +200,17 @@ describe("CertDrill admin page copy", () => {
     expect(source).not.toContain("Array.isArray(questionSearch)");
   });
 
-  it("shows markdown-supported question editor copy and preview panels", () => {
-    expect(source).toContain("Markdown supported");
-    expect(source).toContain("Stem preview");
-    expect(source).toContain("Explanation preview");
-    expect(source).toContain("MarkdownTextareaWithPreview");
+  it("wires the focused question editor into the admin page", () => {
+    expect(source).toContain('import { QuestionForm } from "./question-form";');
+    expect(source).toContain("<QuestionForm");
+    expect(source).not.toContain("MarkdownTextareaWithPreview");
+    expect(source).not.toContain("function QuestionFormFields");
+    expect(questionFormSource).toContain("Question details");
+    expect(questionFormSource).toContain("Overview");
+    expect(questionFormSource).not.toContain("Stem preview");
+    expect(questionFormSource).not.toContain("Explanation preview");
+    expect(questionFormSource).not.toContain("Clear source resource");
+    expect(questionFormSource).not.toContain("Source resource ID");
   });
 
   it("shows new-record controls for every editable tab", () => {
@@ -217,10 +227,10 @@ describe("CertDrill admin page copy", () => {
     expect(newQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("questionId");
-    expect(source).toContain("<CardTitle>Question</CardTitle>");
-    expect(source).toContain("<CardTitle>Answers</CardTitle>");
-    expect(source.indexOf("<CardTitle>Question</CardTitle>"))
-      .toBeLessThan(source.indexOf("<CardTitle>Answers</CardTitle>"));
+    expect(questionFormSource).toContain("<CardTitle>Question details</CardTitle>");
+    expect(questionFormSource).toContain("<CardTitle>Answers</CardTitle>");
+    expect(questionFormSource.indexOf("<CardTitle>Question details</CardTitle>"))
+      .toBeLessThan(questionFormSource.indexOf("<CardTitle>Answers</CardTitle>"));
   });
 
   it("uses localized links for dedicated question editor navigation", () => {
@@ -300,7 +310,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Code is required and should match the exam code, for example AZ-104.");
     expect(source).toContain("Vendor is required. Use an existing vendor name when possible.");
     expect(source).toContain("Weights must be numeric, use at most 2 decimals, and sibling totals cannot exceed 100.");
-    expect(source).toContain("Published questions require one correct option, explanations, and citation URLs.");
+    expect(questionFormSource).toContain("Add at least two answers. Select the correct answer before publishing.");
     expect(source).toContain("URLs must start with http:// or https://.");
     expect(source).toContain("Must be between 0 and 100.");
     expect(source).toContain("Must be 1 or greater.");
@@ -366,7 +376,7 @@ describe("CertDrill admin page copy", () => {
   it("prefills selected records and submits hidden IDs for updates", () => {
     expect(source).toContain('type="hidden" name="certificationId"');
     expect(source).toContain('type="hidden" name="categoryId"');
-    expect(source).toContain('type="hidden" name="questionId"');
+    expect(questionFormSource).toContain('type="hidden" name="questionId"');
     expect(source).toContain('type="hidden" name="examFormId"');
     expect(source).toContain('type="hidden" name="resourceId"');
     expect(source).toContain("selectedCertification={selectedAdminCertification}");
@@ -376,7 +386,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("selectedResource={selectedResource}");
     expect(source).toContain("defaultValue={selectedCertification?.code}");
     expect(source).toContain("defaultValue={selectedCategory?.code}");
-    expect(source).toContain("defaultValue={selectedQuestion?.stem}");
+    expect(questionFormSource).toContain('useState(() => selectedQuestion?.stem ?? "")');
     expect(source).toContain("defaultValue={selectedExamForm?.name}");
     expect(source).toContain("defaultValue={selectedResource?.title}");
   });
@@ -393,7 +403,7 @@ describe("CertDrill admin page copy", () => {
   it("uses selected-record defaults and explicit clear sentinels for nullable relationships", () => {
     expect(source).toContain("defaultValue={selectedCategory?.parentCategoryId");
     expect(source).toContain("defaultValue={selectedResource?.categoryId");
-    expect(source).toContain("Clear source resource");
+    expect(questionFormSource).toContain('name="sourceResourceId"');
     expect(source).toContain("Clear category");
     expect(actionsSource).toContain("CLEAR_RELATIONSHIP_SENTINEL");
     expect(actionsSource).toContain("submittedNullableString");

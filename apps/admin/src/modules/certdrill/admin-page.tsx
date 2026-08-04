@@ -49,11 +49,11 @@ import {
   updateCertDrillResourceAction,
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
-import { MarkdownTextareaWithPreview } from "./markdown";
 import { questionEditorHref, questionEditorNewHref } from "./question-editor-href";
 import { compactQuestionId } from "./question-id";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
+import { QuestionForm } from "./question-form";
 import {
   buildQuestionPageQuery,
   buildQuestionSortQuery,
@@ -186,7 +186,7 @@ export async function CertDrillQuestionEditorPage({
       <Card>
         <CardHeader>
           <CardTitle>Create or update question</CardTitle>
-          <CardDescription>Markdown supported in stems and explanations.</CardDescription>
+          <CardDescription>Edit the question details, then review and complete each answer.</CardDescription>
         </CardHeader>
         <CardContent>
           <QuestionForm
@@ -833,103 +833,6 @@ function CategoryFormFields({
       <TextField id={`${idPrefix}-weight-pct`} name="weightPct" label="Weight percent" placeholder="25" defaultValue={optionalStringDefault(selectedCategory?.weightPct)} helperText="Weights must be numeric, use at most 2 decimals, and sibling totals cannot exceed 100." />
       <TextField id={`${idPrefix}-drill-question-count`} name="drillQuestionCount" label="Category Drill override" type="number" min="1" placeholder="Leave empty to use the certification default." defaultValue={optionalNumberDefault(selectedCategory?.drillQuestionCount)} helperText="Must be 1 or greater when set." />
       <TextField id={`${idPrefix}-sort-order`} name="sortOrder" label="Sort order" type="number" defaultValue={optionalNumberDefault(selectedCategory?.sortOrder) ?? "0"} />
-    </div>
-  );
-}
-
-function QuestionForm({
-  action,
-  submitLabel,
-  categories,
-  selectedCertificationId,
-  selectedQuestion,
-  idPrefix,
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  submitLabel: string;
-  categories: CertDrillAdminCategory[];
-  selectedCertificationId: string;
-  selectedQuestion?: CertDrillAdminQuestion;
-  idPrefix: string;
-}) {
-  return (
-    <form action={action} className="space-y-4">
-      <input type="hidden" name="certificationId" value={selectedCertificationId} />
-      {selectedQuestion ? <input type="hidden" name="questionId" value={selectedQuestion.id} /> : null}
-      <QuestionFormFields categories={categories} selectedQuestion={selectedQuestion} idPrefix={idPrefix} />
-      <Button type="submit">{submitLabel}</Button>
-    </form>
-  );
-}
-
-function QuestionFormFields({
-  categories,
-  idPrefix,
-  selectedQuestion,
-}: {
-  categories: CertDrillAdminCategory[];
-  idPrefix: string;
-  selectedQuestion?: CertDrillAdminQuestion;
-}) {
-  const selectedCorrectOption = selectedQuestion?.options?.findIndex((option) => option.isCorrect);
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Question</CardTitle>
-          <CardDescription>Choose the category and define the question prompt.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <CategorySelect id={`${idPrefix}-category-id`} name="categoryId" categories={categories} label="Category" defaultValue={selectedQuestion?.categoryId} required />
-          <MarkdownTextareaWithPreview id={`${idPrefix}-stem`} name="stem" label="Stem" previewLabel="Stem preview" required placeholder="Which option best answers the scenario?" defaultValue={selectedQuestion?.stem} helperText="Question stem is required. Markdown is supported." />
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField id={`${idPrefix}-difficulty`} name="difficulty" label="Difficulty" defaultValue={selectedQuestion?.difficulty ?? "medium"}>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </SelectField>
-            <SelectField id={`${idPrefix}-status`} name="status" label="Status" defaultValue={selectedQuestion?.status ?? "draft"}>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </SelectField>
-            {selectedQuestion ? <CheckboxField id={`${idPrefix}-clear-source-resource-id`} name="sourceResourceId" value="__none__" label="Clear source resource" /> : null}
-            <TextField id={`${idPrefix}-source-resource-id`} name="sourceResourceId" label="Source resource ID" placeholder="Optional resource UUID" defaultValue={selectedQuestion?.sourceResourceId ?? undefined} helperText="Must be a valid resource UUID when set." />
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Answers</CardTitle>
-          <CardDescription>Select one correct answer and provide the supporting details for every option.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">Published questions require one correct option, explanations, and citation URLs.</p>
-          <fieldset>
-            <legend className="text-sm font-medium">Correct answer</legend>
-            <div className="mt-2 flex flex-wrap gap-4">
-              {[0, 1, 2, 3].map((index) => (
-                <label key={index} className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="correctOption" value={String(index)} defaultChecked={(selectedCorrectOption ?? 0) === index} />
-                  Option {index + 1}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {[0, 1, 2, 3].map((index) => {
-            const option = selectedQuestion?.options?.[index];
-
-            return (
-              <div key={index} className="grid gap-3 rounded-md bg-muted/40 p-3 md:grid-cols-3">
-                <TextField id={`${idPrefix}-option-${index}-text`} name={`option${index}Text`} label={`Option ${index + 1} text`} placeholder="Answer text" defaultValue={option?.text} helperText="Required before publishing." />
-                <MarkdownTextareaWithPreview id={`${idPrefix}-option-${index}-explanation`} name={`option${index}Explanation`} label={`Option ${index + 1} explanation`} previewLabel="Explanation preview" placeholder="Why this is right or wrong" defaultValue={option?.explanation} helperText="Required before publishing." />
-                <TextareaField id={`${idPrefix}-option-${index}-citations`} name={`option${index}CitationUrls`} label={`Option ${index + 1} citation URLs`} placeholder="Comma-separated URLs" defaultValue={csvDefault(option?.citationUrls)} helperText="Required before publishing. URLs must start with http://, https://, or mailto:." />
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
     </div>
   );
 }
