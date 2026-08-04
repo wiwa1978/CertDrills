@@ -74,7 +74,27 @@ describe("Question form editor", () => {
     expect(questionFormSource).toContain("Overview");
     expect(questionFormSource).toContain("Answer {index + 1}");
     expect(questionFormSource).toContain("TabsContent");
-    expect(questionFormSource).toContain("forceMount");
+    expect(questionFormSource.match(/\bforceMount\b/g)).toHaveLength(2);
+    expect(questionFormSource.match(/data-\[state=inactive\]:hidden/g)).toHaveLength(2);
+  });
+
+  it("keeps question details controlled across failed form actions", () => {
+    expect(questionFormSource).toContain("const [categoryId, setCategoryId] = useState");
+    expect(questionFormSource).toContain("const [stem, setStem] = useState");
+    expect(questionFormSource).toContain("const [difficulty, setDifficulty] = useState");
+    expect(questionFormSource).toContain("const [status, setStatus] = useState");
+    expect(questionFormSource).toContain("value={categoryId}");
+    expect(questionFormSource).toContain("value={stem}");
+    expect(questionFormSource).toContain("value={difficulty}");
+    expect(questionFormSource).toContain("value={status}");
+    expect(questionFormSource).toContain("setCategoryId(event.currentTarget.value)");
+    expect(questionFormSource).toContain("setStem(event.currentTarget.value)");
+    expect(questionFormSource).toContain("setDifficulty(event.currentTarget.value)");
+    expect(questionFormSource).toContain("setStatus(event.currentTarget.value)");
+    expect(questionFormSource).not.toContain("defaultValue={selectedQuestion?.categoryId");
+    expect(questionFormSource).not.toContain("defaultValue={selectedQuestion?.stem");
+    expect(questionFormSource).not.toContain("defaultValue={selectedQuestion?.difficulty");
+    expect(questionFormSource).not.toContain("defaultValue={selectedQuestion?.status");
   });
 
   it("uses Markdown for Stem, answer text, and explanation without previews", () => {
@@ -98,6 +118,7 @@ describe("Question form editor", () => {
     expect(questionFormSource).toContain('name="correctOption"');
     expect(questionFormSource).toContain("checked={correctOption === String(index)}");
     expect(questionFormSource).toContain("disabled={!answer.text.trim()}");
+    expect(questionFormSource).toContain("option.isCorrect && option.text.trim()");
     expect(questionFormSource).not.toContain("selectedCorrectOption ?? 0");
   });
 
@@ -107,5 +128,11 @@ describe("Question form editor", () => {
     expect(questionFormSource).toContain('aria-label={`Answer ${index + 1}${hasError ? " has errors" : ""}`}');
     expect(questionFormSource).toContain("document.getElementById");
     expect(questionFormSource).toContain(".focus()");
+  });
+
+  it("makes aggregate errors focusable and falls back from a disabled correct option", () => {
+    expect(questionFormSource).toContain('<Card id={`${idPrefix}-answers`} tabIndex={-1}>');
+    expect(questionFormSource).toContain('input[name="correctOption"]:not(:disabled)');
+    expect(questionFormSource).toContain("target.disabled");
   });
 });

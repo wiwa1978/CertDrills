@@ -39,7 +39,13 @@ export function QuestionFormShell({
   const fieldErrors = Object.entries(state.fieldErrors);
 
   return (
-    <form id={`${idPrefix}-form`} action={formAction} className="space-y-4" noValidate>
+    <form
+      id={`${idPrefix}-form`}
+      tabIndex={-1}
+      action={formAction}
+      className="space-y-4"
+      noValidate
+    >
       {state.status === "error" ? (
         <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm">
           <p className="font-semibold">Question could not be saved.</p>

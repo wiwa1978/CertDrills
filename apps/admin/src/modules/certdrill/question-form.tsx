@@ -91,7 +91,9 @@ export function QuestionForm({
   const [activeTab, setActiveTab] = useState<QuestionAnswerTab>("overview");
   const [answers, setAnswers] = useState(() => initialAnswers(selectedQuestion));
   const selectedCorrectOption =
-    selectedQuestion?.options?.findIndex((option) => option.isCorrect) ?? -1;
+    selectedQuestion?.options?.findIndex(
+      (option) => option.isCorrect && option.text.trim(),
+    ) ?? -1;
   const [correctOption, setCorrectOption] = useState(
     selectedCorrectOption >= 0 ? String(selectedCorrectOption) : "",
   );
@@ -107,8 +109,18 @@ export function QuestionForm({
     if (!fieldToFocus) return;
 
     const frame = requestAnimationFrame(() => {
-      document.getElementById(questionFieldId(idPrefix, fieldToFocus))
-        ?.focus();
+      const target = document.getElementById(questionFieldId(idPrefix, fieldToFocus));
+      if (
+        fieldToFocus === "correctOption"
+        && target instanceof HTMLInputElement
+        && target.disabled
+      ) {
+        document.getElementById(`${idPrefix}-form`)
+          ?.querySelector<HTMLInputElement>('input[name="correctOption"]:not(:disabled)')
+          ?.focus();
+      } else {
+        target?.focus();
+      }
       setFieldToFocus(undefined);
     });
 
@@ -189,6 +201,17 @@ function QuestionFormContents({
   setCorrectOption: (value: string) => void;
   activateField: (fieldName: string) => void;
 }) {
+  const [categoryId, setCategoryId] = useState(
+    () => selectedQuestion?.categoryId ?? "",
+  );
+  const [stem, setStem] = useState(() => selectedQuestion?.stem ?? "");
+  const [difficulty, setDifficulty] = useState<string>(
+    () => selectedQuestion?.difficulty ?? "medium",
+  );
+  const [status, setStatus] = useState<string>(
+    () => selectedQuestion?.status ?? "draft",
+  );
+
   useEffect(() => {
     if (state.status !== "error") return;
 
@@ -223,7 +246,8 @@ function QuestionFormContents({
             name="categoryId"
             label="Category"
             required
-            defaultValue={selectedQuestion?.categoryId ?? ""}
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.currentTarget.value)}
             errorMessages={fieldErrors(state, "categoryId")}
           >
             <option value="">Select a category</option>
@@ -240,7 +264,8 @@ function QuestionFormContents({
             required
             className="min-h-40"
             placeholder="Which option best answers the scenario?"
-            defaultValue={selectedQuestion?.stem}
+            value={stem}
+            onChange={(event) => setStem(event.currentTarget.value)}
             helperText="Question stem is required. Markdown is supported."
             errorMessages={fieldErrors(state, "stem")}
           />
@@ -249,7 +274,8 @@ function QuestionFormContents({
               id={`${idPrefix}-difficulty`}
               name="difficulty"
               label="Difficulty"
-              defaultValue={selectedQuestion?.difficulty ?? "medium"}
+              value={difficulty}
+              onChange={(event) => setDifficulty(event.currentTarget.value)}
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
@@ -259,7 +285,8 @@ function QuestionFormContents({
               id={`${idPrefix}-status`}
               name="status"
               label="Status"
-              defaultValue={selectedQuestion?.status ?? "draft"}
+              value={status}
+              onChange={(event) => setStatus(event.currentTarget.value)}
             >
               <option value="draft">Draft</option>
               <option value="published">Published</option>
@@ -311,7 +338,7 @@ function AnswerTabs({
     || fieldErrors(state, "correctOption").length > 0;
 
   return (
-    <Card id={`${idPrefix}-answers`}>
+    <Card id={`${idPrefix}-answers`} tabIndex={-1}>
       <CardHeader>
         <CardTitle>Answers</CardTitle>
         <CardDescription>
@@ -352,7 +379,11 @@ function AnswerTabs({
             </TabsList>
           </div>
 
-          <TabsContent value="overview" forceMount className="space-y-3 pt-3">
+          <TabsContent
+            value="overview"
+            forceMount
+            className="space-y-3 pt-3 data-[state=inactive]:hidden"
+          >
             {fieldErrors(state, "options").map((message, index) => (
               <p key={`${message}-${index}`} className="text-sm text-destructive">
                 {message}
@@ -408,7 +439,7 @@ function AnswerTabs({
                 key={index}
                 value={`answer-${index}`}
                 forceMount
-                className="space-y-4 pt-3"
+                className="space-y-4 pt-3 data-[state=inactive]:hidden"
               >
                 <MarkdownTextarea
                   id={`${idPrefix}-option-${index}-text`}

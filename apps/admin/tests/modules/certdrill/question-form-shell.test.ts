@@ -18,6 +18,8 @@ describe("QuestionFormShell", () => {
     expect(source).toContain("onFieldErrorLink");
     expect(source).toContain("event.preventDefault()");
     expect(source).toContain("onFieldErrorLink(fieldName)");
+    expect(source).toContain('id={`${idPrefix}-form`}');
+    expect(source).toContain("tabIndex={-1}");
   });
 
   it("shows pending and success states", () => {
