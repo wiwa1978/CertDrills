@@ -14,6 +14,57 @@ type InlineParseState = {
   key: number;
 };
 
+type MarkdownTextareaProps = ComponentProps<typeof Textarea> & {
+  id: string;
+  label: string;
+  helperText?: string;
+  errorMessages?: string[];
+};
+
+export function MarkdownTextarea({
+  id,
+  label,
+  helperText,
+  errorMessages = [],
+  className,
+  required,
+  ...props
+}: MarkdownTextareaProps) {
+  const errorId = `${id}-error`;
+  const helperId = `${id}-helper`;
+  const describedBy = [
+    errorMessages.length > 0 ? errorId : undefined,
+    helperText ? helperId : undefined,
+  ].filter(Boolean).join(" ") || undefined;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id}>{label}{required ? <span className="ml-1 text-xs text-muted-foreground">Required</span> : null}</Label>
+        <span className="text-xs text-muted-foreground">Markdown supported</span>
+      </div>
+      <Textarea
+        id={id}
+        className={className}
+        required={required}
+        aria-invalid={errorMessages.length > 0}
+        aria-describedby={describedBy}
+        {...props}
+      />
+      {errorMessages.length > 0 ? (
+        <div id={errorId} role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          <ul className="list-disc space-y-1 pl-5">
+            {errorMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {helperText ? <p id={helperId} className="text-xs text-muted-foreground">{helperText}</p> : null}
+    </div>
+  );
+}
+
 export function MarkdownTextareaWithPreview({
   id,
   label,
