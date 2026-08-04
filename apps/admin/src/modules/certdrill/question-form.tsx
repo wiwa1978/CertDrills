@@ -17,6 +17,7 @@ import type {
   CertDrillAdminCategory,
   CertDrillAdminQuestion,
 } from "@/lib/api/certdrill.server";
+import { cn } from "@/lib/utils";
 
 import { MarkdownTextarea } from "./markdown";
 import {
@@ -43,11 +44,29 @@ const answerIndexes = [0, 1, 2, 3] as const;
 type AnswerIndex = typeof answerIndexes[number];
 type AnswerValues = Record<AnswerIndex, AnswerValue>;
 
+type QuestionFormProps = {
+  action: QuestionFormAction;
+  submitLabel: string;
+  categories: CertDrillAdminCategory[];
+  selectedCertificationId: string;
+  selectedQuestion?: CertDrillAdminQuestion;
+  idPrefix: string;
+};
+
+function optionAtAnswerIndex(
+  question: CertDrillAdminQuestion | undefined,
+  index: AnswerIndex,
+) {
+  return question?.options?.find(
+    (option, position) => (option.sortOrder ?? position) === index,
+  );
+}
+
 function answerValue(
   question: CertDrillAdminQuestion | undefined,
   index: AnswerIndex,
 ): AnswerValue {
-  const option = question?.options?.[index];
+  const option = optionAtAnswerIndex(question, index);
   return {
     text: option?.text ?? "",
     explanation: option?.explanation ?? "",
@@ -80,24 +99,60 @@ export function QuestionForm({
   selectedCertificationId,
   selectedQuestion,
   idPrefix,
-}: {
-  action: QuestionFormAction;
-  submitLabel: string;
-  categories: CertDrillAdminCategory[];
-  selectedCertificationId: string;
-  selectedQuestion?: CertDrillAdminQuestion;
-  idPrefix: string;
-}) {
+}: QuestionFormProps) {
+  return (
+    <StatefulQuestionForm
+      key={selectedQuestion?.id ?? "new"}
+      action={action}
+      submitLabel={submitLabel}
+      categories={categories}
+      selectedCertificationId={selectedCertificationId}
+      selectedQuestion={selectedQuestion}
+      idPrefix={idPrefix}
+    />
+  );
+}
+
+function StatefulQuestionForm({
+  action,
+  submitLabel,
+  categories,
+  selectedCertificationId,
+  selectedQuestion,
+  idPrefix,
+}: QuestionFormProps) {
   const [activeTab, setActiveTab] = useState<QuestionAnswerTab>("overview");
   const [answers, setAnswers] = useState(() => initialAnswers(selectedQuestion));
   const selectedCorrectOption =
-    selectedQuestion?.options?.findIndex(
-      (option) => option.isCorrect && option.text.trim(),
-    ) ?? -1;
+    answerIndexes.find((index) => {
+      const option = optionAtAnswerIndex(selectedQuestion, index);
+      return option?.isCorrect && option.text.trim();
+    });
   const [correctOption, setCorrectOption] = useState(
-    selectedCorrectOption >= 0 ? String(selectedCorrectOption) : "",
+    selectedCorrectOption === undefined ? "" : String(selectedCorrectOption),
   );
   const [fieldToFocus, setFieldToFocus] = useState<string>();
+  const [categoryId, setCategoryId] = useState(
+    () => selectedQuestion?.categoryId ?? "",
+  );
+  const [stem, setStem] = useState(() => selectedQuestion?.stem ?? "");
+  const [difficulty, setDifficulty] = useState<string>(
+    () => selectedQuestion?.difficulty ?? "medium",
+  );
+  const [status, setStatus] = useState<string>(
+    () => selectedQuestion?.status ?? "draft",
+  );
+
+  const resetNewQuestion = useCallback(() => {
+    setActiveTab("overview");
+    setAnswers(initialAnswers());
+    setCorrectOption("");
+    setFieldToFocus(undefined);
+    setCategoryId("");
+    setStem("");
+    setDifficulty("medium");
+    setStatus("draft");
+  }, []);
 
   const activateField = useCallback((fieldName: string) => {
     const tab = questionTabForField(fieldName);
@@ -115,9 +170,10 @@ export function QuestionForm({
         && target instanceof HTMLInputElement
         && target.disabled
       ) {
-        document.getElementById(`${idPrefix}-form`)
+        const fallbackTarget = document.getElementById(`${idPrefix}-form`)
           ?.querySelector<HTMLInputElement>('input[name="correctOption"]:not(:disabled)')
-          ?.focus();
+          ?? document.getElementById(`${idPrefix}-answers`);
+        fallbackTarget?.focus();
       } else {
         target?.focus();
       }
@@ -157,6 +213,14 @@ export function QuestionForm({
           categories={categories}
           selectedCertificationId={selectedCertificationId}
           selectedQuestion={selectedQuestion}
+          categoryId={categoryId}
+          setCategoryId={setCategoryId}
+          stem={stem}
+          setStem={setStem}
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+          status={status}
+          setStatus={setStatus}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           answers={answers}
@@ -164,6 +228,7 @@ export function QuestionForm({
           correctOption={correctOption}
           setCorrectOption={setCorrectOption}
           activateField={activateField}
+          resetNewQuestion={resetNewQuestion}
         />
       )}
     </QuestionFormShell>
@@ -176,6 +241,14 @@ function QuestionFormContents({
   categories,
   selectedCertificationId,
   selectedQuestion,
+  categoryId,
+  setCategoryId,
+  stem,
+  setStem,
+  difficulty,
+  setDifficulty,
+  status,
+  setStatus,
   activeTab,
   setActiveTab,
   answers,
@@ -183,12 +256,21 @@ function QuestionFormContents({
   correctOption,
   setCorrectOption,
   activateField,
+  resetNewQuestion,
 }: {
   state: QuestionFormActionState;
   idPrefix: string;
   categories: CertDrillAdminCategory[];
   selectedCertificationId: string;
   selectedQuestion?: CertDrillAdminQuestion;
+  categoryId: string;
+  setCategoryId: (value: string) => void;
+  stem: string;
+  setStem: (value: string) => void;
+  difficulty: string;
+  setDifficulty: (value: string) => void;
+  status: string;
+  setStatus: (value: string) => void;
   activeTab: QuestionAnswerTab;
   setActiveTab: (tab: QuestionAnswerTab) => void;
   answers: AnswerValues;
@@ -200,24 +282,19 @@ function QuestionFormContents({
   correctOption: string;
   setCorrectOption: (value: string) => void;
   activateField: (fieldName: string) => void;
+  resetNewQuestion: () => void;
 }) {
-  const [categoryId, setCategoryId] = useState(
-    () => selectedQuestion?.categoryId ?? "",
-  );
-  const [stem, setStem] = useState(() => selectedQuestion?.stem ?? "");
-  const [difficulty, setDifficulty] = useState<string>(
-    () => selectedQuestion?.difficulty ?? "medium",
-  );
-  const [status, setStatus] = useState<string>(
-    () => selectedQuestion?.status ?? "draft",
-  );
-
   useEffect(() => {
     if (state.status !== "error") return;
 
     const firstField = firstQuestionFieldError(state.fieldErrors);
     if (firstField) activateField(firstField);
   }, [state, activateField]);
+
+  useEffect(() => {
+    if (selectedQuestion || state.status !== "success") return;
+    resetNewQuestion();
+  }, [state, selectedQuestion, resetNewQuestion]);
 
   return (
     <div className="space-y-4">
@@ -305,6 +382,7 @@ function QuestionFormContents({
         updateAnswer={updateAnswer}
         correctOption={correctOption}
         setCorrectOption={setCorrectOption}
+        activateField={activateField}
       />
     </div>
   );
@@ -319,6 +397,7 @@ function AnswerTabs({
   updateAnswer,
   correctOption,
   setCorrectOption,
+  activateField,
 }: {
   state: QuestionFormActionState;
   idPrefix: string;
@@ -332,6 +411,7 @@ function AnswerTabs({
   ) => void;
   correctOption: string;
   setCorrectOption: (value: string) => void;
+  activateField: (fieldName: string) => void;
 }) {
   const overviewHasError =
     fieldErrors(state, "options").length > 0
@@ -384,17 +464,24 @@ function AnswerTabs({
             forceMount
             className="space-y-3 pt-3 data-[state=inactive]:hidden"
           >
-            {fieldErrors(state, "options").map((message, index) => (
-              <p key={`${message}-${index}`} className="text-sm text-destructive">
-                {message}
-              </p>
-            ))}
-            {fieldErrors(state, "correctOption").map((message, index) => (
-              <p key={`${message}-${index}`} className="text-sm text-destructive">
-                {message}
-              </p>
-            ))}
-            <fieldset className="space-y-3">
+            {overviewHasError ? (
+              <div
+                id={`${idPrefix}-answer-errors`}
+                role="alert"
+                className="space-y-1 text-sm text-destructive"
+              >
+                {fieldErrors(state, "options").map((message, index) => (
+                  <p key={`${message}-${index}`}>{message}</p>
+                ))}
+                {fieldErrors(state, "correctOption").map((message, index) => (
+                  <p key={`${message}-${index}`}>{message}</p>
+                ))}
+              </div>
+            ) : null}
+            <fieldset
+              className="space-y-3"
+              aria-describedby={overviewHasError ? `${idPrefix}-answer-errors` : undefined}
+            >
               <legend className="text-sm font-medium">Correct answer</legend>
               {answerIndexes.map((index) => {
                 const answer = answers[index];
@@ -409,6 +496,7 @@ function AnswerTabs({
                       type="radio"
                       name="correctOption"
                       value={String(index)}
+                      aria-label={`Answer ${index + 1} is the correct answer`}
                       checked={correctOption === String(index)}
                       disabled={!answer.text.trim()}
                       onChange={() => setCorrectOption(String(index))}
@@ -416,7 +504,7 @@ function AnswerTabs({
                     <button
                       type="button"
                       className="min-w-0 text-left"
-                      onClick={() => setActiveTab(`answer-${index}`)}
+                      onClick={() => activateField(`option${index}Text`)}
                     >
                       <span className="block font-medium">Answer {index + 1}</span>
                       <span className="block truncate text-sm text-muted-foreground">
@@ -498,6 +586,7 @@ function QuestionSelect({
   helperText,
   children,
   required,
+  className,
   ...props
 }: ComponentProps<"select"> & ErrorProps & { id: string; label: string }) {
   const errorId = `${id}-error`;
@@ -513,7 +602,10 @@ function QuestionSelect({
       </Label>
       <select
         id={id}
-        className="border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs"
+        className={cn(
+          className,
+          "border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs",
+        )}
         required={required}
         aria-invalid={errorMessages.length > 0 || undefined}
         aria-describedby={describedBy(id, errorMessages, helperText)}
