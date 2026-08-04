@@ -67,6 +67,7 @@ deployment. Workflows must not create or delete PostgreSQL databases.
 
 Update:
 
+- `.github/workflows/test.yml`
 - `.github/workflows/deploy-production-infra.yml`
 - `.github/workflows/deploy-production.yml`
 - `infra/main.parameters.example.json`
@@ -75,6 +76,10 @@ Update:
 The workflow logic remains aligned with the proven boilerplate implementation.
 Only project-specific defaults and documentation change unless validation
 reveals a CertDrills-specific defect.
+
+The CI workflow test database and public app name also use CertDrills-specific
+values so active workflow configuration no longer presents boilerplate
+branding.
 
 The README becomes the source of truth for:
 
