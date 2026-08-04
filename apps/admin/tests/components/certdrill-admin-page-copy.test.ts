@@ -227,7 +227,8 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('import { Link as LocalizedLink } from "@/i18n/navigation";');
     expect(source).toContain('<LocalizedLink href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</LocalizedLink>');
     expect(source).toContain('<LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>');
-    expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>');
+    expect(source).toContain("compactQuestionId(question.id)");
+    expect(source).toContain('aria-label={`Open question ${question.id}`}');
     expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>');
   });
 

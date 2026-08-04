@@ -51,6 +51,7 @@ import {
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
 import { MarkdownTextareaWithPreview } from "./markdown";
 import { questionEditorHref, questionEditorNewHref } from "./question-editor-href";
+import { compactQuestionId } from "./question-id";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
 import {
@@ -1522,7 +1523,7 @@ function QuestionTable({
             return (
               <TableRow key={question.id}>
                 <TableCell className="font-mono text-xs">
-                  <LocalizedLink href={questionHref(question)} className="hover:underline">{question.id}</LocalizedLink>
+                  <LocalizedLink href={questionHref(question)} className="hover:underline" aria-label={`Open question ${question.id}`}>{compactQuestionId(question.id)}</LocalizedLink>
                 </TableCell>
                 <TableCell className="max-w-xl whitespace-normal">
                   <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>

@@ -14,6 +14,7 @@ import type {
 } from "@/lib/api/certdrill.server";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { questionEditorHref } from "./question-editor-href";
+import { compactQuestionId } from "./question-id";
 
 type QuestionsIndexTableProps = {
   result?: Pick<CertDrillAdminQuestionIndexResult, "items" | "page" | "pageCount" | "pageSize" | "total">;
@@ -134,7 +135,10 @@ export function QuestionsIndexTable({
                         </LocalizedLink>
                       </div>
                       <p className="font-medium">{question.stem}</p>
-                      <p className="font-mono text-xs text-muted-foreground">{question.questionId}</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        <span className="sr-only">Question ID {question.questionId}</span>
+                        <span aria-hidden="true">{compactQuestionId(question.questionId)}</span>
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell><Badge variant="outline">{question.status}</Badge></TableCell>

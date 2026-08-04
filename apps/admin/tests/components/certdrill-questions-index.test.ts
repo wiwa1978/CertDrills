@@ -81,6 +81,12 @@ describe("questions index table source", () => {
     expect(tableSource.toLowerCase()).not.toContain("media");
   });
 
+  it("shows compact question ids while preserving the full accessible identifier", () => {
+    expect(tableSource).toContain("compactQuestionId(question.questionId)");
+    expect(tableSource).toContain("<span className=\"sr-only\">Question ID {question.questionId}</span>");
+    expect(tableSource).toContain("<span aria-hidden=\"true\">");
+  });
+
   it("shows the question range, current page, and disabled previous/next boundaries", () => {
     expect(tableSource).toContain("Showing {rangeStart} to {rangeEnd} of {total}");
     expect(tableSource).toContain("Page {page} of {pageCount}");
