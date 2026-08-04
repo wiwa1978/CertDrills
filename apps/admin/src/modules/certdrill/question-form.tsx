@@ -43,6 +43,8 @@ type AnswerValue = {
 const answerIndexes = [0, 1, 2, 3] as const;
 type AnswerIndex = typeof answerIndexes[number];
 type AnswerValues = Record<AnswerIndex, AnswerValue>;
+type QuestionOption = NonNullable<CertDrillAdminQuestion["options"]>[number];
+type AnswerOptions = Record<AnswerIndex, QuestionOption | undefined>;
 
 type QuestionFormProps = {
   action: QuestionFormAction;
@@ -53,20 +55,52 @@ type QuestionFormProps = {
   idPrefix: string;
 };
 
-function optionAtAnswerIndex(
-  question: CertDrillAdminQuestion | undefined,
-  index: AnswerIndex,
-) {
-  return question?.options?.find(
-    (option, position) => (option.sortOrder ?? position) === index,
-  );
+function answerOptions(question?: CertDrillAdminQuestion): AnswerOptions {
+  const slots: AnswerOptions = {
+    0: undefined,
+    1: undefined,
+    2: undefined,
+    3: undefined,
+  };
+  const options = question?.options ?? [];
+  const sortOrders = options.map((option) => option.sortOrder);
+  const hasCanonicalSortOrders =
+    sortOrders.every(
+      (sortOrder) =>
+        Number.isInteger(sortOrder)
+        && sortOrder !== undefined
+        && sortOrder >= 0
+        && sortOrder <= 3,
+    )
+    && new Set(sortOrders).size === sortOrders.length;
+
+  if (hasCanonicalSortOrders) {
+    options.forEach((option) => {
+      slots[option.sortOrder as AnswerIndex] = option;
+    });
+    return slots;
+  }
+
+  options
+    .map((option, position) => ({ option, position }))
+    .sort((left, right) => {
+      const leftSortOrder = left.option.sortOrder ?? left.position;
+      const rightSortOrder = right.option.sortOrder ?? right.position;
+      return leftSortOrder - rightSortOrder || left.position - right.position;
+    })
+    .slice(0, answerIndexes.length)
+    .forEach(({ option }, index) => {
+      slots[index as AnswerIndex] = option;
+    });
+
+  return slots;
 }
 
 function answerValue(
-  question: CertDrillAdminQuestion | undefined,
+  options: AnswerOptions | undefined,
   index: AnswerIndex,
 ): AnswerValue {
-  const option = optionAtAnswerIndex(question, index);
+  const option = options?.[index];
   return {
     text: option?.text ?? "",
     explanation: option?.explanation ?? "",
@@ -74,12 +108,26 @@ function answerValue(
   };
 }
 
-function initialAnswers(question?: CertDrillAdminQuestion): AnswerValues {
+function initialAnswers(options?: AnswerOptions): AnswerValues {
   return {
-    0: answerValue(question, 0),
-    1: answerValue(question, 1),
-    2: answerValue(question, 2),
-    3: answerValue(question, 3),
+    0: answerValue(options, 0),
+    1: answerValue(options, 1),
+    2: answerValue(options, 2),
+    3: answerValue(options, 3),
+  };
+}
+
+function initialAnswerState(question?: CertDrillAdminQuestion) {
+  const options = answerOptions(question);
+  const selectedCorrectOption = answerIndexes.find((index) => {
+    const option = options[index];
+    return option?.isCorrect && option.text.trim();
+  });
+
+  return {
+    answers: initialAnswers(options),
+    correctOption:
+      selectedCorrectOption === undefined ? "" : String(selectedCorrectOption),
   };
 }
 
@@ -121,16 +169,10 @@ function StatefulQuestionForm({
   selectedQuestion,
   idPrefix,
 }: QuestionFormProps) {
+  const [savedAnswerState] = useState(() => initialAnswerState(selectedQuestion));
   const [activeTab, setActiveTab] = useState<QuestionAnswerTab>("overview");
-  const [answers, setAnswers] = useState(() => initialAnswers(selectedQuestion));
-  const selectedCorrectOption =
-    answerIndexes.find((index) => {
-      const option = optionAtAnswerIndex(selectedQuestion, index);
-      return option?.isCorrect && option.text.trim();
-    });
-  const [correctOption, setCorrectOption] = useState(
-    selectedCorrectOption === undefined ? "" : String(selectedCorrectOption),
-  );
+  const [answers, setAnswers] = useState(savedAnswerState.answers);
+  const [correctOption, setCorrectOption] = useState(savedAnswerState.correctOption);
   const [fieldToFocus, setFieldToFocus] = useState<string>();
   const [categoryId, setCategoryId] = useState(
     () => selectedQuestion?.categoryId ?? "",
@@ -603,8 +645,8 @@ function QuestionSelect({
       <select
         id={id}
         className={cn(
-          className,
           "border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs",
+          className,
         )}
         required={required}
         aria-invalid={errorMessages.length > 0 || undefined}

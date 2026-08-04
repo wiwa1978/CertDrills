@@ -148,7 +148,7 @@ describe("Question form editor", () => {
     expect(questionFormSource).toContain('setCorrectOption("")');
   });
 
-  it("restores saved answers to slots using sort order", () => {
+  it("preserves canonical answer slot gaps", () => {
     const markup = renderToStaticMarkup(
       createElement(QuestionForm, {
         action: harmlessAction,
@@ -163,28 +163,81 @@ describe("Question form editor", () => {
           stem: "Saved question",
           options: [
             {
-              text: "Fourth answer",
-              explanation: "Fourth explanation",
-              citationUrls: ["https://example.com/fourth"],
-              isCorrect: true,
-              sortOrder: 3,
+              text: "First answer",
+              explanation: "First explanation",
+              citationUrls: ["https://example.com/first"],
+              isCorrect: false,
+              sortOrder: 0,
             },
             {
-              text: "Second answer",
-              explanation: "Second explanation",
-              citationUrls: ["https://example.com/second"],
-              isCorrect: false,
+              text: "Third answer",
+              explanation: "Third explanation",
+              citationUrls: ["https://example.com/third"],
+              isCorrect: true,
+              sortOrder: 2,
             },
           ],
         },
       }),
     );
 
-    expect(markup).toMatch(/<textarea[^>]+name="option3Text"[^>]*>Fourth answer<\/textarea>/);
-    expect(markup).toMatch(/<textarea[^>]+name="option1Text"[^>]*>Second answer<\/textarea>/);
+    expect(markup).toMatch(/<textarea[^>]+name="option0Text"[^>]*>First answer<\/textarea>/);
+    expect(markup).toMatch(/<textarea[^>]+name="option1Text"[^>]*><\/textarea>/);
+    expect(markup).toMatch(/<textarea[^>]+name="option2Text"[^>]*>Third answer<\/textarea>/);
     expect(markup).toMatch(
-      /<input(?=[^>]*aria-label="Answer 4 is the correct answer")(?=[^>]*checked="")[^>]*>/,
+      /<input(?=[^>]*aria-label="Answer 3 is the correct answer")(?=[^>]*checked="")[^>]*>/,
     );
+  });
+
+  it("renders legacy ordered answers and selects the saved correct answer", () => {
+    const markup = renderToStaticMarkup(
+      createElement(QuestionForm, {
+        action: harmlessAction,
+        submitLabel: "Update question",
+        categories,
+        selectedCertificationId: categories[0].certificationId,
+        idPrefix: "question-update",
+        selectedQuestion: {
+          id: "33333333-3333-4333-8333-333333333333",
+          certificationId: categories[0].certificationId,
+          categoryId: categories[0].id,
+          stem: "Legacy ordered question",
+          options: [13, 10, 12, 11].map((sortOrder) => {
+            const answerNumber = sortOrder - 9;
+            return {
+              text: `Legacy answer ${answerNumber}`,
+              explanation: `Legacy explanation ${answerNumber}`,
+              citationUrls: [`https://example.com/legacy-${answerNumber}`],
+              isCorrect: answerNumber === 3,
+              sortOrder,
+            };
+          }),
+        },
+      }),
+    );
+
+    for (const index of [0, 1, 2, 3]) {
+      expect(markup).toMatch(
+        new RegExp(
+          `<textarea[^>]+name="option${index}Text"[^>]*>Legacy answer ${index + 1}</textarea>`,
+        ),
+      );
+      expect(markup).toMatch(
+        new RegExp(
+          `<textarea[^>]+name="option${index}Explanation"[^>]*>Legacy explanation ${index + 1}</textarea>`,
+        ),
+      );
+      expect(markup).toMatch(
+        new RegExp(
+          `<textarea[^>]+name="option${index}CitationUrls"[^>]*>https://example.com/legacy-${index + 1}</textarea>`,
+        ),
+      );
+    }
+    const correctRadio = markup.match(
+      /<input[^>]*aria-label="Answer 3 is the correct answer"[^>]*>/,
+    )?.[0];
+    expect(correctRadio).toContain('checked=""');
+    expect(correctRadio).not.toContain("disabled");
   });
 
   it("uses Markdown for Stem, answer text, and explanation without previews", () => {
@@ -235,7 +288,8 @@ describe("Question form editor", () => {
   it("merges question select classes with its base styles", () => {
     expect(questionFormSource).toContain('import { cn } from "@/lib/utils";');
     expect(questionFormSource).toContain(
-      'className={cn(\n          className,\n          "border-input',
+      'className={cn(\n          "border-input',
     );
+    expect(questionFormSource).toContain('shadow-xs",\n          className,');
   });
 });
