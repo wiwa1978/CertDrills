@@ -92,6 +92,10 @@ export function validateQuestionForPublish(input: QuestionValidationInput): { va
   const errors: string[] = [];
   const correctCount = input.options.filter((option) => option.isCorrect).length;
 
+  if (input.options.length < 2) {
+    errors.push("Published questions must have at least two answer options.");
+  }
+
   if (correctCount !== 1) {
     errors.push("Exactly one answer option must be correct.");
   }

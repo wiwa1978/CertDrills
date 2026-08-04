@@ -26,8 +26,16 @@ import {
   type CertDrillAdminResourceInput,
   type CertDrillAdminResourceUpdateInput,
 } from "@/lib/api/certdrill.server";
+import {
+  validateQuestionForm,
+} from "./question-form-validation";
+import type { QuestionFormActionState } from "./question-form-state";
 
 const CLEAR_RELATIONSHIP_SENTINEL = "__none__";
+
+function questionFormError(error: unknown) {
+  return error instanceof Error ? error.message : "Question could not be saved.";
+}
 
 function revalidateCertDrillAdminPage() {
   revalidatePath("/[locale]/admin/certdrill", "page");
@@ -204,7 +212,7 @@ function submittedResourceStatusValue(formData: FormData): CertDrillAdminResourc
 }
 
 function questionOptions(formData: FormData): CertDrillAdminQuestionOptionInput[] {
-  const correctOption = requiredString(formData, "correctOption") || "0";
+  const correctOption = requiredString(formData, "correctOption");
 
   return [0, 1, 2, 3]
     .map((index) => ({
@@ -309,22 +317,47 @@ export async function archiveCertDrillCategoryAction(formData: FormData) {
   revalidateCertDrillAdminPage();
 }
 
-export async function createCertDrillQuestionAction(formData: FormData) {
-  await createCertDrillAdminQuestionServer({
-    certificationId: requiredString(formData, "certificationId"),
-    categoryId: requiredString(formData, "categoryId"),
-    stem: requiredString(formData, "stem"),
-    difficulty: difficultyValue(formData),
-    status: questionStatusValue(formData) ?? "draft",
-    createdBy: "admin",
-    sourceResourceId: nullableString(formData, "sourceResourceId"),
-    options: questionOptions(formData),
-  });
-  revalidateCertDrillAdminPage();
+export async function createCertDrillQuestionAction(
+  _previousState: QuestionFormActionState,
+  formData: FormData,
+): Promise<QuestionFormActionState> {
+  const validation = validateQuestionForm(formData);
+  if (!validation.valid) {
+    return { status: "error", fieldErrors: validation.fieldErrors };
+  }
+
+  try {
+    await createCertDrillAdminQuestionServer({
+      certificationId: requiredString(formData, "certificationId"),
+      categoryId: requiredString(formData, "categoryId"),
+      stem: requiredString(formData, "stem"),
+      difficulty: difficultyValue(formData),
+      status: questionStatusValue(formData) ?? "draft",
+      createdBy: "admin",
+      sourceResourceId: nullableString(formData, "sourceResourceId"),
+      options: questionOptions(formData),
+    });
+    revalidateCertDrillAdminPage();
+    return { status: "success", fieldErrors: {}, message: "Question created." };
+  } catch (error) {
+    return { status: "error", fieldErrors: {}, formError: questionFormError(error) };
+  }
 }
 
-export async function updateCertDrillQuestionAction(formData: FormData) {
+export async function updateCertDrillQuestionAction(
+  _previousState: QuestionFormActionState,
+  formData: FormData,
+): Promise<QuestionFormActionState> {
+  const validation = validateQuestionForm(formData);
+  if (!validation.valid) {
+    return { status: "error", fieldErrors: validation.fieldErrors };
+  }
+
   const questionId = requiredString(formData, "questionId");
+  if (!questionId) {
+    return { status: "error", fieldErrors: {}, formError: "Question ID is required." };
+  }
+
   const payload = compact({
     categoryId: submittedString(formData, "categoryId"),
     stem: submittedString(formData, "stem"),
@@ -334,8 +367,13 @@ export async function updateCertDrillQuestionAction(formData: FormData) {
     options: submittedQuestionOptions(formData),
   }) as CertDrillAdminQuestionUpdateInput;
 
-  await updateCertDrillAdminQuestionServer(questionId, payload);
-  revalidateCertDrillAdminPage();
+  try {
+    await updateCertDrillAdminQuestionServer(questionId, payload);
+    revalidateCertDrillAdminPage();
+    return { status: "success", fieldErrors: {}, message: "Question updated." };
+  } catch (error) {
+    return { status: "error", fieldErrors: {}, formError: questionFormError(error) };
+  }
 }
 
 export async function publishCertDrillQuestionAction(formData: FormData) {

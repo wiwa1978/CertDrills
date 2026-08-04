@@ -60,6 +60,18 @@ describe("CertDrill validation", () => {
     })).toEqual({ valid: true, errors: [] });
   });
 
+  it("requires at least two answer options for publishing", () => {
+    expect(validateQuestionForPublish({
+      mediaAssets: [],
+      options: [
+        { isCorrect: true, explanation: "Correct", citationUrls: ["https://docs.example.com/a"], mediaAssets: [] },
+      ],
+    })).toEqual({
+      valid: false,
+      errors: ["Published questions must have at least two answer options."],
+    });
+  });
+
   it("accepts safe citation URL schemes", () => {
     expect(validateQuestionForPublish({
       mediaAssets: [],
