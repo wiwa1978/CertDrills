@@ -1569,7 +1569,10 @@
     "vouchers": "Vouchers",
     "logs": "Logs",
     "system": "Systeem",
-    "certdrill": "CertDrill"
+    "certdrill": "CertDrill",
+    "questions": "Vragen",
+    "new": "Nieuw",
+    "operations": "Bewerkingen"
   },
   "creditProgressBar": {
     "creditsOf": "{current} van {total} tegoed",

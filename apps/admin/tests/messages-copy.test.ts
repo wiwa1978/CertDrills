@@ -19,9 +19,18 @@ describe("admin Dutch messages", () => {
     expect(readDutchMessages().hero.badgeText).toBe("Singletenant - Hono - Admin");
   });
 
-  it("contains CertDrill breadcrumb label", () => {
-    expect(readEnglishMessages().breadcrumb.certdrill).toBe("CertDrill");
-    expect(readDutchMessages().breadcrumb.certdrill).toBe("CertDrill");
-    expect(readFrenchMessages().breadcrumb.certdrill).toBe("CertDrill");
+  it("contains all backend breadcrumb labels", () => {
+    const messagesByLocale = [
+      readEnglishMessages(),
+      readDutchMessages(),
+      readFrenchMessages(),
+    ];
+
+    for (const messages of messagesByLocale) {
+      expect(messages.breadcrumb.certdrill).toBe("CertDrill");
+      expect(messages.breadcrumb.questions).toBeTruthy();
+      expect(messages.breadcrumb.new).toBeTruthy();
+      expect(messages.breadcrumb.operations).toBeTruthy();
+    }
   });
 });

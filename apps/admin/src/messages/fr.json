@@ -1569,7 +1569,10 @@
     "vouchers": "Bons",
     "logs": "Journaux",
     "system": "Système",
-    "certdrill": "CertDrill"
+    "certdrill": "CertDrill",
+    "questions": "Questions",
+    "new": "Nouveau",
+    "operations": "Opérations"
   },
   "creditProgressBar": {
     "creditsOf": "{current} sur {total} crédits",
