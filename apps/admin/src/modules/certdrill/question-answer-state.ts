@@ -168,16 +168,8 @@ export function requestQuestionAnswerRemoval(state: QuestionAnswerEditorState, a
 }
 
 export function confirmQuestionAnswerRemoval(state: QuestionAnswerEditorState, answerKey: string) {
-  if (state.pendingRemovalKey !== answerKey) {
-    return state.pendingRemovalKey
-      ? { ...state, pendingRemovalKey: undefined }
-      : state;
-  }
-
   if (state.answers.length <= MIN_QUESTION_ANSWERS || !state.answers.some((answer) => answer.key === answerKey)) {
-    return state.pendingRemovalKey
-      ? { ...state, pendingRemovalKey: undefined }
-      : state;
+    return state;
   }
 
   return removeQuestionAnswer(state, answerKey);

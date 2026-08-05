@@ -244,22 +244,17 @@ describe("question answer state", () => {
     });
   });
 
-  it("only confirms removal for the pending answer key", () => {
+  it("direct confirm removes the requested answer when more than two remain", () => {
     const state = createQuestionAnswerState([
       option({ text: "First" }),
       option({ text: "Second" }),
       option({ text: "Third" }),
     ]);
 
-    expect(confirmQuestionAnswerRemoval(state, "answer-1")).toBe(state);
-
-    const requested = requestQuestionAnswerRemoval(state, "answer-1").state;
-
-    expect(confirmQuestionAnswerRemoval(requested, "answer-2")).toEqual({
-      ...requested,
-      pendingRemovalKey: undefined,
-    });
-    expect(confirmQuestionAnswerRemoval(requested, "answer-1")).toEqual({
+    expect(confirmQuestionAnswerRemoval({
+      ...state,
+      pendingRemovalKey: "answer-0",
+    }, "answer-1")).toEqual({
       answers: [
         { key: "answer-0", text: "First", explanation: "", citationUrls: "" },
         { key: "answer-2", text: "Third", explanation: "", citationUrls: "" },
