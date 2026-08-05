@@ -388,6 +388,21 @@ describe("Question form editor", () => {
     expect(questionFormSource).not.toContain("Explanation preview");
   });
 
+  it("captures dynamic answer input values before functional state updates", () => {
+    const capturedHandlers = [...questionFormSource.matchAll(
+      /onChange=\{\(event\) => \{\s*const value = event\.currentTarget\.value;\s*setAnswerState\(\(current\) => \(\s*updateQuestionAnswer\(\s*current,\s*answer\.key,\s*"(text|explanation|citationUrls)",\s*value,\s*\)\s*\)\);\s*\}\}/g,
+    )].map((match) => match[1]);
+    const updaterBodies = [...questionFormSource.matchAll(
+      /setAnswerState\(\(current\) => \(\s*updateQuestionAnswer\(([\s\S]*?)\)\s*\)\)/g,
+    )].map((match) => match[1]);
+
+    expect(capturedHandlers).toEqual(["text", "explanation", "citationUrls"]);
+    expect(updaterBodies).toHaveLength(3);
+    for (const updaterBody of updaterBodies) {
+      expect(updaterBody).not.toContain("event.currentTarget.value");
+    }
+  });
+
   it("preserves source resources without showing source controls", () => {
     const markup = renderQuestionForm({
       selectedQuestion: {

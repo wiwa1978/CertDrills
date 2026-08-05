@@ -595,14 +595,17 @@ function AnswerTabs({
                 label={`Answer ${index + 1} text`}
                 className="min-h-32"
                 value={answer.text}
-                onChange={(event) => setAnswerState((current) => (
-                  updateQuestionAnswer(
-                    current,
-                    answer.key,
-                    "text",
-                    event.currentTarget.value,
-                  )
-                ))}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "text",
+                      value,
+                    )
+                  ));
+                }}
                 helperText="At least two answer texts are required."
                 errorMessages={fieldErrors(
                   state,
@@ -615,14 +618,17 @@ function AnswerTabs({
                 label={`Answer ${index + 1} explanation`}
                 className="min-h-32"
                 value={answer.explanation}
-                onChange={(event) => setAnswerState((current) => (
-                  updateQuestionAnswer(
-                    current,
-                    answer.key,
-                    "explanation",
-                    event.currentTarget.value,
-                  )
-                ))}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "explanation",
+                      value,
+                    )
+                  ));
+                }}
                 helperText="Required before publishing."
                 errorMessages={fieldErrors(
                   state,
@@ -634,14 +640,17 @@ function AnswerTabs({
                 name={answerFieldName(answer.key, "citationUrls")}
                 label={`Answer ${index + 1} citation URLs`}
                 value={answer.citationUrls}
-                onChange={(event) => setAnswerState((current) => (
-                  updateQuestionAnswer(
-                    current,
-                    answer.key,
-                    "citationUrls",
-                    event.currentTarget.value,
-                  )
-                ))}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "citationUrls",
+                      value,
+                    )
+                  ));
+                }}
                 helperText="Required before publishing. Use comma-separated http, https, or mailto URLs."
                 errorMessages={fieldErrors(
                   state,
