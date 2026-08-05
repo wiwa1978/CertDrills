@@ -96,6 +96,10 @@ export function validateQuestionForPublish(input: QuestionValidationInput): { va
     errors.push("Published questions must have at least two answer options.");
   }
 
+  if (input.options.length > 10) {
+    errors.push("Published questions must have at most ten answer options.");
+  }
+
   if (correctCount !== 1) {
     errors.push("Exactly one answer option must be correct.");
   }
