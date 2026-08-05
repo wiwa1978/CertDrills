@@ -10,6 +10,70 @@ The product goal is to manage certification blueprints, source learning resource
 - `apps/web`: user-facing Next.js app on port `3200`.
 - `apps/admin`: admin Next.js app on port `3201`.
 
+## Azure Production Deployment
+
+CertDrills production runs as three Azure Container Apps:
+
+- `certdrills-api` on port `8877` for the Hono API.
+- `certdrills-web` on port `3200` for the learner app.
+- `certdrills-admin` on port `3201` for the admin app.
+
+The Azure infrastructure is Bicep-managed and provisions ACR, Log Analytics, and the Container Apps environment. The production app stack uses the external PostgreSQL server `pgwimwymedia` in `RG-Wim-Wymedia`. The workflow does not create the PostgreSQL database.
+
+### Prerequisites
+
+- Manually create the `certdrills` database in PostgreSQL before the first deployment.
+- Create the GitHub `production` environment.
+- Configure the production variables and secrets below.
+- Leave `PUBLIC_WEB_URL`, `PUBLIC_API_URL`, and `PUBLIC_ADMIN_URL` unset for bootstrap so Azure-generated URLs can be used first.
+- Use the generated Azure Container Apps URLs after infrastructure is created.
+- Local development secrets must not be reused in production.
+
+### Production variables
+
+Set these GitHub environment variables with the intended values:
+
+- `AZURE_SUBSCRIPTION_ID`: Azure subscription that owns the deployment.
+- `AZURE_TENANT_ID`: tenant used for `azure/login`.
+- `AZURE_LOCATION`: `germanywestcentral`.
+- `AZURE_RESOURCE_GROUP_NAME`: `RG-CertDrills`.
+- `AZURE_ENVIRONMENT_NAME`: `production`.
+- `APP_NAME`: `certdrills`.
+- `NEXT_PUBLIC_APP_NAME`: `CertDrills`.
+- `NEXT_PUBLIC_ADMIN_APP_NAME`: `CertDrills Admin`.
+- `POSTGRES_SERVER_FQDN`: FQDN of the external PostgreSQL server.
+- `POSTGRES_ADMIN_LOGIN`: admin login for the PostgreSQL server.
+- `POSTGRES_DATABASE_NAME`: `certdrills`.
+- `POSTGRES_FIREWALL_RESOURCE_GROUP_NAME`: `RG-Wim-Wymedia`.
+
+### Production secrets
+
+Set these GitHub environment secrets:
+
+- `ADMIN_ALLOWLIST`
+- `ADMIN_SECRET`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `BETTER_AUTH_SECRET`
+- `BILLING_RECONCILIATION_SECRET`
+- `DODO_PAYMENTS_API_KEY`
+- `DODO_PAYMENTS_WEBHOOK_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `JOBS_SECRET_KEY`
+- `JWT_SECRET`
+- `OAUTH_GITHUB_CLIENT_ID`
+- `OAUTH_GITHUB_CLIENT_SECRET`
+- `POSTGRES_ADMIN_PASSWORD`
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+
+### Deployment flow
+
+Use `.github/workflows/deploy-production-infra.yml` for the first deployment. Run it manually to validate the production settings, provision the Azure resources, create the initial Container Apps, and output the Generated Azure Container Apps URLs.
+
+After CI passes on `main`, `.github/workflows/deploy-production.yml` handles subsequent app deployments automatically. It can also be run manually with `confirm_ci_bypass=deploy-without-ci`, detects which apps changed, reuses the existing infrastructure, and updates the deployed images and settings.
+
 ## Current Scope
 
 Implemented CertDrill foundation:

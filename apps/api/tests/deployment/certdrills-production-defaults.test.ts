@@ -9,6 +9,21 @@ function readRepositoryFile(path: string) {
 }
 
 describe("CertDrills production deployment defaults", () => {
+  it("documents the Azure production deployment contract in the repository README", () => {
+    const readme = readRepositoryFile("README.md");
+
+    expect(readme).toContain("## Azure Production Deployment");
+    expect(readme).toContain("RG-CertDrills");
+    expect(readme).toContain("pgwimwymedia");
+    expect(readme).toContain("certdrills");
+    expect(readme).toContain(".github/workflows/deploy-production-infra.yml");
+    expect(readme).toContain(".github/workflows/deploy-production.yml");
+    expect(readme).toContain("AZURE_RESOURCE_GROUP_NAME");
+    expect(readme).toContain("POSTGRES_ADMIN_PASSWORD");
+    expect(readme).toContain("Generated Azure Container Apps URLs");
+    expect(readme).toContain("The workflow does not create the PostgreSQL database");
+  });
+
   it.each([
     ".github/workflows/deploy-production-infra.yml",
     ".github/workflows/deploy-production.yml",
