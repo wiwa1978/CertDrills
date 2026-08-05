@@ -113,18 +113,18 @@ jobs:
       needs.changes.outputs.any_deploy == 'true'
     env:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'germanywestcentral' }}
-      AZURE_RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME || 'RG-Boilerplate-SingleTenant-Hono' }}
+      AZURE_RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME || 'RG-CertDrills' }}
       AZURE_ENVIRONMENT_NAME: ${{ vars.AZURE_ENVIRONMENT_NAME || 'production' }}
-      APP_NAME: ${{ vars.APP_NAME || 'singletenant-hono' }}
-      NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'SingleTenant Hono' }}
-      NEXT_PUBLIC_ADMIN_APP_NAME: ${{ vars.NEXT_PUBLIC_ADMIN_APP_NAME || 'SingleTenant Hono Admin' }}
+      APP_NAME: ${{ vars.APP_NAME || 'certdrills' }}
+      NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'CertDrills' }}
+      NEXT_PUBLIC_ADMIN_APP_NAME: ${{ vars.NEXT_PUBLIC_ADMIN_APP_NAME || 'CertDrills Admin' }}
       PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
       PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
       PUBLIC_ADMIN_URL: ${{ vars.PUBLIC_ADMIN_URL }}
       DODO_PAYMENTS_ENVIRONMENT: ${{ vars.DODO_PAYMENTS_ENVIRONMENT || 'live_mode' }}
       POSTGRES_SERVER_FQDN: ${{ vars.POSTGRES_SERVER_FQDN }}
       POSTGRES_ADMIN_LOGIN: ${{ vars.POSTGRES_ADMIN_LOGIN }}
-      POSTGRES_DATABASE_NAME: ${{ vars.POSTGRES_DATABASE_NAME || 'boilerplate-singletenant-hono' }}
+      POSTGRES_DATABASE_NAME: ${{ vars.POSTGRES_DATABASE_NAME || 'certdrills' }}
 
     steps:
       - name: Check out repository

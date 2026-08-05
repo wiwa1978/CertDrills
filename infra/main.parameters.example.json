@@ -6,10 +6,10 @@
       "value": "germanywestcentral"
     },
     "resourceGroupName": {
-      "value": "RG-Boilerplate-SingleTenant-Hono"
+      "value": "RG-CertDrills"
     },
     "appName": {
-      "value": "singletenant-hono"
+      "value": "certdrills"
     },
     "environmentName": {
       "value": "production"
@@ -24,7 +24,7 @@
       "value": "<set-via-github-secret>"
     },
     "postgresDatabaseName": {
-      "value": "boilerplate-singletenant-hono"
+      "value": "certdrills"
     },
     "apiImage": {
       "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
