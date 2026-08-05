@@ -5,7 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { MarkdownTextarea } from "@/modules/certdrill/markdown";
-import { QuestionForm } from "@/modules/certdrill/question-form";
+import {
+  QuestionForm,
+  questionFieldActivation,
+} from "@/modules/certdrill/question-form";
 import { initialQuestionFormActionState } from "@/modules/certdrill/question-form-state";
 
 function readSource(relativePath: string) {
@@ -301,8 +304,8 @@ describe("Question form editor", () => {
     expect(
       questionFormSource.match(/value=\{`answer:\$\{answer\.key\}`\}/g),
     ).toHaveLength(2);
-    expect(questionFormSource).toContain(
-      'activateField(answerFieldName(result.addedKey, "text"))',
+    expect(questionFormSource).toMatch(
+      /activateField\(\s+answerFieldName\(result\.addedKey, "text"\),\s+result\.state\.answers,\s+\)/,
     );
     expect(questionFormSource).toContain(
       'activateField(answerFieldName(answer.key, "text"))',
@@ -310,7 +313,42 @@ describe("Question form editor", () => {
     expect(questionFormSource).toContain(
       "const nextKey = nearestAnswerKey(answerState.answers, answerKey);",
     );
-    expect(questionFormSource).toContain('setActiveTab(`answer:${nextKey}`)');
+    expect(questionFormSource).toMatch(
+      /function handleRemoveRequest\(answerKey: string\)[\s\S]*?if \(result\.removed && nextKey\) \{\s+activateField\(answerFieldName\(nextKey, "text"\)\)/,
+    );
+    expect(questionFormSource).toMatch(
+      /function handleConfirmRemoval\(answerKey: string\)[\s\S]*?if \(nextKey\) \{\s+activateField\(answerFieldName\(nextKey, "text"\)\)/,
+    );
+    expect(questionFormSource).toMatch(
+      /function handleCancelRemoval\(answerKey: string\)[\s\S]*?activateField\(answerFieldName\(answerKey, "text"\)\)/,
+    );
+    expect(questionFormSource).toContain(
+      "onClick={() => handleCancelRemoval(answer.key)}",
+    );
+    expect(questionFormSource).toMatch(
+      /const index = answers\.findIndex\(\(answer\) => answer\.key === removedKey\);\s+if \(index === -1\) return undefined;/,
+    );
+  });
+
+  it("falls back stale keyed answer activations to the Overview answers target", () => {
+    expect(
+      questionFieldActivation(
+        "answer.answer-1.explanation",
+        ["answer-0", "answer-1"],
+      ),
+    ).toEqual({
+      tab: "answer:answer-1",
+      fieldName: "answer.answer-1.explanation",
+    });
+    expect(
+      questionFieldActivation(
+        "answer.removed-answer.text",
+        ["answer-0", "answer-1"],
+      ),
+    ).toEqual({
+      tab: "overview",
+      fieldName: "options",
+    });
   });
 
   it("removes all fixed-four answer constructs", () => {
@@ -385,6 +423,11 @@ describe("Question form editor", () => {
   });
 
   it("makes aggregate errors accessible and focuses enabled correct answers", () => {
+    const checkedEnabledSelector =
+      "'input[name=\"correctAnswerKey\"]:checked:not(:disabled)'";
+    const firstEnabledSelector =
+      "'input[name=\"correctAnswerKey\"]:not(:disabled)'";
+
     expect(questionFormSource).toContain('<Card id={`${idPrefix}-answers`} tabIndex={-1}>');
     expect(questionFormSource).toContain('id={`${idPrefix}-answer-errors`}');
     expect(questionFormSource).toContain('id={`${idPrefix}-correct-answer`}');
@@ -393,7 +436,11 @@ describe("Question form editor", () => {
       'aria-describedby={overviewHasError ? `${idPrefix}-answer-errors` : undefined}',
     );
     expect(questionFormSource).toContain('fieldToFocus === "correctAnswerKey"');
-    expect(questionFormSource).toContain('input[name="correctAnswerKey"]:not(:disabled)');
+    expect(questionFormSource).toContain(checkedEnabledSelector);
+    expect(questionFormSource).toContain(firstEnabledSelector);
+    expect(questionFormSource.indexOf(checkedEnabledSelector)).toBeLessThan(
+      questionFormSource.indexOf(firstEnabledSelector),
+    );
     expect(questionFormSource).toContain("`${idPrefix}-correct-answer`");
     expect(questionFormSource).not.toContain("target.disabled");
   });

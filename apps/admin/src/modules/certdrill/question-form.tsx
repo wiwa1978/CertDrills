@@ -75,7 +75,28 @@ function nearestAnswerKey(
   removedKey: string,
 ) {
   const index = answers.findIndex((answer) => answer.key === removedKey);
+  if (index === -1) return undefined;
   return answers[index + 1]?.key ?? answers[index - 1]?.key;
+}
+
+type QuestionFieldActivation = {
+  tab: QuestionAnswerTab | undefined;
+  fieldName: string;
+};
+
+export function questionFieldActivation(
+  fieldName: string,
+  answerKeys: readonly string[],
+): QuestionFieldActivation {
+  const tab = questionTabForField(fieldName);
+  if (tab?.startsWith("answer:")) {
+    const answerKey = tab.slice("answer:".length);
+    if (!answerKeys.includes(answerKey)) {
+      return { tab: "overview", fieldName: "options" };
+    }
+  }
+
+  return { tab, fieldName };
 }
 
 export function QuestionForm({
@@ -132,26 +153,39 @@ function StatefulQuestionForm({
     setStatus("draft");
   }, []);
 
-  const activateField = useCallback((fieldName: string) => {
-    const tab = questionTabForField(fieldName);
+  const activateField = useCallback((
+    fieldName: string,
+    answers = answerState.answers,
+  ) => {
+    const activation = questionFieldActivation(
+      fieldName,
+      answers.map((answer) => answer.key),
+    );
+    const { tab } = activation;
     if (tab) setActiveTab(tab);
-    setFieldToFocus(fieldName);
-  }, []);
+    setFieldToFocus(activation.fieldName);
+  }, [answerState.answers]);
 
   useEffect(() => {
     if (!fieldToFocus) return;
 
     const frame = requestAnimationFrame(() => {
       if (fieldToFocus === "correctAnswerKey") {
-        const correctAnswerInput = document
-          .getElementById(`${idPrefix}-form`)
-          ?.querySelector<HTMLInputElement>(
-            'input[name="correctAnswerKey"]:not(:disabled)',
-          );
+        const form = document.getElementById(`${idPrefix}-form`);
+        const checkedCorrectAnswerInput = form?.querySelector<HTMLInputElement>(
+          'input[name="correctAnswerKey"]:checked:not(:disabled)',
+        );
+        const correctAnswerInput = form?.querySelector<HTMLInputElement>(
+          'input[name="correctAnswerKey"]:not(:disabled)',
+        );
         const correctAnswerGroup = document.getElementById(
           `${idPrefix}-correct-answer`,
         );
-        (correctAnswerInput ?? correctAnswerGroup)?.focus();
+        (
+          checkedCorrectAnswerInput
+          ?? correctAnswerInput
+          ?? correctAnswerGroup
+        )?.focus();
         setFieldToFocus(undefined);
         return;
       }
@@ -167,7 +201,10 @@ function StatefulQuestionForm({
     const result = addQuestionAnswer(answerState);
     setAnswerState(result.state);
     if (result.addedKey) {
-      activateField(answerFieldName(result.addedKey, "text"));
+      activateField(
+        answerFieldName(result.addedKey, "text"),
+        result.state.answers,
+      );
     }
   }
 
@@ -176,7 +213,7 @@ function StatefulQuestionForm({
     const result = requestQuestionAnswerRemoval(answerState, answerKey);
     setAnswerState(result.state);
     if (result.removed && nextKey) {
-      setActiveTab(`answer:${nextKey}`);
+      activateField(answerFieldName(nextKey, "text"));
     }
   }
 
@@ -184,12 +221,13 @@ function StatefulQuestionForm({
     const nextKey = nearestAnswerKey(answerState.answers, answerKey);
     setAnswerState(confirmQuestionAnswerRemoval(answerState, answerKey));
     if (nextKey) {
-      setActiveTab(`answer:${nextKey}`);
+      activateField(answerFieldName(nextKey, "text"));
     }
   }
 
-  function handleCancelRemoval() {
+  function handleCancelRemoval(answerKey: string) {
     setAnswerState(cancelQuestionAnswerRemoval(answerState));
+    activateField(answerFieldName(answerKey, "text"));
   }
 
   return (
@@ -275,7 +313,7 @@ function QuestionFormContents({
   handleAddAnswer: () => void;
   handleRemoveRequest: (answerKey: string) => void;
   handleConfirmRemoval: (answerKey: string) => void;
-  handleCancelRemoval: () => void;
+  handleCancelRemoval: (answerKey: string) => void;
   activateField: (fieldName: string) => void;
   resetNewQuestion: () => void;
 }) {
@@ -407,7 +445,7 @@ function AnswerTabs({
   handleAddAnswer: () => void;
   handleRemoveRequest: (answerKey: string) => void;
   handleConfirmRemoval: (answerKey: string) => void;
-  handleCancelRemoval: () => void;
+  handleCancelRemoval: (answerKey: string) => void;
   activateField: (fieldName: string) => void;
 }) {
   const overviewHasError =
@@ -621,7 +659,7 @@ function AnswerTabs({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleCancelRemoval}
+                      onClick={() => handleCancelRemoval(answer.key)}
                     >
                       Cancel
                     </Button>
