@@ -351,6 +351,20 @@ describe("Question form editor", () => {
     });
   });
 
+  it("keeps field activation stable while reading current answer keys", () => {
+    expect(questionFormSource).toContain("useRef,");
+    expect(questionFormSource).toContain(
+      "const answerKeysRef = useRef(answerState.answers.map((answer) => answer.key));",
+    );
+    expect(questionFormSource).toContain(
+      "answerKeysRef.current = answerState.answers.map((answer) => answer.key);",
+    );
+    expect(questionFormSource).toMatch(
+      /const activateField = useCallback\(\([\s\S]*?explicitAnswers\?: QuestionAnswerEditorState\["answers"\],[\s\S]*?explicitAnswers\s+\? explicitAnswers\.map\(\(answer\) => answer\.key\)\s+: answerKeysRef\.current,[\s\S]*?\}, \[\]\);/,
+    );
+    expect(questionFormSource).not.toContain("}, [answerState.answers]);");
+  });
+
   it("removes all fixed-four answer constructs", () => {
     expect(questionFormSource).not.toContain("answerIndexes");
     expect(questionFormSource).not.toContain("type AnswerIndex");

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type Dispatch,
@@ -143,6 +144,10 @@ function StatefulQuestionForm({
   const [status, setStatus] = useState<string>(
     () => selectedQuestion?.status ?? "draft",
   );
+  const answerKeysRef = useRef(answerState.answers.map((answer) => answer.key));
+  // Keep event handlers synchronized before effects run.
+  // eslint-disable-next-line react-hooks/refs
+  answerKeysRef.current = answerState.answers.map((answer) => answer.key);
   const resetNewQuestion = useCallback(() => {
     setActiveTab("overview");
     setAnswerState(createQuestionAnswerState());
@@ -155,16 +160,18 @@ function StatefulQuestionForm({
 
   const activateField = useCallback((
     fieldName: string,
-    answers = answerState.answers,
+    explicitAnswers?: QuestionAnswerEditorState["answers"],
   ) => {
     const activation = questionFieldActivation(
       fieldName,
-      answers.map((answer) => answer.key),
+      explicitAnswers
+        ? explicitAnswers.map((answer) => answer.key)
+        : answerKeysRef.current,
     );
     const { tab } = activation;
     if (tab) setActiveTab(tab);
     setFieldToFocus(activation.fieldName);
-  }, [answerState.answers]);
+  }, []);
 
   useEffect(() => {
     if (!fieldToFocus) return;
