@@ -57,7 +57,7 @@ export function parseQuestionAnswerFields(formData: FormData): ParsedQuestionAns
     addError(fieldErrors, "options", "Add between 2 and 10 answers.");
   }
 
-  if (new Set(answerKeys).size !== answerKeys.length) {
+  if (answerKeySet.size !== answerKeys.length) {
     addError(fieldErrors, "options", "Answer keys must be unique.");
   }
 
