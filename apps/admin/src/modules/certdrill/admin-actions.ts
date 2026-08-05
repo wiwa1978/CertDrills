@@ -27,6 +27,9 @@ import {
   type CertDrillAdminResourceUpdateInput,
 } from "@/lib/api/certdrill.server";
 import {
+  parseQuestionAnswerFields,
+} from "./question-answer-fields";
+import {
   validateQuestionForm,
 } from "./question-form-validation";
 import type { QuestionFormActionState } from "./question-form-state";
@@ -212,24 +215,19 @@ function submittedResourceStatusValue(formData: FormData): CertDrillAdminResourc
 }
 
 function questionOptions(formData: FormData): CertDrillAdminQuestionOptionInput[] {
-  const correctOption = requiredString(formData, "correctOption");
-
-  return [0, 1, 2, 3]
-    .map((index) => ({
-      text: requiredString(formData, `option${index}Text`),
-      isCorrect: correctOption === String(index),
-      explanation: requiredString(formData, `option${index}Explanation`),
-      citationUrls: csvList(formData, `option${index}CitationUrls`),
-      sortOrder: index,
-    }))
-    .filter((option) => option.text);
+  const parsed = parseQuestionAnswerFields(formData);
+  return parsed.answers.map((answer, index) => ({
+    text: answer.text,
+    isCorrect: parsed.correctAnswerKey === answer.key,
+    explanation: answer.explanation,
+    citationUrls: answer.citationUrls,
+    sortOrder: index,
+  }));
 }
 
 function submittedQuestionOptions(formData: FormData) {
-  const hasOptionField = [0, 1, 2, 3].some((index) => formData.has(`option${index}Text`));
-  if (!hasOptionField) return undefined;
-  const options = questionOptions(formData);
-  return options.length > 0 ? options : undefined;
+  if (!formData.has("answerKeys")) return undefined;
+  return questionOptions(formData);
 }
 
 export async function createCertDrillCertificationAction(formData: FormData) {

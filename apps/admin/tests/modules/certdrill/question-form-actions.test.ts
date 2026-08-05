@@ -16,26 +16,50 @@ import {
   createCertDrillQuestionAction,
   updateCertDrillQuestionAction,
 } from "@/modules/certdrill/admin-actions";
+import { answerFieldName } from "@/modules/certdrill/question-answer-fields";
 import { initialQuestionFormActionState } from "@/modules/certdrill/question-form-state";
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
 const categoryId = "11111111-1111-4111-8111-111111111111";
 const questionId = "44444444-4444-4444-8444-444444444444";
 const sourceResourceId = "55555555-5555-4555-8555-555555555555";
-const validDraft = {
-  certificationId,
-  categoryId,
-  stem: "Question?",
-  status: "draft",
-  option0Text: "First answer",
-  option1Text: "Second answer",
-};
 
 function formData(entries: Record<string, string>) {
   const data = new FormData();
   Object.entries(entries).forEach(([name, value]) => data.set(name, value));
   return data;
 }
+
+function answerEntries(
+  answers: Array<{
+    key: string;
+    text?: string;
+    explanation?: string;
+    citationUrls?: string;
+  }>,
+  correctAnswerKey = "",
+) {
+  return Object.fromEntries([
+    ["answerKeys", answers.map((answer) => answer.key).join(",")],
+    ["correctAnswerKey", correctAnswerKey],
+    ...answers.flatMap((answer) => [
+      [answerFieldName(answer.key, "text"), answer.text ?? ""],
+      [answerFieldName(answer.key, "explanation"), answer.explanation ?? ""],
+      [answerFieldName(answer.key, "citationUrls"), answer.citationUrls ?? ""],
+    ]),
+  ]);
+}
+
+const validDraft = {
+  certificationId,
+  categoryId,
+  stem: "Question?",
+  status: "draft",
+  ...answerEntries([
+    { key: "answer-a", text: "First answer" },
+    { key: "answer-b", text: "Second answer" },
+  ]),
+};
 
 describe("question form actions", () => {
   beforeEach(() => {
@@ -97,6 +121,33 @@ describe("question form actions", () => {
       options: [
         expect.objectContaining({ text: "First answer", isCorrect: false, sortOrder: 0 }),
         expect.objectContaining({ text: "Second answer", isCorrect: false, sortOrder: 1 }),
+      ],
+    }));
+  });
+
+  it("preserves keyed answer order and correct selection when creating", async () => {
+    createQuestion.mockResolvedValueOnce({});
+
+    await createCertDrillQuestionAction(
+      initialQuestionFormActionState,
+      formData({
+        certificationId,
+        categoryId,
+        stem: "Ordered question?",
+        status: "draft",
+        ...answerEntries([
+          { key: "answer-z", text: "Z answer" },
+          { key: "answer-a", text: "A answer" },
+          { key: "answer-q", text: "Q answer" },
+        ], "answer-a"),
+      }),
+    );
+
+    expect(createQuestion).toHaveBeenCalledWith(expect.objectContaining({
+      options: [
+        expect.objectContaining({ text: "Z answer", isCorrect: false, sortOrder: 0 }),
+        expect.objectContaining({ text: "A answer", isCorrect: true, sortOrder: 1 }),
+        expect.objectContaining({ text: "Q answer", isCorrect: false, sortOrder: 2 }),
       ],
     }));
   });
