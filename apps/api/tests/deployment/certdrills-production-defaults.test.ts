@@ -41,8 +41,8 @@ describe("CertDrills production deployment defaults", () => {
 
     expect(source).toContain("POSTGRES_DB: certdrills_test");
     expect(source).toContain('pg_isready -U postgres -d certdrills_test');
-    expect(source).toMatch(/DATABASE_URL: .*certdrills_test/);
-    expect(source).toMatch(/TEST_DATABASE_URL: .*certdrills_test/);
+    expect(source).toMatch(/^\s*DATABASE_URL: .*certdrills_test$/m);
+    expect(source).toMatch(/^\s*TEST_DATABASE_URL: .*certdrills_test$/m);
     expect(source).toContain("NEXT_PUBLIC_APP_NAME: CertDrills Test");
     expect(source).not.toContain("boilerplate_singletenant_hono_test");
     expect(source).not.toContain("SingleTenant Hono Test");
