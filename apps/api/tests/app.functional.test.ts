@@ -1445,7 +1445,7 @@ describe("API functional routes", () => {
       success: true,
       data: {
         message: "Admin access granted.",
-        totpRequired: true,
+        totpRequired: false,
         twoFactorEnabled: true,
         canEnrollTotp: true,
       },

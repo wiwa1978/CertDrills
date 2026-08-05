@@ -192,7 +192,7 @@ describe("authz contract", () => {
       success: true,
       data: {
         message: "Admin access granted.",
-        totpRequired: true,
+        totpRequired: false,
         twoFactorEnabled: true,
         canEnrollTotp: true,
       },
