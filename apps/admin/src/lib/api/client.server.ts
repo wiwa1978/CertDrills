@@ -9,7 +9,9 @@ const API_BASE_URL = normalizeBaseUrl(env.NEXT_PUBLIC_API_URL || env.NEXT_PUBLIC
 
 async function getServerCookieHeaders() {
   const cookieHeader = (await cookies()).toString();
-  return cookieHeader.length > 0 ? { cookie: cookieHeader } : undefined;
+  return cookieHeader.length > 0
+    ? { cookie: cookieHeader, origin: env.NEXT_PUBLIC_APP_URL }
+    : undefined;
 }
 
 export const serverApiRequest = createApiRequest({
