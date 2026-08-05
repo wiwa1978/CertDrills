@@ -22,6 +22,11 @@ describe("CertDrills production deployment defaults", () => {
     expect(readme).toContain("POSTGRES_ADMIN_PASSWORD");
     expect(readme).toContain("Generated Azure Container Apps URLs");
     expect(readme).toContain("The workflow does not create the PostgreSQL database");
+    expect(readme).toContain("updates only the deployed images");
+    expect(readme).toContain("It runs any required migrations and waits for healthy revisions");
+    expect(readme).toContain(
+      "Runtime secret or environment-variable changes require rerunning `.github/workflows/deploy-production-infra.yml`.",
+    );
   });
 
   it.each([

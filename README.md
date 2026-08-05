@@ -72,7 +72,7 @@ Set these GitHub environment secrets:
 
 Use `.github/workflows/deploy-production-infra.yml` for the first deployment. Run it manually to validate the production settings, provision the Azure resources, create the initial Container Apps, and output the Generated Azure Container Apps URLs.
 
-After CI passes on `main`, `.github/workflows/deploy-production.yml` handles subsequent app deployments automatically. It can also be run manually with `confirm_ci_bypass=deploy-without-ci`, detects which apps changed, reuses the existing infrastructure, and updates the deployed images and settings.
+After CI passes on `main`, `.github/workflows/deploy-production.yml` handles subsequent app deployments automatically. It can also be run manually with `confirm_ci_bypass=deploy-without-ci`, detects which apps changed, reuses the existing infrastructure, and updates only the deployed images. It runs any required migrations and waits for healthy revisions. Runtime secret or environment-variable changes require rerunning `.github/workflows/deploy-production-infra.yml`.
 
 ## Current Scope
 
