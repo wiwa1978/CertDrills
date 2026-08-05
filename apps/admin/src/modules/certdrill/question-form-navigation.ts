@@ -1,33 +1,29 @@
 import type { QuestionFormFieldErrors } from "./question-form-validation";
 
-export type QuestionAnswerTab = "overview" | "answer-0" | "answer-1" | "answer-2" | "answer-3";
+export type QuestionAnswerTab = "overview" | `answer:${string}`;
+
+const answerFieldPattern = /^answer\.([A-Za-z0-9_-]+)\.(text|explanation|citationUrls)$/;
 
 export function questionFieldId(idPrefix: string, fieldName: string) {
   if (fieldName === "categoryId") return `${idPrefix}-category-id`;
   if (fieldName === "stem") return `${idPrefix}-stem`;
   if (fieldName === "sourceResourceId") return `${idPrefix}-source-resource-id`;
-  if (fieldName === "correctOption") return `${idPrefix}-correct-option-0`;
+  if (fieldName === "correctAnswerKey") return `${idPrefix}-correct-answer`;
   if (fieldName === "options") return `${idPrefix}-answers`;
 
-  const optionField = fieldName.match(/^option([0-3])(Text|Explanation|CitationUrls)$/);
-  if (!optionField) return `${idPrefix}-form`;
+  const match = fieldName.match(answerFieldPattern);
+  if (!match) return `${idPrefix}-form`;
 
-  const [, index, suffix] = optionField;
-  const fieldSuffix = suffix === "Text"
-    ? "text"
-    : suffix === "Explanation"
-      ? "explanation"
-      : "citations";
-  return `${idPrefix}-option-${index}-${fieldSuffix}`;
+  const [, answerKey, field] = match;
+  const suffix = field === "citationUrls" ? "citations" : field;
+  return `${idPrefix}-${answerKey}-${suffix}`;
 }
 
 export function questionTabForField(fieldName: string): QuestionAnswerTab | undefined {
-  if (fieldName === "correctOption" || fieldName === "options") return "overview";
+  if (fieldName === "correctAnswerKey" || fieldName === "options") return "overview";
 
-  const optionField = fieldName.match(/^option([0-3])(Text|Explanation|CitationUrls)$/);
-  if (!optionField) return undefined;
-
-  return `answer-${optionField[1]}` as QuestionAnswerTab;
+  const match = fieldName.match(answerFieldPattern);
+  return match ? (`answer:${match[1]}` as QuestionAnswerTab) : undefined;
 }
 
 export function firstQuestionFieldError(fieldErrors: QuestionFormFieldErrors) {
