@@ -46,6 +46,10 @@ describe("CertDrill question schemas", () => {
     expect(questionCreateSchema.safeParse(createPayload(1)).success).toBe(false);
   });
 
+  it("rejects create payloads with an empty answer option list", () => {
+    expect(questionCreateSchema.safeParse(createPayload(0)).success).toBe(false);
+  });
+
   it("rejects update payloads with eleven answer options when provided", () => {
     expect(questionUpdateSchema.safeParse({ options: options(11) }).success).toBe(false);
   });
