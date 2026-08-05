@@ -108,7 +108,16 @@ describe("CertDrill admin routes", () => {
     service.updateQuestion.mockResolvedValueOnce({ id: questionId });
     service.publishQuestion.mockResolvedValueOnce({ id: questionId, status: "published" });
 
-    const body = { certificationId, categoryId, stem: "Question?", difficulty: "medium", options: [] };
+    const body = {
+      certificationId,
+      categoryId,
+      stem: "Question?",
+      difficulty: "medium",
+      options: [
+        { text: "Correct answer", isCorrect: true },
+        { text: "Incorrect answer", isCorrect: false },
+      ],
+    };
     await createApp().request("/api/admin/certdrill/questions", {
       method: "POST",
       headers: { "content-type": "application/json" },

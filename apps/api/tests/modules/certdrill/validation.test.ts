@@ -72,6 +72,21 @@ describe("CertDrill validation", () => {
     });
   });
 
+  it("requires at most ten answer options for publishing", () => {
+    expect(validateQuestionForPublish({
+      mediaAssets: [],
+      options: Array.from({ length: 11 }, (_, index) => ({
+        isCorrect: index === 0,
+        explanation: `Explanation ${index + 1}`,
+        citationUrls: [`https://docs.example.com/${index + 1}`],
+        mediaAssets: [],
+      })),
+    })).toEqual({
+      valid: false,
+      errors: ["Published questions must have at most ten answer options."],
+    });
+  });
+
   it("accepts safe citation URL schemes", () => {
     expect(validateQuestionForPublish({
       mediaAssets: [],

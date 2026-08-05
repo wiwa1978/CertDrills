@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { answerFieldName } from "../../../src/modules/certdrill/question-answer-fields";
 import { validateQuestionForm } from "../../../src/modules/certdrill/question-form-validation";
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
@@ -16,6 +17,26 @@ function questionFormData(entries: Record<string, string>) {
   return formData;
 }
 
+function answerEntries(
+  answers: Array<{
+    key: string;
+    text?: string;
+    explanation?: string;
+    citationUrls?: string;
+  }>,
+  correctAnswerKey = "",
+) {
+  return Object.fromEntries([
+    ["answerKeys", answers.map((answer) => answer.key).join(",")],
+    ["correctAnswerKey", correctAnswerKey],
+    ...answers.flatMap((answer) => [
+      [answerFieldName(answer.key, "text"), answer.text ?? ""],
+      [answerFieldName(answer.key, "explanation"), answer.explanation ?? ""],
+      [answerFieldName(answer.key, "citationUrls"), answer.citationUrls ?? ""],
+    ]),
+  ]);
+}
+
 describe("question form validation", () => {
   it("returns visible field errors for an empty question", () => {
     const result = validateQuestionForm(questionFormData({ status: "draft" }));
@@ -24,82 +45,127 @@ describe("question form validation", () => {
     expect(result.fieldErrors).toMatchObject({
       categoryId: ["Select a category."],
       stem: ["Enter a question stem."],
+      options: ["Add between 2 and 10 answers."],
     });
   });
 
-  it("requires at least two answer texts when saving a draft", () => {
+  it("requires at least two keyed answers when saving a draft", () => {
     const result = validateQuestionForm(questionFormData({
       categoryId,
       stem: "Draft question",
       status: "draft",
-      option0Text: "Only answer",
+      ...answerEntries([
+        { key: "answer-a", text: "Only answer" },
+      ]),
     }));
 
     expect(result.valid).toBe(false);
-    expect(result.fieldErrors.options).toEqual(["Add at least two answer options."]);
+    expect(result.fieldErrors.options).toEqual(["Add between 2 and 10 answers."]);
   });
 
-  it("allows a draft with two answer texts and no correct answer", () => {
+  it("allows a draft with ten answer texts and no correct answer", () => {
     const result = validateQuestionForm(questionFormData({
       categoryId,
       stem: "Draft question",
       status: "draft",
-      option0Text: "First answer",
-      option1Text: "Second answer",
+      ...answerEntries([
+        { key: "answer-a", text: "Answer 1" },
+        { key: "answer-b", text: "Answer 2" },
+        { key: "answer-c", text: "Answer 3" },
+        { key: "answer-d", text: "Answer 4" },
+        { key: "answer-e", text: "Answer 5" },
+        { key: "answer-f", text: "Answer 6" },
+        { key: "answer-g", text: "Answer 7" },
+        { key: "answer-h", text: "Answer 8" },
+        { key: "answer-i", text: "Answer 9" },
+        { key: "answer-j", text: "Answer 10" },
+      ]),
     }));
 
     expect(result).toEqual({ valid: true, fieldErrors: {} });
   });
 
-  it("requires answer text when draft supporting content is present", () => {
+  it("requires answer text for every visible draft answer", () => {
     const result = validateQuestionForm(questionFormData({
       categoryId,
       stem: "Draft question",
       status: "draft",
-      option0Text: "First answer",
-      option1Text: "Second answer",
-      option2Explanation: "Needs matching answer text",
+      ...answerEntries([
+        { key: "answer-a", text: "First answer" },
+        { key: "answer-b" },
+      ]),
     }));
 
     expect(result.valid).toBe(false);
-    expect(result.fieldErrors.option2Text).toEqual(["Add answer text for option 3."]);
+    expect(result.fieldErrors[answerFieldName("answer-b", "text")]).toEqual([
+      "Add answer text for answer 2.",
+    ]);
   });
 
-  it("requires publishable answer content when status is published", () => {
+  it("keeps draft explanations and citations optional when texts are present", () => {
+    const result = validateQuestionForm(questionFormData({
+      categoryId,
+      stem: "Draft question",
+      status: "draft",
+      ...answerEntries([
+        { key: "answer-a", text: "First answer", explanation: "Optional explanation" },
+        { key: "answer-b", text: "Second answer", citationUrls: "https://example.com/second" },
+      ]),
+    }));
+
+    expect(result).toEqual({ valid: true, fieldErrors: {} });
+  });
+
+  it("requires publishable keyed answer content when status is published", () => {
     const result = validateQuestionForm(questionFormData({
       categoryId,
       stem: "Published question",
       status: "published",
-      correctOption: "0",
-      option0Text: "Correct answer",
-      option0Explanation: "",
-      option0CitationUrls: "",
+      ...answerEntries([
+        { key: "answer-a", text: "Correct answer" },
+        { key: "answer-b", text: "Second answer" },
+      ], "answer-a"),
     }));
 
     expect(result.valid).toBe(false);
     expect(result.fieldErrors).toMatchObject({
-      options: ["Add at least two answer options."],
-      option0Explanation: ["Add an explanation for option 1."],
-      option0CitationUrls: ["Add at least one citation URL for option 1."],
+      [answerFieldName("answer-a", "explanation")]: ["Add an explanation for answer 1."],
+      [answerFieldName("answer-a", "citationUrls")]: ["Add at least one citation URL for answer 1."],
+      [answerFieldName("answer-b", "explanation")]: ["Add an explanation for answer 2."],
+      [answerFieldName("answer-b", "citationUrls")]: ["Add at least one citation URL for answer 2."],
     });
   });
 
-  it("rejects a correct-answer selection whose option has no text", () => {
+  it("rejects a correct-answer selection whose keyed answer has no text", () => {
     const result = validateQuestionForm(questionFormData({
       categoryId,
       stem: "Published question",
       status: "published",
-      correctOption: "2",
-      option0Text: "First",
-      option0Explanation: "First explanation",
-      option0CitationUrls: "https://example.com/first",
-      option1Text: "Second",
-      option1Explanation: "Second explanation",
-      option1CitationUrls: "https://example.com/second",
+      ...answerEntries([
+        {
+          key: "answer-a",
+          text: "First",
+          explanation: "First explanation",
+          citationUrls: "https://example.com/first",
+        },
+        {
+          key: "answer-b",
+          text: "Second",
+          explanation: "Second explanation",
+          citationUrls: "https://example.com/second",
+        },
+        {
+          key: "answer-c",
+          explanation: "Third explanation",
+          citationUrls: "https://example.com/third",
+        },
+      ], "answer-c"),
     }));
 
     expect(result.valid).toBe(false);
-    expect(result.fieldErrors.correctOption).toEqual(["Select a correct answer that has option text."]);
+    expect(result.fieldErrors.correctAnswerKey).toEqual([
+      "Select a correct answer that has answer text.",
+    ]);
   });
 
   it("requires an explicit correct-answer selection when publishing", () => {
@@ -107,15 +173,25 @@ describe("question form validation", () => {
       categoryId,
       stem: "Published question",
       status: "published",
-      option0Text: "First",
-      option0Explanation: "First explanation",
-      option0CitationUrls: "https://example.com/first",
-      option1Text: "Second",
-      option1Explanation: "Second explanation",
-      option1CitationUrls: "https://example.com/second",
+      ...answerEntries([
+        {
+          key: "answer-a",
+          text: "First",
+          explanation: "First explanation",
+          citationUrls: "https://example.com/first",
+        },
+        {
+          key: "answer-b",
+          text: "Second",
+          explanation: "Second explanation",
+          citationUrls: "https://example.com/second",
+        },
+      ]),
     }));
 
-    expect(result.fieldErrors.correctOption).toEqual(["Select a correct answer that has option text."]);
+    expect(result.fieldErrors.correctAnswerKey).toEqual([
+      "Select a correct answer that has answer text.",
+    ]);
   });
 
   it("rejects invalid source and citation URLs with field-specific messages", () => {
@@ -124,19 +200,48 @@ describe("question form validation", () => {
       stem: "Published question",
       status: "published",
       sourceResourceId: "not-a-uuid",
-      correctOption: "0",
-      option0Text: "First",
-      option0Explanation: "First explanation",
-      option0CitationUrls: "javascript:alert(1)",
-      option1Text: "Second",
-      option1Explanation: "Second explanation",
-      option1CitationUrls: "https://example.com/second",
+      ...answerEntries([
+        {
+          key: "answer-a",
+          text: "First",
+          explanation: "First explanation",
+          citationUrls: "javascript:alert(1)",
+        },
+        {
+          key: "answer-b",
+          text: "Second",
+          explanation: "Second explanation",
+          citationUrls: "https://example.com/second",
+        },
+      ], "answer-a"),
     }));
 
     expect(result.valid).toBe(false);
     expect(result.fieldErrors.sourceResourceId).toEqual(["Enter a valid source resource UUID."]);
-    expect(result.fieldErrors.option0CitationUrls).toEqual([
-      "Option 1 citation URL 1 must use http, https, or mailto.",
+    expect(result.fieldErrors[answerFieldName("answer-a", "citationUrls")]).toEqual([
+      "Answer 1 citation URL 1 must use http, https, or mailto.",
+    ]);
+  });
+
+  it("surfaces parser structural errors alongside validation errors", () => {
+    const result = validateQuestionForm(questionFormData({
+      categoryId,
+      stem: "Draft question",
+      status: "draft",
+      ...answerEntries([
+        { key: "answer-a", text: "First" },
+        { key: "answer-a", text: "Duplicate" },
+      ], "answer-missing"),
+      [answerFieldName("answer-c", "text")]: "Unexpected",
+    }));
+
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.options).toEqual([
+      "Answer keys must be unique.",
+      'Answer fields reference unknown key "answer-c".',
+    ]);
+    expect(result.fieldErrors.correctAnswerKey).toEqual([
+      "Select a correct answer from the submitted answers.",
     ]);
   });
 
@@ -145,6 +250,10 @@ describe("question form validation", () => {
       categoryId,
       stem: "Draft question",
       sourceResourceId: "__none__",
+      ...answerEntries([
+        { key: "answer-a", text: "First answer" },
+        { key: "answer-b", text: "Second answer" },
+      ]),
     }));
 
     expect(result.fieldErrors.sourceResourceId).toBeUndefined();
@@ -155,13 +264,20 @@ describe("question form validation", () => {
       categoryId,
       stem: "Published question",
       status: "published",
-      correctOption: "0",
-      option0Text: "First",
-      option0Explanation: "First explanation",
-      option0CitationUrls: "https://example.com/first",
-      option1Text: "Second",
-      option1Explanation: "Second explanation",
-      option1CitationUrls: "mailto:owner@example.com",
+      ...answerEntries([
+        {
+          key: "answer-a",
+          text: "First",
+          explanation: "First explanation",
+          citationUrls: "https://example.com/first",
+        },
+        {
+          key: "answer-b",
+          text: "Second",
+          explanation: "Second explanation",
+          citationUrls: "mailto:owner@example.com",
+        },
+      ], "answer-a"),
     }));
 
     expect(result).toEqual({ valid: true, fieldErrors: {} });

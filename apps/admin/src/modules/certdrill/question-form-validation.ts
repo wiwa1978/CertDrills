@@ -1,3 +1,8 @@
+import {
+  answerFieldName,
+  parseQuestionAnswerFields,
+} from "./question-answer-fields";
+
 export type QuestionFormFieldErrors = Record<string, string[]>;
 
 export type QuestionFormValidationResult = {
@@ -10,13 +15,6 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 function stringValue(formData: FormData, name: string) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function csvValues(formData: FormData, name: string) {
-  return stringValue(formData, name)
-    .split(/[\n,]/)
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
 
 function isSafeCitationUrl(value: string) {
@@ -39,14 +37,7 @@ export function validateQuestionForm(formData: FormData): QuestionFormValidation
   const stem = stringValue(formData, "stem");
   const sourceResourceId = stringValue(formData, "sourceResourceId");
   const status = stringValue(formData, "status") || "draft";
-  const correctOption = stringValue(formData, "correctOption");
-  const options = [0, 1, 2, 3].map((index) => ({
-    index,
-    text: stringValue(formData, `option${index}Text`),
-    explanation: stringValue(formData, `option${index}Explanation`),
-    citationUrls: csvValues(formData, `option${index}CitationUrls`),
-  }));
-  const populatedOptions = options.filter((option) => option.text);
+  const parsedAnswers = parseQuestionAnswerFields(formData);
 
   if (!certificationId || !uuidPattern.test(certificationId)) {
     addError(fieldErrors, "certificationId", "The selected certification is invalid.");
@@ -63,53 +54,60 @@ export function validateQuestionForm(formData: FormData): QuestionFormValidation
     addError(fieldErrors, "sourceResourceId", "Enter a valid source resource UUID.");
   }
 
-  for (const option of options) {
-    const optionNumber = option.index + 1;
-    const hasSupportingContent = Boolean(option.explanation || option.citationUrls.length > 0);
+  for (const [name, messages] of Object.entries(parsedAnswers.fieldErrors)) {
+    for (const message of messages) {
+      addError(fieldErrors, name, message);
+    }
+  }
 
-    if (!option.text && hasSupportingContent) {
-      addError(fieldErrors, `option${option.index}Text`, `Add answer text for option ${optionNumber}.`);
+  for (const [index, answer] of parsedAnswers.answers.entries()) {
+    const answerNumber = index + 1;
+    if (!answer.text) {
+      addError(
+        fieldErrors,
+        answerFieldName(answer.key, "text"),
+        `Add answer text for answer ${answerNumber}.`,
+      );
     }
 
-    option.citationUrls.forEach((url, citationIndex) => {
+    answer.citationUrls.forEach((url, citationIndex) => {
       if (!isSafeCitationUrl(url)) {
         addError(
           fieldErrors,
-          `option${option.index}CitationUrls`,
-          `Option ${optionNumber} citation URL ${citationIndex + 1} must use http, https, or mailto.`,
+          answerFieldName(answer.key, "citationUrls"),
+          `Answer ${answerNumber} citation URL ${citationIndex + 1} must use http, https, or mailto.`,
         );
       }
     });
-  }
 
-  if (populatedOptions.length < 2) {
-    addError(fieldErrors, "options", "Add at least two answer options.");
+    if (status === "published") {
+      if (!answer.explanation) {
+        addError(
+          fieldErrors,
+          answerFieldName(answer.key, "explanation"),
+          `Add an explanation for answer ${answerNumber}.`,
+        );
+      }
+      if (answer.citationUrls.length === 0) {
+        addError(
+          fieldErrors,
+          answerFieldName(answer.key, "citationUrls"),
+          `Add at least one citation URL for answer ${answerNumber}.`,
+        );
+      }
+    }
   }
 
   if (status === "published") {
-    const selectedCorrectOption = /^[0-3]$/.test(correctOption)
-      ? options[Number(correctOption)]
-      : undefined;
-    if (!selectedCorrectOption?.text) {
-      addError(fieldErrors, "correctOption", "Select a correct answer that has option text.");
-    }
-
-    for (const option of populatedOptions) {
-      const optionNumber = option.index + 1;
-      if (!option.explanation) {
-        addError(
-          fieldErrors,
-          `option${option.index}Explanation`,
-          `Add an explanation for option ${optionNumber}.`,
-        );
-      }
-      if (option.citationUrls.length === 0) {
-        addError(
-          fieldErrors,
-          `option${option.index}CitationUrls`,
-          `Add at least one citation URL for option ${optionNumber}.`,
-        );
-      }
+    const selectedCorrectAnswer = parsedAnswers.answers.find(
+      (answer) => answer.key === parsedAnswers.correctAnswerKey,
+    );
+    if (!selectedCorrectAnswer?.text) {
+      addError(
+        fieldErrors,
+        "correctAnswerKey",
+        "Select a correct answer that has answer text.",
+      );
     }
   }
 

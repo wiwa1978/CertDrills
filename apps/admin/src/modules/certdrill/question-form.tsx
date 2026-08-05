@@ -3,13 +3,23 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
-  type ChangeEvent,
   type ComponentProps,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +30,20 @@ import type {
 import { cn } from "@/lib/utils";
 
 import { MarkdownTextarea } from "./markdown";
+import {
+  answerFieldName,
+  MAX_QUESTION_ANSWERS,
+  MIN_QUESTION_ANSWERS,
+} from "./question-answer-fields";
+import {
+  addQuestionAnswer,
+  cancelQuestionAnswerRemoval,
+  confirmQuestionAnswerRemoval,
+  createQuestionAnswerState,
+  requestQuestionAnswerRemoval,
+  updateQuestionAnswer,
+  type QuestionAnswerEditorState,
+} from "./question-answer-state";
 import {
   firstQuestionFieldError,
   questionFieldId,
@@ -34,18 +58,6 @@ type QuestionFormAction = (
   formData: FormData,
 ) => Promise<QuestionFormActionState>;
 
-type AnswerValue = {
-  text: string;
-  explanation: string;
-  citationUrls: string;
-};
-
-const answerIndexes = [0, 1, 2, 3] as const;
-type AnswerIndex = typeof answerIndexes[number];
-type AnswerValues = Record<AnswerIndex, AnswerValue>;
-type QuestionOption = NonNullable<CertDrillAdminQuestion["options"]>[number];
-type AnswerOptions = Record<AnswerIndex, QuestionOption | undefined>;
-
 type QuestionFormProps = {
   action: QuestionFormAction;
   submitLabel: string;
@@ -55,89 +67,37 @@ type QuestionFormProps = {
   idPrefix: string;
 };
 
-function answerOptions(question?: CertDrillAdminQuestion): AnswerOptions {
-  const slots: AnswerOptions = {
-    0: undefined,
-    1: undefined,
-    2: undefined,
-    3: undefined,
-  };
-  const options = question?.options ?? [];
-  const sortOrders = options.map((option) => option.sortOrder);
-  const hasCanonicalSortOrders =
-    sortOrders.every(
-      (sortOrder) =>
-        Number.isInteger(sortOrder)
-        && sortOrder !== undefined
-        && sortOrder >= 0
-        && sortOrder <= 3,
-    )
-    && new Set(sortOrders).size === sortOrders.length;
-
-  if (hasCanonicalSortOrders) {
-    options.forEach((option) => {
-      slots[option.sortOrder as AnswerIndex] = option;
-    });
-    return slots;
-  }
-
-  options
-    .map((option, position) => ({ option, position }))
-    .sort((left, right) => {
-      const leftSortOrder = left.option.sortOrder ?? left.position;
-      const rightSortOrder = right.option.sortOrder ?? right.position;
-      return leftSortOrder - rightSortOrder || left.position - right.position;
-    })
-    .slice(0, answerIndexes.length)
-    .forEach(({ option }, index) => {
-      slots[index as AnswerIndex] = option;
-    });
-
-  return slots;
-}
-
-function answerValue(
-  options: AnswerOptions | undefined,
-  index: AnswerIndex,
-): AnswerValue {
-  const option = options?.[index];
-  return {
-    text: option?.text ?? "",
-    explanation: option?.explanation ?? "",
-    citationUrls: option?.citationUrls?.join(", ") ?? "",
-  };
-}
-
-function initialAnswers(options?: AnswerOptions): AnswerValues {
-  return {
-    0: answerValue(options, 0),
-    1: answerValue(options, 1),
-    2: answerValue(options, 2),
-    3: answerValue(options, 3),
-  };
-}
-
-function initialAnswerState(question?: CertDrillAdminQuestion) {
-  const options = answerOptions(question);
-  const selectedCorrectOption = answerIndexes.find((index) => {
-    const option = options[index];
-    return option?.isCorrect && option.text.trim();
-  });
-
-  return {
-    answers: initialAnswers(options),
-    correctOption:
-      selectedCorrectOption === undefined ? "" : String(selectedCorrectOption),
-  };
-}
-
 function fieldErrors(state: QuestionFormActionState, fieldName: string) {
   return state.fieldErrors[fieldName] ?? [];
 }
 
-function answerHasError(state: QuestionFormActionState, index: AnswerIndex) {
-  return Object.keys(state.fieldErrors)
-    .some((fieldName) => fieldName.startsWith(`option${index}`));
+function nearestAnswerKey(
+  answers: QuestionAnswerEditorState["answers"],
+  removedKey: string,
+) {
+  const index = answers.findIndex((answer) => answer.key === removedKey);
+  if (index === -1) return undefined;
+  return answers[index + 1]?.key ?? answers[index - 1]?.key;
+}
+
+type QuestionFieldActivation = {
+  tab: QuestionAnswerTab | undefined;
+  fieldName: string;
+};
+
+export function questionFieldActivation(
+  fieldName: string,
+  answerKeys: readonly string[],
+): QuestionFieldActivation {
+  const tab = questionTabForField(fieldName);
+  if (tab?.startsWith("answer:")) {
+    const answerKey = tab.slice("answer:".length);
+    if (!answerKeys.includes(answerKey)) {
+      return { tab: "overview", fieldName: "options" };
+    }
+  }
+
+  return { tab, fieldName };
 }
 
 export function QuestionForm({
@@ -169,10 +129,10 @@ function StatefulQuestionForm({
   selectedQuestion,
   idPrefix,
 }: QuestionFormProps) {
-  const [savedAnswerState] = useState(() => initialAnswerState(selectedQuestion));
+  const [answerState, setAnswerState] = useState(
+    () => createQuestionAnswerState(selectedQuestion?.options),
+  );
   const [activeTab, setActiveTab] = useState<QuestionAnswerTab>("overview");
-  const [answers, setAnswers] = useState(savedAnswerState.answers);
-  const [correctOption, setCorrectOption] = useState(savedAnswerState.correctOption);
   const [fieldToFocus, setFieldToFocus] = useState<string>();
   const [categoryId, setCategoryId] = useState(
     () => selectedQuestion?.categoryId ?? "",
@@ -184,11 +144,13 @@ function StatefulQuestionForm({
   const [status, setStatus] = useState<string>(
     () => selectedQuestion?.status ?? "draft",
   );
-
+  const answerKeysRef = useRef(answerState.answers.map((answer) => answer.key));
+  // Keep event handlers synchronized before effects run.
+  // eslint-disable-next-line react-hooks/refs
+  answerKeysRef.current = answerState.answers.map((answer) => answer.key);
   const resetNewQuestion = useCallback(() => {
     setActiveTab("overview");
-    setAnswers(initialAnswers());
-    setCorrectOption("");
+    setAnswerState(createQuestionAnswerState());
     setFieldToFocus(undefined);
     setCategoryId("");
     setStem("");
@@ -196,49 +158,83 @@ function StatefulQuestionForm({
     setStatus("draft");
   }, []);
 
-  const activateField = useCallback((fieldName: string) => {
-    const tab = questionTabForField(fieldName);
+  const activateField = useCallback((
+    fieldName: string,
+    explicitAnswers?: QuestionAnswerEditorState["answers"],
+  ) => {
+    const activation = questionFieldActivation(
+      fieldName,
+      explicitAnswers
+        ? explicitAnswers.map((answer) => answer.key)
+        : answerKeysRef.current,
+    );
+    const { tab } = activation;
     if (tab) setActiveTab(tab);
-    setFieldToFocus(fieldName);
+    setFieldToFocus(activation.fieldName);
   }, []);
 
   useEffect(() => {
     if (!fieldToFocus) return;
 
     const frame = requestAnimationFrame(() => {
-      const target = document.getElementById(questionFieldId(idPrefix, fieldToFocus));
-      if (
-        fieldToFocus === "correctOption"
-        && target instanceof HTMLInputElement
-        && target.disabled
-      ) {
-        const fallbackTarget = document.getElementById(`${idPrefix}-form`)
-          ?.querySelector<HTMLInputElement>('input[name="correctOption"]:not(:disabled)')
-          ?? document.getElementById(`${idPrefix}-answers`);
-        fallbackTarget?.focus();
-      } else {
-        target?.focus();
+      if (fieldToFocus === "correctAnswerKey") {
+        const form = document.getElementById(`${idPrefix}-form`);
+        const checkedCorrectAnswerInput = form?.querySelector<HTMLInputElement>(
+          'input[name="correctAnswerKey"]:checked:not(:disabled)',
+        );
+        const correctAnswerInput = form?.querySelector<HTMLInputElement>(
+          'input[name="correctAnswerKey"]:not(:disabled)',
+        );
+        const correctAnswerGroup = document.getElementById(
+          `${idPrefix}-correct-answer`,
+        );
+        (
+          checkedCorrectAnswerInput
+          ?? correctAnswerInput
+          ?? correctAnswerGroup
+        )?.focus();
+        setFieldToFocus(undefined);
+        return;
       }
+
+      document.getElementById(questionFieldId(idPrefix, fieldToFocus))?.focus();
       setFieldToFocus(undefined);
     });
 
     return () => cancelAnimationFrame(frame);
   }, [activeTab, fieldToFocus, idPrefix]);
 
-  function updateAnswer(
-    index: AnswerIndex,
-    key: keyof AnswerValue,
-    event: ChangeEvent<HTMLTextAreaElement>,
-  ) {
-    const value = event.currentTarget.value;
-    setAnswers((current) => ({
-      ...current,
-      [index]: { ...current[index], [key]: value },
-    }));
-
-    if (key === "text" && !value.trim() && correctOption === String(index)) {
-      setCorrectOption("");
+  function handleAddAnswer() {
+    const result = addQuestionAnswer(answerState);
+    setAnswerState(result.state);
+    if (result.addedKey) {
+      activateField(
+        answerFieldName(result.addedKey, "text"),
+        result.state.answers,
+      );
     }
+  }
+
+  function handleRemoveRequest(answerKey: string) {
+    const nextKey = nearestAnswerKey(answerState.answers, answerKey);
+    const result = requestQuestionAnswerRemoval(answerState, answerKey);
+    setAnswerState(result.state);
+    if (result.removed && nextKey) {
+      activateField(answerFieldName(nextKey, "text"));
+    }
+  }
+
+  function handleConfirmRemoval(answerKey: string) {
+    const nextKey = nearestAnswerKey(answerState.answers, answerKey);
+    setAnswerState(confirmQuestionAnswerRemoval(answerState, answerKey));
+    if (nextKey) {
+      activateField(answerFieldName(nextKey, "text"));
+    }
+  }
+
+  function handleCancelRemoval(answerKey: string) {
+    setAnswerState(cancelQuestionAnswerRemoval(answerState));
+    activateField(answerFieldName(answerKey, "text"));
   }
 
   return (
@@ -265,10 +261,12 @@ function StatefulQuestionForm({
           setStatus={setStatus}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          answers={answers}
-          updateAnswer={updateAnswer}
-          correctOption={correctOption}
-          setCorrectOption={setCorrectOption}
+          answerState={answerState}
+          setAnswerState={setAnswerState}
+          handleAddAnswer={handleAddAnswer}
+          handleRemoveRequest={handleRemoveRequest}
+          handleConfirmRemoval={handleConfirmRemoval}
+          handleCancelRemoval={handleCancelRemoval}
           activateField={activateField}
           resetNewQuestion={resetNewQuestion}
         />
@@ -293,10 +291,12 @@ function QuestionFormContents({
   setStatus,
   activeTab,
   setActiveTab,
-  answers,
-  updateAnswer,
-  correctOption,
-  setCorrectOption,
+  answerState,
+  setAnswerState,
+  handleAddAnswer,
+  handleRemoveRequest,
+  handleConfirmRemoval,
+  handleCancelRemoval,
   activateField,
   resetNewQuestion,
 }: {
@@ -315,14 +315,12 @@ function QuestionFormContents({
   setStatus: (value: string) => void;
   activeTab: QuestionAnswerTab;
   setActiveTab: (tab: QuestionAnswerTab) => void;
-  answers: AnswerValues;
-  updateAnswer: (
-    index: AnswerIndex,
-    key: keyof AnswerValue,
-    event: ChangeEvent<HTMLTextAreaElement>,
-  ) => void;
-  correctOption: string;
-  setCorrectOption: (value: string) => void;
+  answerState: QuestionAnswerEditorState;
+  setAnswerState: Dispatch<SetStateAction<QuestionAnswerEditorState>>;
+  handleAddAnswer: () => void;
+  handleRemoveRequest: (answerKey: string) => void;
+  handleConfirmRemoval: (answerKey: string) => void;
+  handleCancelRemoval: (answerKey: string) => void;
   activateField: (fieldName: string) => void;
   resetNewQuestion: () => void;
 }) {
@@ -420,10 +418,12 @@ function QuestionFormContents({
         idPrefix={idPrefix}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        answers={answers}
-        updateAnswer={updateAnswer}
-        correctOption={correctOption}
-        setCorrectOption={setCorrectOption}
+        answerState={answerState}
+        setAnswerState={setAnswerState}
+        handleAddAnswer={handleAddAnswer}
+        handleRemoveRequest={handleRemoveRequest}
+        handleConfirmRemoval={handleConfirmRemoval}
+        handleCancelRemoval={handleCancelRemoval}
         activateField={activateField}
       />
     </div>
@@ -435,29 +435,29 @@ function AnswerTabs({
   idPrefix,
   activeTab,
   setActiveTab,
-  answers,
-  updateAnswer,
-  correctOption,
-  setCorrectOption,
+  answerState,
+  setAnswerState,
+  handleAddAnswer,
+  handleRemoveRequest,
+  handleConfirmRemoval,
+  handleCancelRemoval,
   activateField,
 }: {
   state: QuestionFormActionState;
   idPrefix: string;
   activeTab: QuestionAnswerTab;
   setActiveTab: (tab: QuestionAnswerTab) => void;
-  answers: AnswerValues;
-  updateAnswer: (
-    index: AnswerIndex,
-    key: keyof AnswerValue,
-    event: ChangeEvent<HTMLTextAreaElement>,
-  ) => void;
-  correctOption: string;
-  setCorrectOption: (value: string) => void;
+  answerState: QuestionAnswerEditorState;
+  setAnswerState: Dispatch<SetStateAction<QuestionAnswerEditorState>>;
+  handleAddAnswer: () => void;
+  handleRemoveRequest: (answerKey: string) => void;
+  handleConfirmRemoval: (answerKey: string) => void;
+  handleCancelRemoval: (answerKey: string) => void;
   activateField: (fieldName: string) => void;
 }) {
   const overviewHasError =
     fieldErrors(state, "options").length > 0
-    || fieldErrors(state, "correctOption").length > 0;
+    || fieldErrors(state, "correctAnswerKey").length > 0;
 
   return (
     <Card id={`${idPrefix}-answers`} tabIndex={-1}>
@@ -466,8 +466,23 @@ function AnswerTabs({
         <CardDescription>
           Add at least two answers. Select the correct answer before publishing.
         </CardDescription>
+        <CardAction>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleAddAnswer}
+            disabled={answerState.answers.length >= MAX_QUESTION_ANSWERS}
+          >
+            Add answer
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
+        <input
+          type="hidden"
+          name="answerKeys"
+          value={answerState.answers.map((answer) => answer.key).join(",")}
+        />
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as QuestionAnswerTab)}
@@ -483,12 +498,13 @@ function AnswerTabs({
                   <AlertCircle aria-hidden="true" className="text-destructive" />
                 ) : null}
               </TabsTrigger>
-              {answerIndexes.map((index) => {
-                const hasError = answerHasError(state, index);
+              {answerState.answers.map((answer, index) => {
+                const hasError = Object.keys(state.fieldErrors)
+                  .some((fieldName) => fieldName.startsWith(`answer.${answer.key}.`));
                 return (
                   <TabsTrigger
-                    key={index}
-                    value={`answer-${index}`}
+                    key={answer.key}
+                    value={`answer:${answer.key}`}
                     aria-label={`Answer ${index + 1}${hasError ? " has errors" : ""}`}
                   >
                     Answer {index + 1}
@@ -515,42 +531,46 @@ function AnswerTabs({
                 {fieldErrors(state, "options").map((message, index) => (
                   <p key={`${message}-${index}`}>{message}</p>
                 ))}
-                {fieldErrors(state, "correctOption").map((message, index) => (
+                {fieldErrors(state, "correctAnswerKey").map((message, index) => (
                   <p key={`${message}-${index}`}>{message}</p>
                 ))}
               </div>
             ) : null}
             <fieldset
+              id={`${idPrefix}-correct-answer`}
+              tabIndex={-1}
               className="space-y-3"
               aria-describedby={overviewHasError ? `${idPrefix}-answer-errors` : undefined}
             >
-              <legend className="text-sm font-medium">Correct answer</legend>
-              {answerIndexes.map((index) => {
-                const answer = answers[index];
+              <legend className="sr-only">Correct answer</legend>
+              {answerState.answers.map((answer, index) => {
                 const entered = Boolean(answer.text.trim());
                 return (
                   <div
-                    key={index}
+                    key={answer.key}
                     className="grid gap-3 rounded-md border p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center"
                   >
                     <input
-                      id={`${idPrefix}-correct-option-${index}`}
+                      id={`${idPrefix}-correct-${answer.key}`}
                       type="radio"
-                      name="correctOption"
-                      value={String(index)}
+                      name="correctAnswerKey"
+                      value={answer.key}
                       aria-label={`Answer ${index + 1} is the correct answer`}
-                      checked={correctOption === String(index)}
+                      checked={answerState.correctAnswerKey === answer.key}
                       disabled={!answer.text.trim()}
-                      onChange={() => setCorrectOption(String(index))}
+                      onChange={() => setAnswerState({
+                        ...answerState,
+                        correctAnswerKey: answer.key,
+                      })}
                     />
                     <button
                       type="button"
                       className="min-w-0 text-left"
-                      onClick={() => activateField(`option${index}Text`)}
+                      onClick={() => activateField(answerFieldName(answer.key, "text"))}
                     >
                       <span className="block font-medium">Answer {index + 1}</span>
                       <span className="block truncate text-sm text-muted-foreground">
-                        {entered ? answer.text : "Not entered"}
+                        {answer.text.trim() || "Not entered"}
                       </span>
                     </button>
                     <span className="text-xs text-muted-foreground">
@@ -562,47 +582,115 @@ function AnswerTabs({
             </fieldset>
           </TabsContent>
 
-          {answerIndexes.map((index) => {
-            const answer = answers[index];
-            return (
-              <TabsContent
-                key={index}
-                value={`answer-${index}`}
-                forceMount
-                className="space-y-4 pt-3 data-[state=inactive]:hidden"
+          {answerState.answers.map((answer, index) => (
+            <TabsContent
+              key={answer.key}
+              value={`answer:${answer.key}`}
+              forceMount
+              className="space-y-4 pt-3 data-[state=inactive]:hidden"
+            >
+              <MarkdownTextarea
+                id={`${idPrefix}-${answer.key}-text`}
+                name={answerFieldName(answer.key, "text")}
+                label={`Answer ${index + 1} text`}
+                className="min-h-32"
+                value={answer.text}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "text",
+                      value,
+                    )
+                  ));
+                }}
+                helperText="At least two answer texts are required."
+                errorMessages={fieldErrors(
+                  state,
+                  answerFieldName(answer.key, "text"),
+                )}
+              />
+              <MarkdownTextarea
+                id={`${idPrefix}-${answer.key}-explanation`}
+                name={answerFieldName(answer.key, "explanation")}
+                label={`Answer ${index + 1} explanation`}
+                className="min-h-32"
+                value={answer.explanation}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "explanation",
+                      value,
+                    )
+                  ));
+                }}
+                helperText="Required before publishing."
+                errorMessages={fieldErrors(
+                  state,
+                  answerFieldName(answer.key, "explanation"),
+                )}
+              />
+              <QuestionTextarea
+                id={`${idPrefix}-${answer.key}-citations`}
+                name={answerFieldName(answer.key, "citationUrls")}
+                label={`Answer ${index + 1} citation URLs`}
+                value={answer.citationUrls}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnswerState((current) => (
+                    updateQuestionAnswer(
+                      current,
+                      answer.key,
+                      "citationUrls",
+                      value,
+                    )
+                  ));
+                }}
+                helperText="Required before publishing. Use comma-separated http, https, or mailto URLs."
+                errorMessages={fieldErrors(
+                  state,
+                  answerFieldName(answer.key, "citationUrls"),
+                )}
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => handleRemoveRequest(answer.key)}
+                disabled={answerState.answers.length <= MIN_QUESTION_ANSWERS}
               >
-                <MarkdownTextarea
-                  id={`${idPrefix}-option-${index}-text`}
-                  name={`option${index}Text`}
-                  label={`Answer ${index + 1} text`}
-                  className="min-h-32"
-                  value={answer.text}
-                  onChange={(event) => updateAnswer(index, "text", event)}
-                  helperText="At least two answer texts are required."
-                  errorMessages={fieldErrors(state, `option${index}Text`)}
-                />
-                <MarkdownTextarea
-                  id={`${idPrefix}-option-${index}-explanation`}
-                  name={`option${index}Explanation`}
-                  label={`Answer ${index + 1} explanation`}
-                  className="min-h-32"
-                  value={answer.explanation}
-                  onChange={(event) => updateAnswer(index, "explanation", event)}
-                  helperText="Required before publishing."
-                  errorMessages={fieldErrors(state, `option${index}Explanation`)}
-                />
-                <QuestionTextarea
-                  id={`${idPrefix}-option-${index}-citations`}
-                  name={`option${index}CitationUrls`}
-                  label={`Answer ${index + 1} citation URLs`}
-                  value={answer.citationUrls}
-                  onChange={(event) => updateAnswer(index, "citationUrls", event)}
-                  helperText="Required before publishing. Use comma-separated http, https, or mailto URLs."
-                  errorMessages={fieldErrors(state, `option${index}CitationUrls`)}
-                />
-              </TabsContent>
-            );
-          })}
+                Remove answer
+              </Button>
+              {answerState.pendingRemovalKey === answer.key ? (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/50 p-3"
+                >
+                  <p>This answer contains content. Remove it permanently?</p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleCancelRemoval(answer.key)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => handleConfirmRemoval(answer.key)}
+                    >
+                      Remove answer
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </TabsContent>
+          ))}
         </Tabs>
       </CardContent>
     </Card>
