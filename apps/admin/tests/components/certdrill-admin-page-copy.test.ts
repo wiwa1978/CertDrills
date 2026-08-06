@@ -430,4 +430,24 @@ describe("CertDrill admin page copy", () => {
     expect(actionsSource).toContain('enabledAt: submittedNullableString(formData, "enabledAt")');
     expect(actionsSource).toContain('archivedAt: submittedNullableString(formData, "archivedAt")');
   });
+
+  it("shows a secondary import questions entry point beside create question, only when a certification is selected", () => {
+    expect(source).toContain('import { questionEditorHref, questionEditorNewHref, questionImportHref } from "./question-editor-href";');
+    expect(source).toContain("<Button asChild variant=\"secondary\">");
+    expect(source).toContain('<LocalizedLink href={questionImportHref(selectedCertificationId)}>Import questions</LocalizedLink>');
+    expect(source.indexOf("Import questions")).toBeLessThan(source.indexOf(">Create question</LocalizedLink>"));
+  });
+
+  it("shows the imported question count as a singular/plural status message above the question table", () => {
+    expect(source).toContain("importedQuestionCount?: number;");
+    expect(source).toContain('role="status"');
+    expect(source).toContain("importedQuestionCount && importedQuestionCount > 0");
+    expect(source).toContain('`${importedQuestionCount} question${importedQuestionCount === 1 ? "" : "s"} imported as Draft.`');
+  });
+
+  it("parses a positive integer imported query param in the certification route", () => {
+    expect(detailRouteSource).toContain("parsePositiveIntegerSearchParam");
+    expect(detailRouteSource).toContain("importedQuestionCount={parsePositiveIntegerSearchParam(imported)}");
+    expect(detailRouteSource).toContain("Number.isInteger(parsed) && parsed > 0 ? parsed : undefined");
+  });
 });

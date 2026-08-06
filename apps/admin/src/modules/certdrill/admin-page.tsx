@@ -49,7 +49,7 @@ import {
   updateCertDrillResourceAction,
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
-import { questionEditorHref, questionEditorNewHref } from "./question-editor-href";
+import { questionEditorHref, questionEditorNewHref, questionImportHref } from "./question-editor-href";
 import { compactQuestionId } from "./question-id";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
@@ -76,6 +76,7 @@ type CertDrillAdminPageProps = {
   feedbackStatus?: string;
   selectedTab?: string;
   questionTableQuery?: QuestionTableQuery;
+  importedQuestionCount?: number;
 };
 
 type CertificationOption = {
@@ -218,6 +219,7 @@ export async function CertDrillAdminPage({
   feedbackStatus,
   selectedTab,
   questionTableQuery,
+  importedQuestionCount,
 }: CertDrillAdminPageProps) {
   const [adminCertifications, vendors] = await Promise.all([
     listCertDrillAdminCertificationsServer(),
@@ -451,13 +453,23 @@ export async function CertDrillAdminPage({
                   <CardDescription>{selectedCategory ? `Questions in ${selectedCategory.code} - ${selectedCategory.name}.` : "Simple MCQ list for the selected certification."}</CardDescription>
                 </div>
                 {selectedCertificationId ? (
-                  <Button asChild>
-                    <LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild variant="secondary">
+                      <LocalizedLink href={questionImportHref(selectedCertificationId)}>Import questions</LocalizedLink>
+                    </Button>
+                    <Button asChild>
+                      <LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>
+                    </Button>
+                  </div>
                 ) : null}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {importedQuestionCount && importedQuestionCount > 0 ? (
+                <div role="status" className="rounded-md border border-green-600/40 bg-green-600/10 p-3 text-sm">
+                  {`${importedQuestionCount} question${importedQuestionCount === 1 ? "" : "s"} imported as Draft.`}
+                </div>
+              ) : null}
               {selectedCertificationId ? <QuestionFilterBar categories={categories} filters={questionFilters} /> : null}
               {pagedQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={pagedQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} sort={questionFilters.questionSort} stemSortHref={stemSortHref} page={currentQuestionPage} pageCount={questionPageCount} previousPageHref={previousPageHref} nextPageHref={nextPageHref} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
