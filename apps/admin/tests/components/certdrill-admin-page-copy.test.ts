@@ -115,6 +115,15 @@ describe("CertDrill admin page copy", () => {
     expect(certificationOverviewSource).not.toContain("<form action={archiveCertDrillCertificationAction}>");
     expect(certificationOverviewSource).toContain("certification.logoUrl");
     expect(certificationOverviewSource).toContain("publishedQuestionCount");
+    expect(certificationOverviewSource).toContain(
+      '<Card className="flex h-full flex-col transition-colors group-hover:border-primary/40">',
+    );
+    expect(certificationOverviewSource).toContain(
+      '<CardDescription className="min-h-10 line-clamp-2">',
+    );
+    expect(certificationOverviewSource).toContain(
+      '<CardContent className="flex flex-1 flex-col justify-end">',
+    );
   });
 
   it("shows question feedback review copy and fields", () => {

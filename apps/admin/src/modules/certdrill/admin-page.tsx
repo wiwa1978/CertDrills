@@ -1283,7 +1283,7 @@ function AdminCertificationOverviewTable({ certifications }: { certifications: A
             href={certdrillAdminDetailHref(certification.id)}
             className="group block h-full rounded-xl outline-none transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <Card className="h-full transition-colors group-hover:border-primary/40">
+            <Card className="flex h-full flex-col transition-colors group-hover:border-primary/40">
               <CardHeader>
                 <div className="flex items-start gap-3">
                   <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted text-sm font-semibold">
@@ -1291,11 +1291,11 @@ function AdminCertificationOverviewTable({ certifications }: { certifications: A
                   </div>
                   <div className="min-w-0 flex-1">
                     <CardTitle className="truncate text-lg">{certification.code}</CardTitle>
-                    <CardDescription className="line-clamp-2">{certification.name}</CardDescription>
+                    <CardDescription className="min-h-10 line-clamp-2">{certification.name}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="flex flex-1 flex-col justify-end">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{certification.vendor}</Badge>
                   <Badge variant="outline">{visibility}</Badge>
