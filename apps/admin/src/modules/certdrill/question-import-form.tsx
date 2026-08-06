@@ -51,8 +51,144 @@ type QuestionImportConfirmAction = (input: {
   duplicateOverrideSourceIndexes: number[];
 }) => Promise<CertDrillQuestionImportConfirmActionResult>;
 
+type QuestionImportPreviewDetailsProps = {
+  certificationId: string;
+  preview: CertDrillQuestionImportPreviewResult;
+  selection: QuestionImportSelectionState;
+  pending: boolean;
+  onToggleDuplicatesIncluded: (included: boolean) => void;
+  onToggleRow: (sourceIndex: number, selected: boolean) => void;
+};
+
 function importedQuestionsHref(certificationId: string, importedCount: number) {
   return `/admin/certdrill/${certificationId}?tab=questions&imported=${importedCount}`;
+}
+
+export function QuestionImportPreviewDetails({
+  certificationId,
+  preview,
+  selection,
+  pending,
+  onToggleDuplicatesIncluded,
+  onToggleRow,
+}: QuestionImportPreviewDetailsProps) {
+  const hasDuplicateRows = Boolean(preview.rows.some((row) => row.valid && isQuestionImportRowDuplicate(row)));
+  const includeDuplicatesChecked = areAllQuestionImportDuplicatesIncluded(selection, preview.rows);
+
+  return (
+    <>
+      <div role="status" className="space-y-1 text-sm">
+        <ul className="space-y-1">
+          <li>{`Submitted: ${preview.totals.submitted}`}</li>
+          <li>{`Valid: ${preview.totals.valid}`}</li>
+          <li>{`Invalid: ${preview.totals.invalid}`}</li>
+          <li>{`Existing duplicates: ${preview.totals.duplicateExisting}`}</li>
+          <li>{`Batch duplicates: ${preview.totals.duplicateBatch}`}</li>
+          <li>{`Selected: ${selection.selected.length}`}</li>
+        </ul>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="question-import-include-duplicates"
+          aria-label="Include duplicates"
+          checked={includeDuplicatesChecked}
+          disabled={pending || !hasDuplicateRows}
+          onCheckedChange={(checked) => onToggleDuplicatesIncluded(checked === true)}
+        />
+        <div className="space-y-1">
+          <Label htmlFor="question-import-include-duplicates">Include duplicates</Label>
+          <p className="text-sm text-muted-foreground">
+            Selecting this includes rows flagged as duplicates, so you can intentionally import duplicate questions.
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead><span className="sr-only">Select</span></TableHead>
+              <TableHead>Row</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Stem</TableHead>
+              <TableHead>Difficulty</TableHead>
+              <TableHead>Answers</TableHead>
+              <TableHead>Validation</TableHead>
+              <TableHead>Duplicates</TableHead>
+              <TableHead>Errors</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {preview.rows.map((row) => {
+              const rowNumber = row.sourceIndex + 1;
+              const isDuplicate = isQuestionImportRowDuplicate(row);
+
+              return (
+                <TableRow key={row.sourceIndex}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`Import row ${rowNumber}`}
+                      checked={selection.selected.includes(row.sourceIndex)}
+                      disabled={pending || !row.valid}
+                      onCheckedChange={(checked) => onToggleRow(row.sourceIndex, checked === true)}
+                    />
+                  </TableCell>
+                  <TableCell>{rowNumber}</TableCell>
+                  <TableCell className="whitespace-normal">{row.categoryCode}</TableCell>
+                  <TableCell className="max-w-md whitespace-normal">{row.stem}</TableCell>
+                  <TableCell><Badge variant="secondary">{row.difficulty}</Badge></TableCell>
+                  <TableCell>{row.answerCount}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.valid ? "outline" : "destructive"}>
+                      {row.valid ? "Valid" : "Invalid"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {isDuplicate ? (
+                      <div className="space-y-1">
+                        {row.duplicate.existingQuestionIds.length > 0 ? (
+                          <p>
+                            {"Matches existing question(s): "}
+                            {row.duplicate.existingQuestionIds.map((questionId, index) => (
+                              <span key={questionId}>
+                                {index > 0 ? ", " : ""}
+                                <LocalizedLink
+                                  href={questionEditorHref(certificationId, questionId)}
+                                  className="underline underline-offset-2"
+                                >
+                                  <span className="sr-only">Question {questionId}</span>
+                                  <span aria-hidden="true">{compactQuestionId(questionId)}</span>
+                                </LocalizedLink>
+                              </span>
+                            ))}
+                          </p>
+                        ) : null}
+                        {row.duplicate.earlierSourceIndexes.length > 0 ? (
+                          <p>
+                            {`Duplicates earlier row(s) ${row.duplicate.earlierSourceIndexes.map((earlierIndex) => earlierIndex + 1).join(", ")} in this document.`}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : <span className="text-muted-foreground">None</span>}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {row.errors.length > 0 ? (
+                      <ul className="space-y-1 text-destructive">
+                        {row.errors.map((error, index) => (
+                          <li key={`${error.field}-${index}`}>{`${error.field}: ${error.message}`}</li>
+                        ))}
+                      </ul>
+                    ) : <span className="text-muted-foreground">None</span>}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
 }
 
 export function QuestionImportForm({
@@ -184,9 +320,6 @@ export function QuestionImportForm({
     setSelection((current) => setQuestionImportDuplicatesIncluded(current, preview.rows, included));
   }
 
-  const hasDuplicateRows = Boolean(preview?.rows.some((row) => row.valid && isQuestionImportRowDuplicate(row)));
-  const includeDuplicatesChecked = preview ? areAllQuestionImportDuplicatesIncluded(selection, preview.rows) : false;
-
   return (
     <div className="space-y-4" aria-busy={pending}>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as QuestionImportTab)}>
@@ -247,118 +380,18 @@ export function QuestionImportForm({
       </div>
 
       {preview ? (
-        <div role="status" className="space-y-4 rounded-md border border-green-600/40 bg-green-600/10 p-4 text-sm">
+        <div className="space-y-4 rounded-md border border-green-600/40 bg-green-600/10 p-4">
           <h2 ref={previewHeadingRef} tabIndex={-1} className="font-semibold outline-none">
             Preview ready. Nothing has been imported yet.
           </h2>
-          <ul className="space-y-1">
-            <li>{`Submitted: ${preview.totals.submitted}`}</li>
-            <li>{`Valid: ${preview.totals.valid}`}</li>
-            <li>{`Invalid: ${preview.totals.invalid}`}</li>
-            <li>{`Existing duplicates: ${preview.totals.duplicateExisting}`}</li>
-            <li>{`Batch duplicates: ${preview.totals.duplicateBatch}`}</li>
-            <li>{`Selected: ${selection.selected.length}`}</li>
-          </ul>
-
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="question-import-include-duplicates"
-              aria-label="Include duplicates"
-              checked={includeDuplicatesChecked}
-              disabled={!hasDuplicateRows}
-              onCheckedChange={(checked) => handleToggleDuplicatesIncluded(checked === true)}
-            />
-            <div className="space-y-1">
-              <Label htmlFor="question-import-include-duplicates">Include duplicates</Label>
-              <p className="text-sm text-muted-foreground">
-                Selecting this includes rows flagged as duplicates, so you can intentionally import duplicate questions.
-              </p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead><span className="sr-only">Select</span></TableHead>
-                  <TableHead>Row</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Stem</TableHead>
-                  <TableHead>Difficulty</TableHead>
-                  <TableHead>Answers</TableHead>
-                  <TableHead>Validation</TableHead>
-                  <TableHead>Duplicates</TableHead>
-                  <TableHead>Errors</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {preview.rows.map((row) => {
-                  const rowNumber = row.sourceIndex + 1;
-                  const isDuplicate = isQuestionImportRowDuplicate(row);
-
-                  return (
-                    <TableRow key={row.sourceIndex}>
-                      <TableCell>
-                        <Checkbox
-                          aria-label={`Import row ${rowNumber}`}
-                          checked={selection.selected.includes(row.sourceIndex)}
-                          disabled={!row.valid}
-                          onCheckedChange={(checked) => handleToggleRow(row.sourceIndex, checked === true)}
-                        />
-                      </TableCell>
-                      <TableCell>{rowNumber}</TableCell>
-                      <TableCell className="whitespace-normal">{row.categoryCode}</TableCell>
-                      <TableCell className="max-w-md whitespace-normal">{row.stem}</TableCell>
-                      <TableCell><Badge variant="secondary">{row.difficulty}</Badge></TableCell>
-                      <TableCell>{row.answerCount}</TableCell>
-                      <TableCell>
-                        <Badge variant={row.valid ? "outline" : "destructive"}>
-                          {row.valid ? "Valid" : "Invalid"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="whitespace-normal">
-                        {isDuplicate ? (
-                          <div className="space-y-1">
-                            {row.duplicate.existingQuestionIds.length > 0 ? (
-                              <p>
-                                {"Matches existing question(s): "}
-                                {row.duplicate.existingQuestionIds.map((questionId, index) => (
-                                  <span key={questionId}>
-                                    {index > 0 ? ", " : ""}
-                                    <LocalizedLink
-                                      href={questionEditorHref(certificationId, questionId)}
-                                      className="underline underline-offset-2"
-                                    >
-                                      <span className="sr-only">Question {questionId}</span>
-                                      <span aria-hidden="true">{compactQuestionId(questionId)}</span>
-                                    </LocalizedLink>
-                                  </span>
-                                ))}
-                              </p>
-                            ) : null}
-                            {row.duplicate.earlierSourceIndexes.length > 0 ? (
-                              <p>
-                                {`Duplicates earlier row(s) ${row.duplicate.earlierSourceIndexes.map((earlierIndex) => earlierIndex + 1).join(", ")} in this document.`}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : <span className="text-muted-foreground">None</span>}
-                      </TableCell>
-                      <TableCell className="whitespace-normal">
-                        {row.errors.length > 0 ? (
-                          <ul className="space-y-1 text-destructive">
-                            {row.errors.map((error, index) => (
-                              <li key={`${error.field}-${index}`}>{`${error.field}: ${error.message}`}</li>
-                            ))}
-                          </ul>
-                        ) : <span className="text-muted-foreground">None</span>}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <QuestionImportPreviewDetails
+            certificationId={certificationId}
+            preview={preview}
+            selection={selection}
+            pending={pending}
+            onToggleDuplicatesIncluded={handleToggleDuplicatesIncluded}
+            onToggleRow={handleToggleRow}
+          />
         </div>
       ) : null}
     </div>

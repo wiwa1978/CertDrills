@@ -14,9 +14,10 @@ vi.mock("@/i18n/navigation", () => ({
 }));
 
 import { questionEditorHref, questionImportHref } from "@/modules/certdrill/question-editor-href";
-import { QuestionImportForm } from "@/modules/certdrill/question-import-form";
+import { QuestionImportForm, QuestionImportPreviewDetails } from "@/modules/certdrill/question-import-form";
 import type {
   CertDrillQuestionImportConfirmActionResult,
+  CertDrillQuestionImportPreviewResult,
   CertDrillQuestionImportPreviewActionResult,
 } from "@/modules/certdrill/question-import-types";
 
@@ -48,6 +49,58 @@ function renderForm() {
       certificationId,
       previewAction: harmlessPreviewAction,
       confirmAction: harmlessConfirmAction,
+    }),
+  );
+}
+
+const previewMarkupFixture: CertDrillQuestionImportPreviewResult = {
+  documentVersion: 1,
+  documentHash: "a".repeat(64),
+  totals: {
+    submitted: 2,
+    valid: 2,
+    invalid: 0,
+    duplicateExisting: 1,
+    duplicateBatch: 0,
+    selectedByDefault: 1,
+  },
+  rows: [
+    {
+      sourceIndex: 0,
+      categoryCode: "SEC-01",
+      categoryId: "33333333-3333-4333-8333-333333333333",
+      stem: "Primary question",
+      difficulty: "medium",
+      answerCount: 2,
+      valid: true,
+      duplicate: { existingQuestionIds: [], earlierSourceIndexes: [] },
+      selectedByDefault: true,
+      errors: [],
+    },
+    {
+      sourceIndex: 1,
+      categoryCode: "SEC-02",
+      categoryId: "44444444-4444-4444-8444-444444444444",
+      stem: "Duplicate question",
+      difficulty: "hard",
+      answerCount: 4,
+      valid: true,
+      duplicate: { existingQuestionIds: ["55555555-5555-4555-8555-555555555555"], earlierSourceIndexes: [] },
+      selectedByDefault: false,
+      errors: [],
+    },
+  ],
+};
+
+function renderPreviewDetails(pending: boolean) {
+  return renderToStaticMarkup(
+    createElement(QuestionImportPreviewDetails, {
+      certificationId,
+      preview: previewMarkupFixture,
+      selection: { selected: [0], duplicateOverrides: [] },
+      pending,
+      onToggleDuplicatesIncluded: () => {},
+      onToggleRow: () => {},
     }),
   );
 }
@@ -228,7 +281,7 @@ describe("question import form", () => {
 
   it("disables the checkbox for invalid rows", () => {
     expect(questionImportFormSource).toContain("checked={selection.selected.includes(row.sourceIndex)}");
-    expect(questionImportFormSource).toContain("disabled={!row.valid}");
+    expect(questionImportFormSource).toContain("disabled={pending || !row.valid}");
   });
 
   it("distinguishes existing certification duplicates from earlier source rows and links compact existing IDs", () => {
@@ -245,7 +298,7 @@ describe("question import form", () => {
   it("wires a per-row duplicate checkbox as an explicit override via setQuestionImportRowSelected", () => {
     expect(questionImportFormSource).toContain("function handleToggleRow(sourceIndex: number, selected: boolean)");
     expect(questionImportFormSource).toContain("setQuestionImportRowSelected(current, preview.rows, sourceIndex, selected)");
-    expect(questionImportFormSource).toContain("onCheckedChange={(checked) => handleToggleRow(row.sourceIndex, checked === true)}");
+    expect(questionImportFormSource).toContain("onCheckedChange={(checked) => onToggleRow(row.sourceIndex, checked === true)}");
   });
 
   it("wires a batch Include duplicates checkbox that explains it permits intentional duplicates", () => {
@@ -253,7 +306,9 @@ describe("question import form", () => {
     expect(questionImportFormSource).toContain("areAllQuestionImportDuplicatesIncluded(selection, preview.rows)");
     expect(questionImportFormSource).toContain("function handleToggleDuplicatesIncluded(included: boolean)");
     expect(questionImportFormSource).toContain("setQuestionImportDuplicatesIncluded(current, preview.rows, included)");
+    expect(questionImportFormSource).toContain("onCheckedChange={(checked) => onToggleDuplicatesIncluded(checked === true)}");
     expect(questionImportFormSource).toContain("so you can intentionally import duplicate questions");
+    expect(questionImportFormSource).toContain("disabled={pending || !hasDuplicateRows}");
   });
 
   it("disables the Import selected questions button when nothing is selected or an operation is pending, and shows a busy label", () => {
@@ -329,6 +384,29 @@ describe("question import form", () => {
     // No preview yet, so the confirm button, table, and batch checkbox must not render.
     expect(markup).not.toContain("Import selected questions");
     expect(markup).not.toContain("Include duplicates");
+  });
+
+  it("limits the live status region to the preview totals summary instead of wrapping controls and the table", () => {
+    const markup = renderPreviewDetails(false);
+    const statusRegion = markup.match(/<div role="status"[^>]*>[\s\S]*?<\/div>/)?.[0];
+
+    expect(statusRegion).toBeDefined();
+    expect(statusRegion).toContain("Submitted: 2");
+    expect(statusRegion).toContain("Selected: 1");
+    expect(statusRegion).not.toContain("Include duplicates");
+    expect(statusRegion).not.toContain('data-slot="table"');
+    expect(markup).toContain("Include duplicates");
+    expect(markup).toContain('data-slot="table"');
+  });
+
+  it("renders the batch and row checkboxes disabled in preview markup while an operation is pending", () => {
+    const markup = renderPreviewDetails(true);
+    const disabledCheckboxCount = markup.match(/role="checkbox"[^>]*disabled=""/g)?.length ?? 0;
+
+    expect(disabledCheckboxCount).toBe(3);
+    expect(markup).toContain('aria-label="Include duplicates"');
+    expect(markup).toContain('aria-label="Import row 1"');
+    expect(markup).toContain('aria-label="Import row 2"');
   });
 });
 
