@@ -1,0 +1,149 @@
+import { readFileSync } from "node:fs";
+
+import { PGlite } from "@electric-sql/pglite";
+import { describe, expect, it } from "vitest";
+
+const migrationSql = readFileSync(
+  new URL("../../../../../packages/platform-db/drizzle/0026_certdrill_exam_form_assignments.sql", import.meta.url),
+  "utf8",
+);
+
+const ids = {
+  certification: "00000000-0000-4000-8000-000000000001",
+  rootA: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  childA: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  grandchildA: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  rootB: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  questionA: "11111111-1111-4111-8111-111111111111",
+  questionB: "22222222-2222-4222-8222-222222222222",
+  missingQuestion: "33333333-3333-4333-8333-333333333333",
+  mappedForm: "44444444-4444-4444-8444-444444444441",
+  unmappableForm: "44444444-4444-4444-8444-444444444442",
+  emptyForm: "44444444-4444-4444-8444-444444444443",
+  fallbackForm: "44444444-4444-4444-8444-444444444444",
+  defaultForm: "44444444-4444-4444-8444-444444444445",
+};
+
+describe("CertDrill exam form assignment migration", () => {
+  it("backfills legacy forms and enforces assignment metadata invariants", async () => {
+    const db = new PGlite();
+
+    try {
+      await db.exec(`
+        CREATE TABLE "certdrill_exam_categories" (
+          "id" uuid PRIMARY KEY,
+          "certification_id" uuid NOT NULL,
+          "parent_category_id" uuid,
+          "name" text NOT NULL,
+          "weight_pct" numeric(5, 2),
+          "sort_order" integer NOT NULL
+        );
+
+        CREATE TABLE "certdrill_questions" (
+          "id" uuid PRIMARY KEY,
+          "certification_id" uuid NOT NULL,
+          "category_id" uuid NOT NULL
+        );
+
+        CREATE TABLE "certdrill_exam_forms" (
+          "id" uuid PRIMARY KEY,
+          "certification_id" uuid NOT NULL,
+          "is_active" boolean NOT NULL,
+          "duration_minutes" integer NOT NULL,
+          "question_ids" uuid[] NOT NULL,
+          "created_at" timestamp with time zone,
+          "updated_at" timestamp with time zone
+        );
+
+        INSERT INTO "certdrill_exam_categories"
+          ("id", "certification_id", "parent_category_id", "name", "weight_pct", "sort_order")
+        VALUES
+          ('${ids.rootA}', '${ids.certification}', NULL, 'Domain A', 60.00, 2),
+          ('${ids.childA}', '${ids.certification}', '${ids.rootA}', 'Child A', NULL, 1),
+          ('${ids.grandchildA}', '${ids.certification}', '${ids.childA}', 'Grandchild A', NULL, 1),
+          ('${ids.rootB}', '${ids.certification}', NULL, 'Domain B', 40.00, 1);
+
+        INSERT INTO "certdrill_questions" ("id", "certification_id", "category_id")
+        VALUES
+          ('${ids.questionA}', '${ids.certification}', '${ids.grandchildA}'),
+          ('${ids.questionB}', '${ids.certification}', '${ids.rootB}');
+
+        INSERT INTO "certdrill_exam_forms"
+          ("id", "certification_id", "is_active", "duration_minutes", "question_ids", "created_at", "updated_at")
+        VALUES
+          ('${ids.mappedForm}', '${ids.certification}', true, 120, ARRAY['${ids.questionA}', '${ids.questionB}']::uuid[], '2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'),
+          ('${ids.unmappableForm}', '${ids.certification}', true, 120, ARRAY['${ids.missingQuestion}']::uuid[], '2026-01-02T00:00:00Z', '2026-02-02T00:00:00Z'),
+          ('${ids.emptyForm}', '${ids.certification}', true, 120, ARRAY[]::uuid[], '2026-01-03T00:00:00Z', '2026-02-03T00:00:00Z'),
+          ('${ids.fallbackForm}', '${ids.certification}', true, 120, ARRAY['${ids.questionA}']::uuid[], '2026-01-04T00:00:00Z', NULL);
+      `);
+
+      await db.exec(migrationSql);
+
+      const result = await db.query(`
+        SELECT
+          "id",
+          "is_active" AS "isActive",
+          "target_question_count" AS "targetQuestionCount",
+          "assignment_version" AS "assignmentVersion",
+          "allocation_snapshot" AS "allocationSnapshot",
+          "generated_at" AS "generatedAt"
+        FROM "certdrill_exam_forms"
+        ORDER BY "id"
+      `);
+
+      expect(result.rows).toEqual([
+        {
+          id: ids.mappedForm,
+          isActive: true,
+          targetQuestionCount: 2,
+          assignmentVersion: 1,
+          allocationSnapshot: [
+            { categoryId: ids.rootB, categoryName: "Domain B", weightPct: "40.00", allocatedCount: 1, assignedCount: 1 },
+            { categoryId: ids.rootA, categoryName: "Domain A", weightPct: "60.00", allocatedCount: 1, assignedCount: 1 },
+          ],
+          generatedAt: new Date("2026-02-01T00:00:00Z"),
+        },
+        expect.objectContaining({
+          id: ids.unmappableForm,
+          isActive: false,
+          targetQuestionCount: 1,
+          allocationSnapshot: [],
+        }),
+        expect.objectContaining({
+          id: ids.emptyForm,
+          isActive: false,
+          targetQuestionCount: 1,
+          allocationSnapshot: [],
+        }),
+        expect.objectContaining({
+          id: ids.fallbackForm,
+          isActive: true,
+          targetQuestionCount: 1,
+          generatedAt: new Date("2026-01-04T00:00:00Z"),
+        }),
+      ]);
+
+      await db.query(`
+        INSERT INTO "certdrill_exam_forms"
+          ("id", "certification_id", "is_active", "duration_minutes", "target_question_count", "question_ids")
+        VALUES ('${ids.defaultForm}', '${ids.certification}', false, 120, 1, ARRAY[]::uuid[])
+      `);
+      const defaultResult = await db.query(
+        `SELECT "generated_at" AS "generatedAt" FROM "certdrill_exam_forms" WHERE "id" = '${ids.defaultForm}'`,
+      );
+      expect(defaultResult.rows[0]).toEqual({ generatedAt: expect.any(Date) });
+
+      await expect(
+        db.query(`UPDATE "certdrill_exam_forms" SET "target_question_count" = 0 WHERE "id" = '${ids.mappedForm}'`),
+      ).rejects.toThrow(/certdrill_exam_forms_target_question_count_positive/);
+      await expect(
+        db.query(`UPDATE "certdrill_exam_forms" SET "duration_minutes" = 0 WHERE "id" = '${ids.mappedForm}'`),
+      ).rejects.toThrow(/certdrill_exam_forms_duration_minutes_positive/);
+      await expect(
+        db.query(`UPDATE "certdrill_exam_forms" SET "assignment_version" = 0 WHERE "id" = '${ids.mappedForm}'`),
+      ).rejects.toThrow(/certdrill_exam_forms_assignment_version_positive/);
+    } finally {
+      await db.close();
+    }
+  });
+});
