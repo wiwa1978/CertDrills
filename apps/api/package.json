@@ -12,18 +12,20 @@
     "seed:certdrill": "tsx src/scripts/seed-certdrill-demo.ts"
   },
   "dependencies": {
+    "@better-auth/passkey": "^1.4.9",
+    "@dodopayments/better-auth": "^1.4.2",
     "@platform/auth-core": "*",
     "@platform/contracts": "*",
     "@platform/email-core": "*",
     "@platform/payments-core": "*",
     "@platform/platform-db": "*",
-    "@better-auth/passkey": "^1.4.9",
-    "@dodopayments/better-auth": "^1.4.2",
     "better-auth": "^1.4.9",
-    "dotenv": "^17.2.3",
+    "cheerio": "^1.2.0",
     "dodopayments": "^2.13.1",
+    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.10.3",
+    "pdfjs-dist": "^6.2.108",
     "pino": "^9.9.0",
     "postgres": "^3.4.7",
     "zod": "^4.2.1"
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@hono/node-server": "^1.19.4",
     "@types/node": "^24.5.2",
+    "pdf-lib": "^1.17.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
