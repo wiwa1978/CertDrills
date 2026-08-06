@@ -40,6 +40,7 @@ const service = {
   listResources: vi.fn(),
   createResource: vi.fn(),
   updateResource: vi.fn(),
+  ingestResource: vi.fn(),
   createMockGenerationJob: vi.fn(),
   listQuestionFeedbackForAdmin: vi.fn(),
   updateQuestionFeedback: vi.fn(),
@@ -255,6 +256,7 @@ describe("CertDrill admin routes", () => {
     service.createResource.mockResolvedValueOnce({ id: resourceId });
     service.listResources.mockResolvedValueOnce([{ id: resourceId }]);
     service.updateResource.mockResolvedValueOnce({ id: resourceId });
+    service.ingestResource.mockResolvedValueOnce({ id: resourceId, status: "ingested" });
     service.createMockGenerationJob.mockResolvedValueOnce({ job: { id: "job-1" }, generatedQuestions: [] });
 
     await createApp().request("/api/admin/certdrill/exam-forms", {
@@ -279,6 +281,9 @@ describe("CertDrill admin routes", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Updated" }),
     });
+    const ingestResponse = await createApp().request(`/api/admin/certdrill/resources/${resourceId}/ingest`, {
+      method: "POST",
+    });
     await createApp().request("/api/admin/certdrill/generation-jobs/mock", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -291,7 +296,26 @@ describe("CertDrill admin routes", () => {
     expect(service.createResource).toHaveBeenCalledWith({ certificationId, url: "https://docs.example.com", title: "Docs", sourceType: "doc", contentMode: "deep_content" });
     expect(service.listResources).toHaveBeenCalledWith(certificationId);
     expect(service.updateResource).toHaveBeenCalledWith(resourceId, { title: "Updated" });
+    expect(ingestResponse.status).toBe(200);
+    await expect(ingestResponse.json()).resolves.toEqual({ success: true, data: { id: resourceId, status: "ingested" } });
+    expect(service.ingestResource).toHaveBeenCalledWith(resourceId);
     expect(service.createMockGenerationJob).toHaveBeenCalledWith({ certificationId, categoryId, prompt: "Prompt", topic: "Topic", requestedCount: 1 });
+  });
+
+  it("rejects invalid resource ids before ingestion delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/resources/not-a-uuid/ingest", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid resource id",
+      },
+    });
+    expect(service.ingestResource).not.toHaveBeenCalled();
   });
 
   it("delegates question feedback list requests", async () => {

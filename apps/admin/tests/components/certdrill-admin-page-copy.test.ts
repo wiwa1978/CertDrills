@@ -14,7 +14,12 @@ const questionActionsMenuSource = readFileSync(
   new URL("../../src/modules/certdrill/question-actions-menu.tsx", import.meta.url),
   "utf8",
 );
+const apiSource = readFileSync(new URL("../../src/lib/api/certdrill.server.ts", import.meta.url), "utf8");
 const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
+const ingestResourceActionSource = actionsSource.slice(
+  actionsSource.indexOf("export async function ingestCertDrillResourceAction(formData: FormData) {"),
+  actionsSource.indexOf("export async function createCertDrillMockGenerationAction(formData: FormData) {"),
+);
 const routeSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/page.tsx", import.meta.url),
   "utf8",
@@ -94,6 +99,34 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Create or update resource");
     expect(source).toContain("Mock generation");
     expect(source).toContain("Draft questions");
+  });
+
+  it("wires resource ingestion through the api, server action, and table copy", () => {
+    expect(apiSource).toContain("ingestedAt?: Nullable<string>;");
+    expect(apiSource).toContain("ingestError?: Nullable<string>;");
+    expect(apiSource).toContain("export async function ingestCertDrillAdminResourceServer(resourceId: string): Promise<CertDrillAdminResource>");
+    expect(apiSource).toContain('return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));');
+    expect(actionsSource).toContain("ingestCertDrillAdminResourceServer");
+    expect(ingestResourceActionSource).toContain(`export async function ingestCertDrillResourceAction(formData: FormData) {
+  const resourceId = requiredString(formData, "resourceId");
+  if (!resourceId) {
+    throw new Error("Resource ID is required.");
+  }
+
+  try {
+    await ingestCertDrillAdminResourceServer(resourceId);
+  } finally {
+    revalidateCertDrillAdminPage();
+  }
+}`);
+    expect(source).toContain("ingestCertDrillResourceAction");
+    expect(source).toContain("<TableHead>Actions</TableHead>");
+    expect(source).toContain('type="hidden" name="resourceId" value={resource.id}');
+    expect(source).toContain('{resource.status === "ingested" ? "Refresh" : "Ingest"}');
+    expect(source).toContain("Snapshot:");
+    expect(source).toContain("Ingest error:");
+    expect(source).toContain("resource.ingestedAt");
+    expect(source).toContain("resource.ingestError");
   });
 
   it("keeps the selected certification archive form wired to the destructive action", () => {

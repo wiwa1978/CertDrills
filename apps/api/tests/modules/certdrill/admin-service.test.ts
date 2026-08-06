@@ -455,6 +455,206 @@ describe("CertDrill admin service", () => {
     expect(updates).toEqual([]);
   });
 
+  it("persists successful resource ingestion", async () => {
+    const resource = {
+      id: ids.resource,
+      certificationId: ids.cert,
+      categoryId: ids.category,
+      url: "https://learn.example/old",
+      title: "Old title",
+      sourceType: "doc",
+      contentMode: "deep_content",
+      rawContent: null,
+      ingestedAt: null,
+      status: "pending",
+      ingestError: null,
+    };
+    const ingestedAt = new Date("2026-08-06T12:00:00.000Z");
+    const { db, updates } = createAdminDb({
+      resources: [resource],
+      returningByTable: {
+        certdrill_learn_resources: [{
+          ...resource,
+          url: "https://learn.example/guide",
+          title: "Study guide",
+          rawContent: "Skills measured",
+          ingestedAt,
+          status: "ingested",
+          ingestError: null,
+        }],
+      },
+    });
+    const resourceIngestor = {
+      ingest: vi.fn().mockResolvedValue({
+        finalUrl: "https://learn.example/guide",
+        title: "Study guide",
+        rawContent: "Skills measured",
+        contentType: "text/html",
+        ingestedAt,
+      }),
+    };
+    const service = createCertDrillAdminService({ db, resourceIngestor });
+
+    await expect(service.ingestResource(ids.resource)).resolves.toMatchObject({
+      id: ids.resource,
+      status: "ingested",
+      title: "Study guide",
+    });
+
+    expect(resourceIngestor.ingest).toHaveBeenCalledWith("https://learn.example/old");
+    expect(updates.at(-1)?.values).toMatchObject({
+      url: "https://learn.example/guide",
+      title: "Study guide",
+      rawContent: "Skills measured",
+      ingestedAt,
+      status: "ingested",
+      ingestError: null,
+    });
+  });
+
+  it("returns not found when the resource update affects no rows after ingestion", async () => {
+    const resource = {
+      id: ids.resource,
+      certificationId: ids.cert,
+      categoryId: ids.category,
+      url: "https://learn.example/old",
+      title: "Old title",
+      sourceType: "doc",
+      contentMode: "deep_content",
+      rawContent: null,
+      ingestedAt: null,
+      status: "pending",
+      ingestError: null,
+    };
+    const { db } = createAdminDb({
+      resources: [resource],
+      returningByTable: {
+        certdrill_learn_resources: [],
+      },
+    });
+    const resourceIngestor = {
+      ingest: vi.fn().mockResolvedValue({
+        finalUrl: "https://learn.example/guide",
+        title: "Study guide",
+        rawContent: "Skills measured",
+        contentType: "text/html",
+        ingestedAt: new Date("2026-08-06T12:00:00.000Z"),
+      }),
+    };
+    const service = createCertDrillAdminService({ db, resourceIngestor });
+    const ingestion = service.ingestResource(ids.resource);
+
+    await expect(ingestion).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_RESOURCE_NOT_FOUND",
+      message: "Resource not found.",
+    });
+    await ingestion.catch((error) => {
+      expect(error).not.toBeUndefined();
+    });
+    expect(resourceIngestor.ingest).toHaveBeenCalledWith("https://learn.example/old");
+  });
+
+  it("retains the existing title when ingestion does not extract one", async () => {
+    const resource = {
+      id: ids.resource,
+      certificationId: ids.cert,
+      categoryId: ids.category,
+      url: "https://learn.example/old",
+      title: "Old title",
+      sourceType: "doc",
+      contentMode: "deep_content",
+      rawContent: null,
+      ingestedAt: null,
+      status: "pending",
+      ingestError: null,
+    };
+    const ingestedAt = new Date("2026-08-06T12:00:00.000Z");
+    const { db, updates } = createAdminDb({
+      resources: [resource],
+      returningByTable: {
+        certdrill_learn_resources: [{
+          ...resource,
+          url: "https://learn.example/guide",
+          rawContent: "Skills measured",
+          ingestedAt,
+          status: "ingested",
+          ingestError: null,
+        }],
+      },
+    });
+    const service = createCertDrillAdminService({
+      db,
+      resourceIngestor: {
+        ingest: vi.fn().mockResolvedValue({
+          finalUrl: "https://learn.example/guide",
+          title: "   ",
+          rawContent: "Skills measured",
+          contentType: "text/html",
+          ingestedAt,
+        }),
+      },
+    });
+
+    await expect(service.ingestResource(ids.resource)).resolves.toMatchObject({
+      id: ids.resource,
+      status: "ingested",
+      title: "Old title",
+    });
+
+    expect(updates.at(-1)?.values).toMatchObject({
+      title: "Old title",
+    });
+  });
+
+  it("preserves the previous snapshot when a resource refresh fails", async () => {
+    const previousIngestedAt = new Date("2026-08-05T12:00:00.000Z");
+    const { db, updates } = createAdminDb({
+      resources: [{
+        id: ids.resource,
+        certificationId: ids.cert,
+        categoryId: ids.category,
+        url: "https://learn.example/guide",
+        title: "Study guide",
+        sourceType: "doc",
+        contentMode: "deep_content",
+        rawContent: "Previous snapshot",
+        ingestedAt: previousIngestedAt,
+        status: "ingested",
+        ingestError: null,
+      }],
+    });
+    const service = createCertDrillAdminService({
+      db,
+      resourceIngestor: {
+        ingest: vi.fn().mockRejectedValue(new Error("Resource returned HTTP 503.")),
+      },
+    });
+
+    await expect(service.ingestResource(ids.resource)).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED",
+      message: "Resource returned HTTP 503.",
+    });
+
+    expect(updates.at(-1)?.values).toMatchObject({
+      status: "failed",
+      ingestError: "Resource returned HTTP 503.",
+    });
+    expect(updates.at(-1)?.values).not.toHaveProperty("rawContent");
+    expect(updates.at(-1)?.values).not.toHaveProperty("ingestedAt");
+  });
+
+  it("rejects ingestion for an unknown resource", async () => {
+    const resourceIngestor = { ingest: vi.fn() };
+    const { db } = createAdminDb({ resources: [] });
+    const service = createCertDrillAdminService({ db, resourceIngestor });
+
+    await expect(service.ingestResource(ids.resource)).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_RESOURCE_NOT_FOUND",
+    });
+
+    expect(resourceIngestor.ingest).not.toHaveBeenCalled();
+  });
+
   it("allows nullable question and resource references to be explicitly cleared", async () => {
     const { db, updates } = createAdminDb({
       categoryById: { id: ids.category, certificationId: ids.cert },
@@ -630,14 +830,28 @@ function createAdminDb(input: {
         const tableName = getTableName(table);
         const rows = Array.isArray(values) ? values : [values];
         for (const row of rows) inserts.push({ table: tableName, values: row });
-        return { returning: vi.fn().mockResolvedValue(input.returningByTable?.[tableName] ?? rows.map((row) => ({ id: `${tableName}-${inserts.length}`, ...row }))) };
+        return {
+          returning: vi.fn().mockResolvedValue(
+            input.returningByTable && tableName in input.returningByTable
+              ? input.returningByTable[tableName]
+              : rows.map((row) => ({ id: `${tableName}-${inserts.length}`, ...row })),
+          ),
+        };
       },
     }),
     update: (table: Table) => ({
       set: (values: Record<string, unknown>) => {
         const tableName = getTableName(table);
         updates.push({ table: tableName, values });
-        return { where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue(input.returningByTable?.[tableName] ?? [{ id: `${tableName}-updated`, ...values }]) })) };
+        return {
+          where: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue(
+              input.returningByTable && tableName in input.returningByTable
+                ? input.returningByTable[tableName]
+                : [{ id: `${tableName}-updated`, ...values }],
+            ),
+          })),
+        };
       },
     }),
     delete: (table: Table) => {

@@ -40,6 +40,7 @@ import {
   createCertDrillMockGenerationAction,
   createCertDrillQuestionAction,
   createCertDrillResourceAction,
+  ingestCertDrillResourceAction,
   publishCertDrillQuestionAction,
   updateCertDrillQuestionFeedbackAction,
   updateCertDrillCategoryAction,
@@ -694,6 +695,11 @@ function compareQuestions(first: CertDrillAdminQuestion, second: CertDrillAdminQ
 
 function normalizeFeedbackStatus(status?: string) {
   return status === "open" || status === "reviewed" || status === "resolved" ? status : undefined;
+}
+
+function formatAdminTimestamp(timestamp: string) {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.valueOf()) ? timestamp : `${date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "")} UTC`;
 }
 
 function filterQuestionFeedback(feedback: CertDrillAdminQuestionFeedback[], status?: string) {
@@ -1517,6 +1523,7 @@ function ResourceTable({ resources }: { resources: CertDrillAdminResource[] }) {
           <TableHead>URL</TableHead>
           <TableHead>Content mode</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -1526,7 +1533,26 @@ function ResourceTable({ resources }: { resources: CertDrillAdminResource[] }) {
             <TableCell className="font-medium">{resource.title}</TableCell>
             <TableCell className="max-w-sm truncate">{resource.url}</TableCell>
             <TableCell>{resource.contentMode}</TableCell>
-            <TableCell><Badge variant="outline">{resource.status ?? "pending"}</Badge></TableCell>
+            <TableCell>
+              <div className="space-y-1">
+                <Badge variant="outline">{resource.status ?? "pending"}</Badge>
+                {resource.ingestedAt ? <p className="text-xs text-muted-foreground">Snapshot: {formatAdminTimestamp(resource.ingestedAt)}</p> : null}
+                {resource.ingestError ? <p className="text-xs text-destructive whitespace-normal">Ingest error: {resource.ingestError}</p> : null}
+              </div>
+            </TableCell>
+            <TableCell>
+              <form action={ingestCertDrillResourceAction}>
+                <input type="hidden" name="resourceId" value={resource.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}
+                >
+                  {resource.status === "ingested" ? "Refresh" : "Ingest"}
+                </Button>
+              </form>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
