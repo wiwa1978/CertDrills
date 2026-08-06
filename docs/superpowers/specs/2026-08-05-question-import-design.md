@@ -389,6 +389,20 @@ invalid rows stay visible and unselectable.
 - Document hashing serializes canonical JSON with an explicit stack instead of a
   recursive walk, so deeply nested hostile input cannot overflow the stack.
 
+The same reasoning applies to the request envelope around the document, which is
+validated before the document itself:
+
+- The confirm `selectedSourceIndexes` and `duplicateOverrideSourceIndexes`
+  arrays are capped just past the 500-row limit before schema parsing, because
+  the schema validates every element before the array-length rule reports the
+  problem. One element beyond the limit is kept, so the request is still
+  rejected on its length. Arrays within the limit are parsed exactly as
+  submitted.
+- Route validation details are capped at 20 entries with the same deterministic
+  truncation marker appended last. Unknown keys are expanded to one bounded
+  detail each, so the single Zod issue whose message lists every unknown key is
+  never echoed back. A hostile body therefore cannot grow the error response.
+
 ### Preview Service
 
 The preview service:
@@ -693,6 +707,8 @@ Cover:
 - Huge malformed `citationUrls` arrays and unknown-key sets across many rows.
 - Row and document error caps plus the deterministic truncation marker.
 - Bounded preview serialization size.
+- Huge invalid index arrays and unknown-key sets in the request envelope,
+  staying fast with bounded response details and no service delegation.
 - Later valid rows staying valid, selectable, and selected by default.
 - Confirm-time analysis staying bounded inside the transaction.
 

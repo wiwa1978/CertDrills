@@ -1,8 +1,13 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MAX_VALIDATION_DETAILS, TRUNCATED_VALIDATION_DETAILS_MESSAGE, UNKNOWN_FIELD_VALIDATION_MESSAGE } from "../src/lib/http";
 import { CertDrillAdminServiceError } from "../src/modules/certdrill/admin-service";
-import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_ROWS } from "../src/modules/certdrill/question-import";
+import {
+  QUESTION_IMPORT_MAX_DOCUMENT_BYTES,
+  QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
+  QUESTION_IMPORT_MAX_ROWS,
+} from "../src/modules/certdrill/question-import";
 import { QuestionImportServiceError } from "../src/modules/certdrill/question-import-service";
 import { createCertDrillAdminRouter } from "../src/modules/certdrill/routes";
 
@@ -429,6 +434,19 @@ describe("CertDrill admin question import routes", () => {
     duplicateOverrideSourceIndexes: [],
   };
 
+  // Builds a raw confirm body whose named index array holds `length` out-of-range entries, without
+  // materializing the array in the test. Every entry is invalid, so an unbounded route would emit
+  // one Zod issue and one response detail per entry.
+  function confirmBodyWithIndexArray(field: "selectedSourceIndexes" | "duplicateOverrideSourceIndexes", length: number) {
+    const hostileArray = `[${"-1,".repeat(length).slice(0, -1)}]`;
+    const selected = field === "selectedSourceIndexes" ? hostileArray : "[0]";
+    const overrides = field === "duplicateOverrideSourceIndexes" ? hostileArray : "[]";
+
+    return `{"certificationId":"${certificationId}","document":{"version":1,"questions":[]}`
+      + `,"previewDocumentHash":"${previewDocumentHash}"`
+      + `,"selectedSourceIndexes":${selected},"duplicateOverrideSourceIndexes":${overrides}}`;
+  }
+
   it("delegates preview requests to the service and returns its result", async () => {
     const previewResult = {
       documentVersion: 1,
@@ -592,6 +610,119 @@ describe("CertDrill admin question import routes", () => {
     expect(response.status).toBe(400);
     expect(service.importQuestions).not.toHaveBeenCalled();
   });
+
+  it("accepts confirm requests filling the row cap without truncating the submitted indexes", async () => {
+    const importResult = { importedCount: QUESTION_IMPORT_MAX_ROWS, questionIds: [] };
+    service.importQuestions.mockResolvedValueOnce(importResult);
+    const allIndexes = Array.from({ length: QUESTION_IMPORT_MAX_ROWS }, (_, index) => index);
+    const body = { ...validConfirmBody, selectedSourceIndexes: allIndexes, duplicateOverrideSourceIndexes: allIndexes };
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    expect(response.status).toBe(200);
+    expect(service.importQuestions).toHaveBeenCalledWith(body);
+  });
+
+  it("bounds validation of a huge selectedSourceIndexes array under the transport cap", async () => {
+    const body = confirmBodyWithIndexArray("selectedSourceIndexes", 1_500_000);
+    expect(body.length).toBeLessThan(QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
+
+    const startedAt = Date.now();
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    const responseText = await response.text();
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(response.status).toBe(400);
+    // A 5 MiB body must never buy an unbounded amount of validation work or an unbounded response.
+    expect(elapsedMs).toBeLessThan(5_000);
+    expect(responseText.length).toBeLessThan(8 * 1024);
+
+    const payload = JSON.parse(responseText);
+    expect(payload.error.code).toBe("VALIDATION_FAILED");
+    expect(payload.error.message).toBe("Invalid question import payload");
+    expect(payload.error.details.length).toBe(MAX_VALIDATION_DETAILS + 1);
+    expect(payload.error.details.at(-1)).toEqual({
+      path: "body",
+      message: TRUNCATED_VALIDATION_DETAILS_MESSAGE,
+      code: "custom",
+    });
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("bounds validation of a huge duplicateOverrideSourceIndexes array under the transport cap", async () => {
+    const body = confirmBodyWithIndexArray("duplicateOverrideSourceIndexes", 1_500_000);
+    expect(body.length).toBeLessThan(QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
+
+    const startedAt = Date.now();
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    const responseText = await response.text();
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(response.status).toBe(400);
+    expect(elapsedMs).toBeLessThan(5_000);
+    expect(responseText.length).toBeLessThan(8 * 1024);
+
+    const payload = JSON.parse(responseText);
+    expect(payload.error.details.length).toBe(MAX_VALIDATION_DETAILS + 1);
+    for (const detail of payload.error.details.slice(0, MAX_VALIDATION_DETAILS)) {
+      expect(detail.path).toMatch(/^duplicateOverrideSourceIndexes(\.\d+)?$/);
+    }
+    expect(payload.error.details.at(-1)).toEqual({
+      path: "body",
+      message: TRUNCATED_VALIDATION_DETAILS_MESSAGE,
+      code: "custom",
+    });
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("bounds validation details for a body carrying a huge number of unknown keys", async () => {
+    const unknownKeys: Record<string, number> = {};
+    for (let index = 0; index < 50_000; index += 1) {
+      unknownKeys[`unknownKey${index}`] = index;
+    }
+
+    const startedAt = Date.now();
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validPreviewBody, ...unknownKeys }),
+    });
+    const responseText = await response.text();
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(response.status).toBe(400);
+    expect(elapsedMs).toBeLessThan(5_000);
+    // Zod packs every unknown key into one issue whose message lists them all; the response must
+    // not echo that list back.
+    expect(responseText.length).toBeLessThan(8 * 1024);
+    expect(responseText).not.toContain("unknownKey49999");
+
+    const payload = JSON.parse(responseText);
+    expect(payload.error.details.length).toBe(MAX_VALIDATION_DETAILS + 1);
+    expect(payload.error.details[0]).toEqual({
+      path: "unknownKey0",
+      message: UNKNOWN_FIELD_VALIDATION_MESSAGE,
+      code: "unrecognized_keys",
+    });
+    expect(payload.error.details.at(-1)).toEqual({
+      path: "body",
+      message: TRUNCATED_VALIDATION_DETAILS_MESSAGE,
+      code: "custom",
+    });
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  }, 30_000);
 
   it("rejects a malformed previewDocumentHash before delegation", async () => {
     const response = await createApp().request("/api/admin/certdrill/questions/import", {

@@ -10,7 +10,7 @@ import {
 import { errorCode } from "@platform/contracts/wire";
 
 import type { AppEnv } from "../../context";
-import { badRequest, fail, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
+import { badRequest, boundedValidationDetails, fail, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
@@ -287,9 +287,32 @@ type QuestionImportBodyResult<T> =
   | { kind: "tooLarge" }
   | { kind: "invalid"; error: z.ZodError };
 
+// Zod validates (and copies) every element of an array before the array-length rule reports the
+// problem, so the confirm index arrays are capped just past the row limit before parsing. One
+// element beyond the limit is kept so `.max()` still rejects the request on its length, and arrays
+// within the limit are passed through untouched so a valid request parses exactly as submitted.
+const QUESTION_IMPORT_INDEX_FIELDS = ["selectedSourceIndexes", "duplicateOverrideSourceIndexes"] as const;
+
+function capQuestionImportIndexArrays(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return body;
+  }
+
+  let capped = body as Record<string, unknown>;
+  for (const field of QUESTION_IMPORT_INDEX_FIELDS) {
+    const value = capped[field];
+    if (Array.isArray(value) && value.length > QUESTION_IMPORT_MAX_ROWS + 1) {
+      capped = { ...capped, [field]: value.slice(0, QUESTION_IMPORT_MAX_ROWS + 1) };
+    }
+  }
+
+  return capped;
+}
+
 async function parseQuestionImportBody<T extends { document: unknown }>(
   c: Context<AppEnv>,
   schema: z.ZodSchema<T>,
+  prepareBody: (body: unknown) => unknown = (body) => body,
 ): Promise<QuestionImportBodyResult<T>> {
   const bounded = await readBoundedRequestText(c.req.raw, QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
   if (bounded.tooLarge) {
@@ -303,7 +326,7 @@ async function parseQuestionImportBody<T extends { document: unknown }>(
     parsedJson = null;
   }
 
-  const parsedBody = parseJsonBody(schema, parsedJson);
+  const parsedBody = parseJsonBody(schema, prepareBody(parsedJson));
   if (!parsedBody.success) {
     return { kind: "invalid", error: parsedBody.error };
   }
@@ -316,12 +339,7 @@ async function parseQuestionImportBody<T extends { document: unknown }>(
   return { kind: "ok", data: parsedBody.data };
 }
 
-function issuePath(issue: z.core.$ZodIssue) {
-  return issue.path.map((item) => String(item)).join(".") || "body";
-}
-
-function validationIssueMessage(issue: z.core.$ZodIssue) {
-  const path = issuePath(issue);
+function validationIssueMessage(issue: z.core.$ZodIssue, path: string) {
   const field = path.split(".").at(-1) ?? path;
   const messages = validationMessages[field] ?? validationMessages[path];
   const issueCode = issue.code;
@@ -338,11 +356,7 @@ function validationIssueMessage(issue: z.core.$ZodIssue) {
 }
 
 function zodValidationDetails(error: z.ZodError) {
-  return error.issues.map((issue) => ({
-    path: issuePath(issue),
-    message: validationIssueMessage(issue),
-    code: issue.code,
-  }));
+  return boundedValidationDetails(error, { formatMessage: validationIssueMessage });
 }
 
 function parsedValidationError(c: Context<AppEnv>, message: string, error: z.ZodError) {
@@ -540,7 +554,7 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     return withAdminAction(c, () => deps.service.previewQuestionImport(parsedBody.data));
   });
   router.post("/questions/import", async (c) => {
-    const parsedBody = await parseQuestionImportBody(c, questionImportConfirmRequestSchema);
+    const parsedBody = await parseQuestionImportBody(c, questionImportConfirmRequestSchema, capQuestionImportIndexArrays);
     if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
     if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.importQuestions(parsedBody.data));
