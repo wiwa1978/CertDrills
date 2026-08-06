@@ -483,6 +483,47 @@ describe("CertDrill admin question import routes", () => {
     expect(service.previewQuestionImport).not.toHaveBeenCalled();
   });
 
+  it("rejects question import requests missing document before delegation", async () => {
+    const previewResponse = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ certificationId }),
+    });
+    const confirmResponse = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        certificationId,
+        previewDocumentHash,
+        selectedSourceIndexes: [0],
+        duplicateOverrideSourceIndexes: [],
+      }),
+    });
+
+    expect(previewResponse.status).toBe(400);
+    await expect(previewResponse.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid question import preview payload",
+        details: expect.arrayContaining([expect.objectContaining({ path: "document" })]),
+      },
+    });
+
+    expect(confirmResponse.status).toBe(400);
+    await expect(confirmResponse.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid question import payload",
+        details: expect.arrayContaining([expect.objectContaining({ path: "document" })]),
+      },
+    });
+
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
   it("rejects preview requests with unexpected top-level fields before delegation", async () => {
     const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
       method: "POST",

@@ -95,10 +95,13 @@ const mockGenerationSchema = z.object({
 });
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const certificationIdParamSchema = z.object({ certificationId: z.string().uuid() });
+const requiredDocumentSchema = z.custom<unknown>((value) => value !== undefined, {
+  message: "Document is required.",
+});
 
 const questionImportPreviewRequestSchema = z.object({
   certificationId: z.string().uuid(),
-  document: z.unknown(),
+  document: requiredDocumentSchema,
 }).strict();
 
 const questionImportSourceIndexSchema = z.number().int().min(0).max(QUESTION_IMPORT_MAX_ROWS - 1);
