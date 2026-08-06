@@ -14,7 +14,11 @@ vi.mock("@/i18n/navigation", () => ({
 }));
 
 import { questionEditorHref, questionImportHref } from "@/modules/certdrill/question-editor-href";
-import { QuestionImportForm, QuestionImportPreviewDetails } from "@/modules/certdrill/question-import-form";
+import {
+  QUESTION_IMPORT_GENERIC_ERROR_MESSAGE,
+  questionImportErrorMessage,
+} from "@/modules/certdrill/question-import-error";
+import { QuestionImportErrorAlert, QuestionImportForm, QuestionImportPreviewDetails } from "@/modules/certdrill/question-import-form";
 import type {
   CertDrillQuestionImportConfirmActionResult,
   CertDrillQuestionImportPreviewResult,
@@ -347,7 +351,8 @@ describe("question import form", () => {
     expect(confirmBody).toContain('setPendingFocus("conflict");');
     expect(confirmBody).not.toContain("setRawJson");
     expect(questionImportFormSource).toContain("conflictAlertRef.current?.focus();");
-    expect(questionImportFormSource).toContain('ref={conflictAlertRef}\n          role="alert"\n          tabIndex={-1}');
+    expect(questionImportFormSource).toContain("alertRef={conflictAlertRef}");
+    expect(questionImportFormSource).toContain('ref={alertRef}\n      role="alert"\n      tabIndex={-1}');
   });
 
   it("shows a generic error message without redirecting, clearing input, or claiming success", () => {
@@ -407,6 +412,98 @@ describe("question import form", () => {
     expect(markup).toContain('aria-label="Include duplicates"');
     expect(markup).toContain('aria-label="Import row 1"');
     expect(markup).toContain('aria-label="Import row 2"');
+  });
+});
+
+describe("question import transport failures", () => {
+  function validateBody() {
+    const start = questionImportFormSource.indexOf("async function handleValidate()");
+    const end = questionImportFormSource.indexOf("async function handleConfirm()");
+    return questionImportFormSource.slice(start, end);
+  }
+
+  function confirmBody() {
+    const start = questionImportFormSource.indexOf("async function handleConfirm()");
+    const end = questionImportFormSource.indexOf("\n  function handleToggleRow(");
+    return questionImportFormSource.slice(start, end);
+  }
+
+  it("catches a rejected preview action, explains it, and always clears the pending state", () => {
+    const body = validateBody();
+
+    expect(body).toContain("} catch (error) {");
+    expect(body).toContain("setMessage(questionImportErrorMessage(error));");
+    expect(body).toContain("setPreview(null);");
+    expect(body).toContain("} finally {");
+    expect(body).toContain("setOperation(null);");
+    // The typed raw JSON is never cleared, so the admin can fix and retry.
+    expect(body).not.toContain("setRawJson");
+  });
+
+  it("catches a rejected confirm action without claiming success or dropping the preview", () => {
+    const body = confirmBody();
+    const catchIndex = body.indexOf("} catch (error) {");
+    const catchBlock = body.slice(catchIndex);
+
+    expect(catchIndex).toBeGreaterThan(-1);
+    expect(catchBlock).toContain("setMessage(questionImportErrorMessage(error));");
+    expect(catchBlock).not.toContain("router.push");
+    expect(catchBlock).not.toContain("setRawJson");
+    expect(catchBlock).not.toContain("setPreview(null)");
+    expect(body).toContain("} finally {");
+    expect(body).toContain("setOperation(null);");
+  });
+
+  it("maps thrown values to a user-facing message through the shared pure helper", () => {
+    expect(questionImportErrorMessage(new Error("Failed to fetch"))).toBe("Failed to fetch");
+    expect(questionImportErrorMessage(new Error("API request failed (400): Document is invalid.")))
+      .toBe("Document is invalid.");
+    expect(questionImportErrorMessage(new Error("   "))).toBe(QUESTION_IMPORT_GENERIC_ERROR_MESSAGE);
+    expect(questionImportErrorMessage("boom")).toBe(QUESTION_IMPORT_GENERIC_ERROR_MESSAGE);
+    expect(questionImportErrorMessage(undefined)).toBe(QUESTION_IMPORT_GENERIC_ERROR_MESSAGE);
+    expect(questionImportErrorMessage(new Error(
+      "An error occurred in the Server Components render. The specific message is omitted in production builds to avoid leaking sensitive details.",
+    ))).toBe(QUESTION_IMPORT_GENERIC_ERROR_MESSAGE);
+    expect(questionImportErrorMessage(new Error("x".repeat(500)))).toBe(QUESTION_IMPORT_GENERIC_ERROR_MESSAGE);
+  });
+});
+
+describe("question import error alert", () => {
+  it("renders the document message on its own when there are no field errors", () => {
+    const markup = renderToStaticMarkup(
+      createElement(QuestionImportErrorAlert, {
+        message: "Question import document is invalid.",
+        documentErrors: [],
+      }),
+    );
+
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain("Question import document is invalid.");
+    expect(markup).not.toContain("<ul");
+  });
+
+  it("renders every field-specific document error under the message", () => {
+    const markup = renderToStaticMarkup(
+      createElement(QuestionImportErrorAlert, {
+        message: "Question import document is invalid.",
+        documentErrors: [
+          { field: "version", message: "Document version must be 1." },
+          { field: "questions", message: "Must include at most 500 questions." },
+          { field: "extra", message: "Unknown field." },
+        ],
+      }),
+    );
+
+    expect(markup).toContain("Question import document is invalid.");
+    expect(markup).toContain("version: Document version must be 1.");
+    expect(markup).toContain("questions: Must include at most 500 questions.");
+    expect(markup).toContain("extra: Unknown field.");
+    expect(markup.match(/<li[^>]*>/g)?.length).toBe(3);
+  });
+
+  it("renders the alert markup the form reuses for transport and document failures", () => {
+    expect(questionImportFormSource).toContain("<QuestionImportErrorAlert message={message} documentErrors={documentErrors} alertRef={conflictAlertRef} />");
+    expect(questionImportFormSource).toContain("setDocumentErrors(result.documentErrors ?? [])");
   });
 });
 

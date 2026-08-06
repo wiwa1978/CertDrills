@@ -7,7 +7,9 @@ import {
   previewCertDrillAdminQuestionImportServer,
 } from "@/lib/api/certdrill.server";
 
+import { questionImportErrorMessage, stripApiErrorStatusPrefix } from "./question-import-error";
 import {
+  isQuestionImportFieldErrorList,
   isQuestionImportPreviewResult,
   MAX_QUESTION_IMPORT_BYTES,
   type CertDrillQuestionImportConfirmActionResult,
@@ -15,7 +17,7 @@ import {
 } from "./question-import-types";
 
 const QUESTION_IMPORT_CONFLICT_ERROR_CODE = "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT";
-const API_ERROR_STATUS_PREFIX_PATTERN = /^API request failed \(\d+\): /;
+const QUESTION_IMPORT_INVALID_DOCUMENT_ERROR_CODE = "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT";
 
 type QuestionImportRawParseResult =
   | { valid: true; document: unknown }
@@ -41,12 +43,28 @@ function parseQuestionImportRawJson(rawJson: string): QuestionImportRawParseResu
   }
 }
 
-function stripApiErrorStatusPrefix(message: string) {
-  return message.replace(API_ERROR_STATUS_PREFIX_PATTERN, "");
+// Invalid-document responses carry structured `field`/`message` issues; they are only surfaced
+// after runtime validation so a malformed payload degrades to the plain error message.
+function questionImportDocumentErrors(error: unknown) {
+  if (
+    error instanceof ApiRequestError
+    && error.errorCode === QUESTION_IMPORT_INVALID_DOCUMENT_ERROR_CODE
+    && isQuestionImportFieldErrorList(error.details)
+  ) {
+    return error.details;
+  }
+
+  return undefined;
 }
 
-function questionImportActionErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Question import request failed.";
+function questionImportActionError(error: unknown) {
+  const documentErrors = questionImportDocumentErrors(error);
+
+  return {
+    status: "error" as const,
+    message: questionImportErrorMessage(error),
+    ...(documentErrors ? { documentErrors } : {}),
+  };
 }
 
 export type CertDrillQuestionImportPreviewActionInput = {
@@ -75,7 +93,7 @@ export async function previewCertDrillQuestionImportAction(
     });
     return { status: "preview", preview };
   } catch (error) {
-    return { status: "error", message: questionImportActionErrorMessage(error) };
+    return questionImportActionError(error);
   }
 }
 
@@ -109,6 +127,6 @@ export async function confirmCertDrillQuestionImportAction(
       };
     }
 
-    return { status: "error", message: questionImportActionErrorMessage(error) };
+    return questionImportActionError(error);
   }
 }

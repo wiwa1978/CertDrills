@@ -4,6 +4,11 @@
 
 export const MAX_QUESTION_IMPORT_BYTES = 5 * 1024 * 1024;
 
+// Mirrors the API transport cap (QUESTION_IMPORT_MAX_RAW_BODY_BYTES): the document limit plus
+// envelope headroom for the certification id, preview hash, and selection index arrays.
+export const MAX_QUESTION_IMPORT_ENVELOPE_BYTES = 64 * 1024;
+export const MAX_QUESTION_IMPORT_TRANSPORT_BYTES = MAX_QUESTION_IMPORT_BYTES + MAX_QUESTION_IMPORT_ENVELOPE_BYTES;
+
 export const QUESTION_IMPORT_DOCUMENT_VERSION = 1 as const;
 
 export type CertDrillQuestionImportDifficulty = "easy" | "medium" | "hard";
@@ -54,12 +59,12 @@ export type CertDrillQuestionImportResult = {
 
 export type CertDrillQuestionImportPreviewActionResult =
   | { status: "preview"; preview: CertDrillQuestionImportPreviewResult }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; documentErrors?: CertDrillQuestionImportFieldError[] };
 
 export type CertDrillQuestionImportConfirmActionResult =
   | { status: "success"; importedCount: number; questionIds: string[] }
   | { status: "conflict"; message: string; preview: CertDrillQuestionImportPreviewResult }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; documentErrors?: CertDrillQuestionImportFieldError[] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -107,6 +112,14 @@ function isQuestionImportPreviewTotals(value: unknown): value is CertDrillQuesti
 
   return (["submitted", "valid", "invalid", "duplicateExisting", "duplicateBatch", "selectedByDefault"] as const)
     .every((key) => typeof value[key] === "number");
+}
+
+/**
+ * Runtime guard validating that untrusted `details` payloads (e.g. from an API error response)
+ * carry a usable list of document-level field errors before the UI renders them.
+ */
+export function isQuestionImportFieldErrorList(value: unknown): value is CertDrillQuestionImportFieldError[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isQuestionImportFieldError);
 }
 
 /**

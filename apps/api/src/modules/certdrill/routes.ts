@@ -14,7 +14,7 @@ import { badRequest, fail, forbidden, notFound, ok, parseJsonBody, unauthorized,
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
-import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
+import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
 import { QuestionImportServiceError } from "./question-import-service";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
@@ -114,9 +114,6 @@ const questionImportConfirmRequestSchema = questionImportPreviewRequestSchema.ex
   duplicateOverrideSourceIndexes: z.array(questionImportSourceIndexSchema)
     .max(QUESTION_IMPORT_MAX_ROWS, `Must override at most ${QUESTION_IMPORT_MAX_ROWS} duplicate rows.`),
 }).strict();
-
-const QUESTION_IMPORT_MAX_ENVELOPE_BYTES = 64 * 1024;
-const QUESTION_IMPORT_MAX_RAW_BODY_BYTES = QUESTION_IMPORT_MAX_DOCUMENT_BYTES + QUESTION_IMPORT_MAX_ENVELOPE_BYTES;
 
 const validationMessages: Record<string, { required?: string; uuid?: string; url?: string; min?: string }> = {
   certificationId: { required: "Certification ID is required.", uuid: "Certification ID must be a valid UUID." },

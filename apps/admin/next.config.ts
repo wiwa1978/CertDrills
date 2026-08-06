@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     authInterrupts: true,
+    // Question import server actions carry the whole import document (5 MiB cap) plus envelope
+    // overhead, so the default 1 MB server action body limit must be raised past it.
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
   },
   images: {
     remotePatterns: [

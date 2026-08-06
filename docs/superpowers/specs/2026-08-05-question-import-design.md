@@ -191,7 +191,10 @@ The only accepted document shape is:
 - The document contains between 1 and 500 questions.
 - Unknown top-level document properties are document errors.
 - Unknown question and answer properties are row errors.
-- The request body must not exceed 5 MB.
+- The request body must not exceed 5 MB, plus a 64 KiB envelope allowance that
+  the shared transport cap adds for the surrounding request fields. The global
+  request guardrails and the admin server action body limit are aligned with
+  that transport cap.
 
 ### Question Rules
 
@@ -347,7 +350,7 @@ A focused import schema module owns:
 - A strict top-level envelope schema for `version` and `questions`.
 - Strict per-question and per-answer schemas.
 - Normalized TypeScript types.
-- The 5 MB and 500-question constants.
+- The 5 MB document, transport envelope, and 500-question constants.
 - Document hashing.
 
 It reuses the existing safe citation URL rule and the two-to-ten answer limit.
@@ -393,7 +396,9 @@ For within-batch duplicates:
 
 - The first occurrence is not marked as a batch duplicate solely because of
   later rows.
-- Every later occurrence references all earlier matching source indexes.
+- Every later occurrence references all earlier matching valid source indexes.
+- Structurally or category-invalid rows are never indexed for later rows, so an
+  unimportable row cannot turn a later valid row into a batch duplicate.
 - An existing-question duplicate and a batch duplicate can both be reported.
 
 Duplicate warnings do not make a row structurally invalid.

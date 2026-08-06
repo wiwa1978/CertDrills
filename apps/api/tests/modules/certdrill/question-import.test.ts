@@ -472,7 +472,7 @@ describe("CertDrill question import analysis", () => {
     expect(Array.from(result.normalizedRows.keys())).toEqual([0]);
   });
 
-  it("tracks batch duplicates even when earlier rows are invalid", () => {
+  it("never lets an invalid row poison within-batch duplicate detection for later rows", () => {
     const result = analyze(createDocument([
       {
         ...createQuestion(),
@@ -483,6 +483,8 @@ describe("CertDrill question import analysis", () => {
         ],
       },
       createQuestion({ stem: "what   is dns?" }),
+      createQuestion({ categoryCode: "Unknown", stem: "What is BGP?" }),
+      createQuestion({ stem: "WHAT IS BGP?" }),
     ]));
 
     expect(result.preview.rows[0]).toMatchObject({
@@ -492,14 +494,56 @@ describe("CertDrill question import analysis", () => {
     });
     expect(result.preview.rows[1]).toMatchObject({
       valid: true,
-      duplicate: { existingQuestionIds: [], earlierSourceIndexes: [0] },
+      duplicate: { existingQuestionIds: [], earlierSourceIndexes: [] },
+      selectedByDefault: true,
+    });
+    expect(result.preview.rows[2]).toMatchObject({
+      valid: false,
+      duplicate: { existingQuestionIds: [], earlierSourceIndexes: [] },
       selectedByDefault: false,
     });
+    expect(result.preview.rows[3]).toMatchObject({
+      valid: true,
+      duplicate: { existingQuestionIds: [], earlierSourceIndexes: [] },
+      selectedByDefault: true,
+    });
     expect(result.preview.totals).toEqual({
-      submitted: 2,
-      valid: 1,
-      invalid: 1,
+      submitted: 4,
+      valid: 2,
+      invalid: 2,
       duplicateExisting: 0,
+      duplicateBatch: 0,
+      selectedByDefault: 2,
+    });
+    expect(Array.from(result.normalizedRows.keys())).toEqual([1, 3]);
+  });
+
+  it("still flags later rows that duplicate an earlier valid row and existing questions", () => {
+    const result = analyze(
+      createDocument([
+        {
+          ...createQuestion(),
+          stem: "What is DNS?",
+          answers: [{ text: "Only one answer", isCorrect: true }],
+        },
+        createQuestion({ stem: "What is DNS?" }),
+        createQuestion({ stem: "what is dns?" }),
+      ]),
+      createCategories(),
+      [{ id: "existing-1", stem: "What is DNS?" }],
+    );
+
+    expect(result.preview.rows.map((row) => row.duplicate)).toEqual([
+      { existingQuestionIds: ["existing-1"], earlierSourceIndexes: [] },
+      { existingQuestionIds: ["existing-1"], earlierSourceIndexes: [] },
+      { existingQuestionIds: ["existing-1"], earlierSourceIndexes: [1] },
+    ]);
+    expect(result.preview.rows.map((row) => row.valid)).toEqual([false, true, true]);
+    expect(result.preview.totals).toEqual({
+      submitted: 3,
+      valid: 2,
+      invalid: 1,
+      duplicateExisting: 3,
       duplicateBatch: 1,
       selectedByDefault: 0,
     });

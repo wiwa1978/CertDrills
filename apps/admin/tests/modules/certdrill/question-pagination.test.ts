@@ -5,6 +5,7 @@ import {
   buildQuestionSortQuery,
   normalizeQuestionPage,
   paginateQuestions,
+  type QuestionTableQuery,
 } from "../../../src/modules/certdrill/question-pagination";
 
 describe("question pagination", () => {
@@ -62,5 +63,14 @@ describe("question pagination", () => {
     });
     expect(buildQuestionSortQuery(currentQuery, "stem-desc")).toMatchObject({ foo: "bar" });
     expect(buildQuestionPageQuery(currentQuery, 4)).toMatchObject({ foo: "bar" });
+  });
+
+  it("drops the one-shot imported flag from sort and pagination navigation", () => {
+    const currentQuery: QuestionTableQuery = { tab: "questions", questionPage: "2", imported: "12", foo: "bar" };
+
+    expect(buildQuestionSortQuery(currentQuery, "stem-desc").imported).toBeUndefined();
+    expect(buildQuestionPageQuery(currentQuery, 3).imported).toBeUndefined();
+    expect(buildQuestionSortQuery(currentQuery, "stem-desc")).toMatchObject({ foo: "bar", tab: "questions" });
+    expect(buildQuestionPageQuery(currentQuery, 3)).toMatchObject({ foo: "bar", questionPage: "3" });
   });
 });

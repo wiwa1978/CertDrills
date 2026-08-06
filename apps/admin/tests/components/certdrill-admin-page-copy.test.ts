@@ -48,6 +48,10 @@ describe("CertDrill admin page copy", () => {
     expect(questionFilterBarSource).toContain("scroll: false");
   });
 
+  it("drops the one-shot imported confirmation flag when filters navigate", () => {
+    expect(questionFilterBarSource).toContain('params.delete("imported");');
+  });
+
   it("shows management tabs and primary form labels", () => {
     expect(source).toContain("Categories");
     expect(source).toContain("Questions");

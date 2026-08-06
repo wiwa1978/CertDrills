@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type RefObject,
 } from "react";
 
 import { Link as LocalizedLink, useRouter } from "@/i18n/navigation";
@@ -18,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { questionEditorHref } from "./question-editor-href";
 import { compactQuestionId } from "./question-id";
+import { questionImportErrorMessage } from "./question-import-error";
 import {
   areAllQuestionImportDuplicatesIncluded,
   initialQuestionImportSelection,
@@ -30,6 +32,7 @@ import {
 import {
   MAX_QUESTION_IMPORT_BYTES,
   type CertDrillQuestionImportConfirmActionResult,
+  type CertDrillQuestionImportFieldError,
   type CertDrillQuestionImportPreviewActionResult,
   type CertDrillQuestionImportPreviewResult,
 } from "./question-import-types";
@@ -51,6 +54,12 @@ type QuestionImportConfirmAction = (input: {
   duplicateOverrideSourceIndexes: number[];
 }) => Promise<CertDrillQuestionImportConfirmActionResult>;
 
+type QuestionImportErrorAlertProps = {
+  message: string;
+  documentErrors: CertDrillQuestionImportFieldError[];
+  alertRef?: RefObject<HTMLDivElement | null>;
+};
+
 type QuestionImportPreviewDetailsProps = {
   certificationId: string;
   preview: CertDrillQuestionImportPreviewResult;
@@ -62,6 +71,26 @@ type QuestionImportPreviewDetailsProps = {
 
 function importedQuestionsHref(certificationId: string, importedCount: number) {
   return `/admin/certdrill/${certificationId}?tab=questions&imported=${importedCount}`;
+}
+
+export function QuestionImportErrorAlert({ message, documentErrors, alertRef }: QuestionImportErrorAlertProps) {
+  return (
+    <div
+      ref={alertRef}
+      role="alert"
+      tabIndex={-1}
+      className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm outline-none"
+    >
+      <p>{message}</p>
+      {documentErrors.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-destructive">
+          {documentErrors.map((documentError, index) => (
+            <li key={`${documentError.field}-${index}`}>{`${documentError.field}: ${documentError.message}`}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 export function QuestionImportPreviewDetails({
@@ -206,6 +235,7 @@ export function QuestionImportForm({
   const [preview, setPreview] = useState<CertDrillQuestionImportPreviewResult | null>(null);
   const [selection, setSelection] = useState<QuestionImportSelectionState>(() => initialQuestionImportSelection([]));
   const [message, setMessage] = useState<string | null>(null);
+  const [documentErrors, setDocumentErrors] = useState<CertDrillQuestionImportFieldError[]>([]);
   const [operation, setOperation] = useState<QuestionImportOperation>(null);
   const [pendingFocus, setPendingFocus] = useState<"preview" | "conflict" | null>(null);
   const previewHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -227,6 +257,7 @@ export function QuestionImportForm({
     setPreview(null);
     setSelection(initialQuestionImportSelection([]));
     setMessage(null);
+    setDocumentErrors([]);
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -259,18 +290,29 @@ export function QuestionImportForm({
 
     setOperation("preview");
     setMessage(null);
+    setDocumentErrors([]);
     try {
       const result = await previewAction({ certificationId, rawJson });
       if (result.status === "preview") {
         setPreview(result.preview);
         setSelection(initialQuestionImportSelection(result.preview.rows));
         setMessage(null);
+        setDocumentErrors([]);
         setPendingFocus("preview");
       } else {
         setPreview(null);
         setSelection(initialQuestionImportSelection([]));
         setMessage(result.message);
+        setDocumentErrors(result.documentErrors ?? []);
       }
+    } catch (error) {
+      // The server action call itself rejected (network, transport, auth, or serialization
+      // failure), so no result ever arrived. The raw JSON is left untouched for retry while the
+      // stale preview is dropped because it was never revalidated.
+      setPreview(null);
+      setSelection(initialQuestionImportSelection([]));
+      setMessage(questionImportErrorMessage(error));
+      setDocumentErrors([]);
     } finally {
       setOperation(null);
     }
@@ -281,6 +323,7 @@ export function QuestionImportForm({
 
     setOperation("confirm");
     setMessage(null);
+    setDocumentErrors([]);
     try {
       const result = await confirmAction({
         certificationId,
@@ -300,11 +343,19 @@ export function QuestionImportForm({
         setPreview(result.preview);
         setSelection(reconcileQuestionImportSelection(selection, result.preview.rows));
         setMessage(result.message);
+        setDocumentErrors([]);
         setPendingFocus("conflict");
         return;
       }
 
       setMessage(result.message);
+      setDocumentErrors(result.documentErrors ?? []);
+    } catch (error) {
+      // The server action call itself rejected, so nothing was imported. The raw JSON and the
+      // current preview/selection are preserved so the admin can retry the same import.
+      setMessage(questionImportErrorMessage(error));
+      setDocumentErrors([]);
+      setPendingFocus("conflict");
     } finally {
       setOperation(null);
     }
@@ -354,14 +405,7 @@ export function QuestionImportForm({
       </div>
 
       {message ? (
-        <div
-          ref={conflictAlertRef}
-          role="alert"
-          tabIndex={-1}
-          className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm outline-none"
-        >
-          {message}
-        </div>
+        <QuestionImportErrorAlert message={message} documentErrors={documentErrors} alertRef={conflictAlertRef} />
       ) : null}
 
       <div className="flex flex-wrap gap-2">

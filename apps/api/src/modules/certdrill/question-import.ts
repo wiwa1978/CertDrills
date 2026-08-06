@@ -7,6 +7,11 @@ import { isSafeCitationUrl } from "./validation";
 export const QUESTION_IMPORT_DOCUMENT_VERSION = 1 as const;
 export const QUESTION_IMPORT_MAX_ROWS = 500;
 export const QUESTION_IMPORT_MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+// Headroom for the request envelope around the document (certification id, preview hash, and the
+// selected/override index arrays). Exported so the global request guardrails and the import routes
+// share one transport cap instead of drifting apart.
+export const QUESTION_IMPORT_MAX_ENVELOPE_BYTES = 64 * 1024;
+export const QUESTION_IMPORT_MAX_RAW_BODY_BYTES = QUESTION_IMPORT_MAX_DOCUMENT_BYTES + QUESTION_IMPORT_MAX_ENVELOPE_BYTES;
 
 export type QuestionImportDifficulty = "easy" | "medium" | "hard";
 
@@ -175,8 +180,11 @@ export function analyzeQuestionImport({ document, categories, existingQuestions 
     }
 
     const duplicateStem = parsedRow.success ? parsedRow.data.stem : previewBase.stem;
-    const duplicate = buildDuplicateInfo(sourceIndex, duplicateStem, existingQuestionIndex, batchStemIndex);
     const valid = parsedRow.success && categoryResolution.status === "resolved" && rowErrors.length === 0;
+    // Invalid rows can still surface their own existing-question matches, but they are never
+    // indexed for later rows: an unimportable row must not turn a later valid row into a
+    // within-batch duplicate.
+    const duplicate = buildDuplicateInfo(sourceIndex, duplicateStem, existingQuestionIndex, batchStemIndex, valid);
     const selectedByDefault = valid && duplicate.existingQuestionIds.length === 0 && duplicate.earlierSourceIndexes.length === 0;
 
     const previewRow: QuestionImportPreviewRow = {
@@ -255,6 +263,7 @@ function buildDuplicateInfo(
   stem: string,
   existingQuestionIndex: Map<string, string[]>,
   batchStemIndex: Map<string, number[]>,
+  indexStem: boolean,
 ) {
   if (!stem.trim()) {
     return { existingQuestionIds: [], earlierSourceIndexes: [] };
@@ -264,7 +273,9 @@ function buildDuplicateInfo(
   const existingQuestionIds = [...(existingQuestionIndex.get(normalizedStem) ?? [])];
   const earlierSourceIndexes = [...(batchStemIndex.get(normalizedStem) ?? [])];
 
-  batchStemIndex.set(normalizedStem, [...earlierSourceIndexes, sourceIndex]);
+  if (indexStem) {
+    batchStemIndex.set(normalizedStem, [...earlierSourceIndexes, sourceIndex]);
+  }
 
   return { existingQuestionIds, earlierSourceIndexes };
 }

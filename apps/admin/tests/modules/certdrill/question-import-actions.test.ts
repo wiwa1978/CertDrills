@@ -108,7 +108,7 @@ describe("question import actions", () => {
       expect(previewQuestionImport).toHaveBeenCalledWith({ certificationId, document: validDocument });
     });
 
-    it("returns an explicit error using the API message on failure", async () => {
+    it("returns an explicit error using the de-prefixed API message on failure", async () => {
       previewQuestionImport.mockRejectedValueOnce(new ApiRequestError({
         status: 400,
         message: "API request failed (400): Must include at least 1 question.",
@@ -118,8 +118,57 @@ describe("question import actions", () => {
 
       expect(result).toEqual({
         status: "error",
-        message: "API request failed (400): Must include at least 1 question.",
+        message: "Must include at least 1 question.",
       });
+    });
+
+    it("returns validated document errors for an invalid-document response", async () => {
+      previewQuestionImport.mockRejectedValueOnce(new ApiRequestError({
+        status: 400,
+        message: "API request failed (400): Question import document is invalid.",
+        errorCode: "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+        details: [
+          { field: "version", message: "Document version must be 1." },
+          { field: "questions", message: "Must include at most 500 questions." },
+        ],
+      }));
+
+      const result = await previewCertDrillQuestionImportAction({ certificationId, rawJson: validRawJson });
+
+      expect(result).toEqual({
+        status: "error",
+        message: "Question import document is invalid.",
+        documentErrors: [
+          { field: "version", message: "Document version must be 1." },
+          { field: "questions", message: "Must include at most 500 questions." },
+        ],
+      });
+    });
+
+    it("drops malformed invalid-document details instead of trusting them", async () => {
+      previewQuestionImport.mockRejectedValueOnce(new ApiRequestError({
+        status: 400,
+        message: "API request failed (400): Question import document is invalid.",
+        errorCode: "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+        details: [{ field: "version" }, "questions", null],
+      }));
+
+      const result = await previewCertDrillQuestionImportAction({ certificationId, rawJson: validRawJson });
+
+      expect(result).toEqual({ status: "error", message: "Question import document is invalid." });
+    });
+
+    it("ignores document details on unrelated API error codes", async () => {
+      previewQuestionImport.mockRejectedValueOnce(new ApiRequestError({
+        status: 400,
+        message: "API request failed (400): Invalid question import preview payload",
+        errorCode: "VALIDATION_FAILED",
+        details: [{ field: "certificationId", message: "Certification ID must be a valid UUID." }],
+      }));
+
+      const result = await previewCertDrillQuestionImportAction({ certificationId, rawJson: validRawJson });
+
+      expect(result).toEqual({ status: "error", message: "Invalid question import preview payload" });
     });
   });
 
@@ -242,7 +291,7 @@ describe("question import actions", () => {
 
       expect(result).toEqual({
         status: "error",
-        message: "API request failed (409): Question import selection no longer matches the current preview. Review the refreshed preview.",
+        message: "Question import selection no longer matches the current preview. Review the refreshed preview.",
       });
     });
 
@@ -263,8 +312,50 @@ describe("question import actions", () => {
 
       expect(result).toEqual({
         status: "error",
-        message: "API request failed (409): Question import selection no longer matches the current preview. Review the refreshed preview.",
+        message: "Question import selection no longer matches the current preview. Review the refreshed preview.",
       });
+    });
+
+    it("returns validated document errors for an invalid-document response", async () => {
+      confirmQuestionImport.mockRejectedValueOnce(new ApiRequestError({
+        status: 400,
+        message: "API request failed (400): Question import document is invalid.",
+        errorCode: "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+        details: [{ field: "document", message: "Unrecognized key: \"extra\"." }],
+      }));
+
+      const result = await confirmCertDrillQuestionImportAction({
+        certificationId,
+        rawJson: validRawJson,
+        previewDocumentHash,
+        selectedSourceIndexes,
+        duplicateOverrideSourceIndexes,
+      });
+
+      expect(result).toEqual({
+        status: "error",
+        message: "Question import document is invalid.",
+        documentErrors: [{ field: "document", message: "Unrecognized key: \"extra\"." }],
+      });
+    });
+
+    it("drops malformed invalid-document details instead of trusting them", async () => {
+      confirmQuestionImport.mockRejectedValueOnce(new ApiRequestError({
+        status: 400,
+        message: "API request failed (400): Question import document is invalid.",
+        errorCode: "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+        details: { field: "version", message: "Document version must be 1." },
+      }));
+
+      const result = await confirmCertDrillQuestionImportAction({
+        certificationId,
+        rawJson: validRawJson,
+        previewDocumentHash,
+        selectedSourceIndexes,
+        duplicateOverrideSourceIndexes,
+      });
+
+      expect(result).toEqual({ status: "error", message: "Question import document is invalid." });
     });
 
     it("returns an explicit error and does not claim success on a generic API failure", async () => {

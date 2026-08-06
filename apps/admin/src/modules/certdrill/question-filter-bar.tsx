@@ -64,6 +64,8 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     params.delete("questionPage");
+    // One-shot import confirmation flag: it must not survive later question table navigation.
+    params.delete("imported");
     if (trimmedValue) {
       params.set(name, trimmedValue);
     } else {
@@ -139,6 +141,8 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     params.delete("questionPage");
+    // One-shot import confirmation flag: it must not survive later question table navigation.
+    params.delete("imported");
     questionFilterNames.forEach((name) => params.delete(name));
     params.delete("categoryId");
     currentQueryParamsRef.current = params;
