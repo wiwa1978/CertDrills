@@ -16,6 +16,10 @@ const questionActionsMenuSource = readFileSync(
 );
 const apiSource = readFileSync(new URL("../../src/lib/api/certdrill.server.ts", import.meta.url), "utf8");
 const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
+const ingestResourceActionSource = actionsSource.slice(
+  actionsSource.indexOf("export async function ingestCertDrillResourceAction(formData: FormData) {"),
+  actionsSource.indexOf("export async function createCertDrillMockGenerationAction(formData: FormData) {"),
+);
 const routeSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/page.tsx", import.meta.url),
   "utf8",
@@ -99,12 +103,18 @@ describe("CertDrill admin page copy", () => {
     expect(apiSource).toContain("export async function ingestCertDrillAdminResourceServer(resourceId: string): Promise<CertDrillAdminResource>");
     expect(apiSource).toContain('return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));');
     expect(actionsSource).toContain("ingestCertDrillAdminResourceServer");
-    expect(actionsSource).toContain("export async function ingestCertDrillResourceAction(formData: FormData)");
-    expect(actionsSource).toContain('const resourceId = requiredString(formData, "resourceId");');
-    expect(actionsSource).toContain("try {");
-    expect(actionsSource).toContain("await ingestCertDrillAdminResourceServer(resourceId);");
-    expect(actionsSource).toContain("} finally {");
-    expect(actionsSource).toContain("revalidateCertDrillAdminPage();");
+    expect(ingestResourceActionSource).toContain(`export async function ingestCertDrillResourceAction(formData: FormData) {
+  const resourceId = requiredString(formData, "resourceId");
+  if (!resourceId) {
+    throw new Error("Resource ID is required.");
+  }
+
+  try {
+    await ingestCertDrillAdminResourceServer(resourceId);
+  } finally {
+    revalidateCertDrillAdminPage();
+  }
+}`);
     expect(source).toContain("ingestCertDrillResourceAction");
     expect(source).toContain("<TableHead>Actions</TableHead>");
     expect(source).toContain('type="hidden" name="resourceId" value={resource.id}');
