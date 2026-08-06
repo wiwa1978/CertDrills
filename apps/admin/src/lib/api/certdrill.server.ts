@@ -1,5 +1,10 @@
 import type { CertDrillCertificationListItem, CertDrillDifficulty } from "@platform/contracts";
 
+import type {
+  CertDrillQuestionImportPreviewResult,
+  CertDrillQuestionImportResult,
+} from "@/modules/certdrill/question-import-types";
+
 import { serverApiRequest } from "./client.server";
 
 type SuccessResult<T> = { success: boolean; data: T };
@@ -321,6 +326,29 @@ export async function updateCertDrillAdminQuestionServer(
 
 export async function publishCertDrillAdminQuestionServer(questionId: string): Promise<CertDrillAdminQuestion> {
   return certdrillAdminRequest<CertDrillAdminQuestion>(`/questions/${questionId}/publish`, { method: "POST" });
+}
+
+export type CertDrillAdminQuestionImportPreviewInput = {
+  certificationId: string;
+  document: unknown;
+};
+
+export type CertDrillAdminQuestionImportConfirmInput = CertDrillAdminQuestionImportPreviewInput & {
+  previewDocumentHash: string;
+  selectedSourceIndexes: number[];
+  duplicateOverrideSourceIndexes: number[];
+};
+
+export async function previewCertDrillAdminQuestionImportServer(
+  payload: CertDrillAdminQuestionImportPreviewInput,
+): Promise<CertDrillQuestionImportPreviewResult> {
+  return certdrillAdminRequest<CertDrillQuestionImportPreviewResult>("/questions/import/preview", jsonRequestInit("POST", payload));
+}
+
+export async function confirmCertDrillAdminQuestionImportServer(
+  payload: CertDrillAdminQuestionImportConfirmInput,
+): Promise<CertDrillQuestionImportResult> {
+  return certdrillAdminRequest<CertDrillQuestionImportResult>("/questions/import", jsonRequestInit("POST", payload));
 }
 
 export async function listCertDrillAdminExamFormsServer(certificationId: string): Promise<CertDrillAdminExamForm[]> {
