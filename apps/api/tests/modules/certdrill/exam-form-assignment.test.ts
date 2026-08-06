@@ -36,10 +36,23 @@ function expectAssignmentError(
   }
 }
 
+function trackedCategoryIterations(categories: ExamFormAssignmentCategory[]) {
+  let iterationCount = 0;
+  const tracked = [...categories];
+  const originalIterator = tracked[Symbol.iterator].bind(tracked);
+  Object.defineProperty(tracked, Symbol.iterator, {
+    value() {
+      iterationCount += 1;
+      return originalIterator();
+    },
+  });
+  return { categories: tracked, iterationCount: () => iterationCount };
+}
+
 describe("planExamFormAssignment", () => {
   it("allocates 33.33/66.67 across three questions and includes child questions", () => {
     const categories = [
-      category("domain-a", null, "33.33", 1, { name: "Domain A" }),
+      category("domain-a", null, 33.33, 1, { name: "Domain A" }),
       category("task-a", "domain-a", null, 1),
       category("domain-b", null, "66.67", 2, { name: "Domain B" }),
     ];
@@ -151,6 +164,20 @@ describe("planExamFormAssignment", () => {
     );
   });
 
+  it.each([50.000000000001, "50.000000000001"])("rejects the over-precision weight %s", (weightPct) => {
+    expectAssignmentError(
+      () => planExamFormAssignment({
+        categories: [
+          category("a", null, weightPct, 1),
+          category("b", null, "50.00", 2),
+        ],
+        questions: [],
+        targetQuestionCount: 1,
+      }),
+      "CERTDRILL_ADMIN_EXAM_FORM_WEIGHTS",
+    );
+  });
+
   it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])("rejects the invalid target count %s", (targetQuestionCount) => {
     expectAssignmentError(
       () => planExamFormAssignment({
@@ -250,6 +277,23 @@ describe("planExamFormAssignment", () => {
     });
 
     expect(result.questionIds).toEqual(["q-2", "q-3"]);
+  });
+
+  it("builds category ancestry lookup once for planner questions", () => {
+    const tracked = trackedCategoryIterations([
+      category("root", null, "100.00", 1),
+      category("child", "root", null, 1),
+    ]);
+    const questions = Array.from({ length: 100 }, (_, index) => ({ id: `q-${index}`, categoryId: "child" }));
+
+    planExamFormAssignment({
+      categories: tracked.categories,
+      questions,
+      targetQuestionCount: 1,
+      rng: () => 0.999,
+    });
+
+    expect(tracked.iterationCount()).toBe(1);
   });
 
   it("ignores archived top-level categories", () => {
@@ -469,5 +513,25 @@ describe("validateExamFormAssignment", () => {
       }),
       "CERTDRILL_ADMIN_EXAM_FORM_WEIGHTS",
     );
+  });
+
+  it("builds category ancestry lookup once for validation questions", () => {
+    const tracked = trackedCategoryIterations([
+      category("root", null, "100.00", 1),
+      category("child", "root", null, 1),
+    ]);
+    const questions = Array.from({ length: 100 }, (_, index) => ({ id: `q-${index}`, categoryId: "child" }));
+
+    validateExamFormAssignment({
+      categories: tracked.categories,
+      questions,
+      targetQuestionCount: 100,
+      questionIds: questions.map((question) => question.id),
+      allocationSnapshot: [
+        { categoryId: "root", categoryName: "ROOT", weightPct: "100.00", allocatedCount: 100, assignedCount: 100 },
+      ],
+    });
+
+    expect(tracked.iterationCount()).toBe(1);
   });
 });

@@ -47,7 +47,8 @@ export function planExamFormAssignment(input: {
 }): ExamFormAssignmentPlan {
   const allocations = calculateAllocations(input.categories, input.targetQuestionCount);
   const activeTopLevelIds = new Set(allocations.map(({ category }) => category.id));
-  const pools = questionPools(input.questions, input.categories, activeTopLevelIds);
+  const resolveTopLevelCategoryId = createTopLevelCategoryResolver(input.categories);
+  const pools = questionPools(input.questions, resolveTopLevelCategoryId, activeTopLevelIds);
   const shortages = allocations.flatMap(({ category, allocatedCount }) => {
     const availableCount = pools.get(category.id)?.length ?? 0;
     return availableCount < allocatedCount
@@ -86,33 +87,51 @@ export function topLevelCategoryId(
   categoryId: string,
   categories: ExamFormAssignmentCategory[],
 ): string | null {
+  return createTopLevelCategoryResolver(categories)(categoryId);
+}
+
+function createTopLevelCategoryResolver(categories: ExamFormAssignmentCategory[]) {
   const categoriesById = new Map<string, ExamFormAssignmentCategory>();
   for (const category of categories) {
     if (!categoriesById.has(category.id)) {
       categoriesById.set(category.id, category);
     }
   }
+  const rootsByCategoryId = new Map<string, string | null>();
 
-  const visited = new Set<string>();
-  let currentId: string | null = categoryId;
+  return (categoryId: string): string | null => {
+    const path: string[] = [];
+    const visited = new Set<string>();
+    let currentId: string | null = categoryId;
 
-  while (currentId !== null) {
-    if (visited.has(currentId)) {
-      return null;
+    while (currentId !== null) {
+      if (rootsByCategoryId.has(currentId)) {
+        const rootId = rootsByCategoryId.get(currentId) ?? null;
+        path.forEach((id) => rootsByCategoryId.set(id, rootId));
+        return rootId;
+      }
+      if (visited.has(currentId)) {
+        path.forEach((id) => rootsByCategoryId.set(id, null));
+        return null;
+      }
+      visited.add(currentId);
+      path.push(currentId);
+
+      const category = categoriesById.get(currentId);
+      if (!category) {
+        path.forEach((id) => rootsByCategoryId.set(id, null));
+        return null;
+      }
+      if (category.parentCategoryId === null) {
+        path.forEach((id) => rootsByCategoryId.set(id, category.id));
+        return category.id;
+      }
+      currentId = category.parentCategoryId;
     }
-    visited.add(currentId);
 
-    const category = categoriesById.get(currentId);
-    if (!category) {
-      return null;
-    }
-    if (category.parentCategoryId === null) {
-      return category.id;
-    }
-    currentId = category.parentCategoryId;
-  }
-
-  return null;
+    path.forEach((id) => rootsByCategoryId.set(id, null));
+    return null;
+  };
 }
 
 export function validateExamFormAssignment(input: {
@@ -124,6 +143,7 @@ export function validateExamFormAssignment(input: {
 }): void {
   const allocations = calculateAllocations(input.categories, input.targetQuestionCount);
   validateSnapshot(input.allocationSnapshot, allocations);
+  const resolveTopLevelCategoryId = createTopLevelCategoryResolver(input.categories);
 
   if (input.questionIds.length !== input.targetQuestionCount) {
     throw new ExamFormAssignmentError(
@@ -156,7 +176,7 @@ export function validateExamFormAssignment(input: {
       );
     }
 
-    const rootId = topLevelCategoryId(question.categoryId, input.categories);
+    const rootId = resolveTopLevelCategoryId(question.categoryId);
     if (rootId === null || !actualCounts.has(rootId)) {
       throw new ExamFormAssignmentError(
         "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY",
@@ -258,17 +278,9 @@ function safeAllocationNumber(allocatedCount: bigint) {
 
 function parseWeight(category: ExamFormAssignmentCategory): number {
   const value = category.weightPct;
-  let basisPoints: number;
-
-  if (typeof value === "string") {
-    const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
-    basisPoints = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : Number.NaN;
-  } else {
-    basisPoints = typeof value === "number" ? Math.round(value * 100) : Number.NaN;
-    if (typeof value === "number" && Math.abs(value * 100 - basisPoints) > 1e-9) {
-      basisPoints = Number.NaN;
-    }
-  }
+  const text = typeof value === "string" ? value.trim() : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  const basisPoints = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : Number.NaN;
 
   if (!Number.isSafeInteger(basisPoints) || basisPoints <= 0) {
     throw new ExamFormAssignmentError(
@@ -331,7 +343,7 @@ function invalidSnapshot(message: string) {
 
 function questionPools(
   questions: ExamFormAssignmentQuestion[],
-  categories: ExamFormAssignmentCategory[],
+  resolveTopLevelCategoryId: (categoryId: string) => string | null,
   activeTopLevelIds: Set<string>,
 ) {
   const pools = new Map<string, ExamFormAssignmentQuestion[]>();
@@ -343,7 +355,7 @@ function questionPools(
     }
     seenQuestionIds.add(question.id);
 
-    const rootId = topLevelCategoryId(question.categoryId, categories);
+    const rootId = resolveTopLevelCategoryId(question.categoryId);
     if (rootId !== null && activeTopLevelIds.has(rootId)) {
       const pool = pools.get(rootId) ?? [];
       pool.push(question);
