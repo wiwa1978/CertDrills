@@ -4,6 +4,7 @@ import { errorCode } from "@platform/contracts/wire";
 
 import type { AppEnv } from "../context";
 import { env } from "../env";
+import { QUESTION_IMPORT_MAX_RAW_BODY_BYTES } from "../modules/certdrill/question-import";
 
 type RateLimitRule = {
   windowMs: number;
@@ -66,6 +67,23 @@ const routeGuardrails: RouteGuardrail[] = [
   { method: "POST", pattern: /^\/admin\/users\/impersonate$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
   { method: "POST", pattern: /^\/admin\/billing\/credit-refunds$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
   { method: "POST", pattern: /^\/admin\/billing\/subscription-refunds$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
+  // CertDrill question imports carry a whole import document, so they need an explicit cap above
+  // the 64 KiB JSON default. The cap is the shared import transport limit (5 MiB document plus
+  // envelope headroom); the routes still enforce the document-only limit after parsing. Both
+  // endpoints run expensive validation over the whole document, so they are rate limited like the
+  // other costly admin mutations - confirm more tightly than the read-only preview.
+  {
+    method: "POST",
+    pattern: /^\/api\/admin\/certdrill\/questions\/import$/,
+    maxBodyBytes: QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
+    rateLimit: { windowMs: 60_000, max: 10 },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/admin\/certdrill\/questions\/import\/preview$/,
+    maxBodyBytes: QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
+    rateLimit: { windowMs: 60_000, max: 30 },
+  },
 ];
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
@@ -222,4 +240,8 @@ export const requestGuardrails: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 export function clearRequestGuardrailStateForTests() {
   buckets.clear();
+}
+
+export function getRouteGuardrailForTests(method: string, path: string): RouteGuardrail | undefined {
+  return findGuardrail(method.toUpperCase(), path);
 }

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "questions": [
+    {
+      "categoryCode": "SEC-01",
+      "stem": "Which control best limits the blast radius of a compromised cloud credential?",
+      "difficulty": "medium",
+      "answers": [
+        {
+          "text": "Scope the credential to a short-lived, least-privilege role",
+          "isCorrect": true,
+          "explanation": "Short-lived, least-privilege credentials limit what an attacker can do if the credential is stolen.",
+          "citationUrls": ["https://owasp.org/www-project-top-ten/"]
+        },
+        {
+          "text": "Share one long-lived admin credential across all services",
+          "isCorrect": false,
+          "explanation": "Long-lived, shared admin credentials maximize the impact of a single compromise.",
+          "citationUrls": []
+        }
+      ]
+    }
+  ]
+}

@@ -37,6 +37,13 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     authInterrupts: true,
+    // Question import server actions carry the whole import document (5 MiB cap). The document is
+    // sent inside a JSON string, so escaping can roughly double its transport size, and the action
+    // envelope adds more on top - the limit is therefore well above 2x the raw document cap rather
+    // than just above 5 MiB.
+    serverActions: {
+      bodySizeLimit: "12mb",
+    },
   },
   images: {
     remotePatterns: [

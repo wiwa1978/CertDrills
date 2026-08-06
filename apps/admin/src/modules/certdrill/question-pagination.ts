@@ -5,6 +5,7 @@ export type QuestionTableQuery = {
   questionPage?: string | string[];
   questionSort?: string | string[];
   tab?: string | string[];
+  imported?: string | string[];
 };
 
 export function normalizeQuestionPage(value?: string) {
@@ -24,11 +25,14 @@ export function paginateQuestions<T>(questions: T[], requestedPage?: string) {
   };
 }
 
+// `imported` is a one-shot cosmetic confirmation flag from a completed question import, so it is
+// dropped from question table navigation instead of being carried into every later sort/page link.
 export function buildQuestionSortQuery<T extends QuestionTableQuery>(currentQuery: T, questionSort: string) {
   return {
     ...currentQuery,
     questionSort,
     questionPage: undefined,
+    imported: undefined,
     tab: "questions" as const,
   };
 }
@@ -37,6 +41,7 @@ export function buildQuestionPageQuery<T extends QuestionTableQuery>(currentQuer
   return {
     ...currentQuery,
     questionPage: String(page),
+    imported: undefined,
     tab: "questions" as const,
   };
 }

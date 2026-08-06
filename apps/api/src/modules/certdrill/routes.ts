@@ -7,12 +7,15 @@ import {
   createCertDrillExamAttemptRequestSchema,
   createCertDrillQuestionFeedbackRequestSchema,
 } from "@platform/contracts";
+import { errorCode } from "@platform/contracts/wire";
 
 import type { AppEnv } from "../../context";
-import { badRequest, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
+import { badRequest, boundedValidationDetails, fail, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
+import { measureQuestionImportDocumentBytes, QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
+import { QuestionImportServiceError } from "./question-import-service";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
 
@@ -92,6 +95,25 @@ const mockGenerationSchema = z.object({
 });
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const certificationIdParamSchema = z.object({ certificationId: z.string().uuid() });
+const requiredDocumentSchema = z.custom<unknown>((value) => value !== undefined, {
+  message: "Document is required.",
+});
+
+const questionImportPreviewRequestSchema = z.object({
+  certificationId: z.string().uuid(),
+  document: requiredDocumentSchema,
+}).strict();
+
+const questionImportSourceIndexSchema = z.number().int().min(0).max(QUESTION_IMPORT_MAX_ROWS - 1);
+
+const questionImportConfirmRequestSchema = questionImportPreviewRequestSchema.extend({
+  previewDocumentHash: z.string().regex(/^[a-f0-9]{64}$/, "Preview document hash must be a 64-character lowercase hex string."),
+  selectedSourceIndexes: z.array(questionImportSourceIndexSchema)
+    .min(1, "At least one question must be selected.")
+    .max(QUESTION_IMPORT_MAX_ROWS, `Must select at most ${QUESTION_IMPORT_MAX_ROWS} questions.`),
+  duplicateOverrideSourceIndexes: z.array(questionImportSourceIndexSchema)
+    .max(QUESTION_IMPORT_MAX_ROWS, `Must override at most ${QUESTION_IMPORT_MAX_ROWS} duplicate rows.`),
+}).strict();
 
 const validationMessages: Record<string, { required?: string; uuid?: string; url?: string; min?: string }> = {
   certificationId: { required: "Certification ID is required.", uuid: "Certification ID must be a valid UUID." },
@@ -168,24 +190,39 @@ function certDrillErrorResponse(c: Context<AppEnv>, error: unknown) {
   throw error;
 }
 
+function certDrillAdminErrorJson(
+  c: Context<AppEnv>,
+  code: string,
+  message: string,
+  details: unknown,
+  status: 400 | 409,
+) {
+  const requestId = c.get("requestId");
+  const response = c.json({
+    success: false,
+    error: {
+      code,
+      message,
+      ...(details !== undefined ? { details } : {}),
+    },
+    ...(requestId ? { requestId } : {}),
+  }, status);
+
+  if (requestId) {
+    response.headers.set("x-request-id", requestId);
+  }
+
+  return response;
+}
+
 function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
+  if (error instanceof QuestionImportServiceError) {
+    const status = error.code === "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT" ? 409 : 400;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
+  }
+
   if (error instanceof CertDrillAdminServiceError) {
-    const requestId = c.get("requestId");
-    const response = c.json({
-      success: false,
-      error: {
-        code: error.code,
-        message: error.message,
-        ...(error.details !== undefined ? { details: error.details } : {}),
-      },
-      ...(requestId ? { requestId } : {}),
-    }, 400);
-
-    if (requestId) {
-      response.headers.set("x-request-id", requestId);
-    }
-
-    return response;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, 400);
   }
 
   throw error;
@@ -196,12 +233,122 @@ async function adminJson<T>(c: Context<AppEnv>, schema: z.ZodSchema<T>) {
   return parseJsonBody(schema, body);
 }
 
-function issuePath(issue: z.core.$ZodIssue) {
-  return issue.path.map((item) => String(item)).join(".") || "body";
+function questionImportPayloadTooLarge(c: Context<AppEnv>) {
+  return fail(c, "Question import payload is too large.", 413, { errorCode: errorCode.payloadTooLarge });
 }
 
-function validationIssueMessage(issue: z.core.$ZodIssue) {
-  const path = issuePath(issue);
+// Reads the request body up to `maxBytes` without buffering an unbounded amount of data, so a
+// hostile or oversized transport payload cannot be fully parsed just to measure its size.
+async function readBoundedRequestText(request: Request, maxBytes: number): Promise<{ tooLarge: true } | { tooLarge: false; text: string }> {
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      return { tooLarge: true };
+    }
+  }
+
+  if (!request.body) {
+    return { tooLarge: false, text: await request.text() };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytesRead = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      bytesRead += value.byteLength;
+      if (bytesRead > maxBytes) {
+        return { tooLarge: true };
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(bytesRead);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { tooLarge: false, text: new TextDecoder().decode(bytes) };
+}
+
+type QuestionImportBodyResult<T> =
+  | { kind: "ok"; data: T }
+  | { kind: "tooLarge" }
+  | { kind: "invalidDocumentShape" }
+  | { kind: "invalid"; error: z.ZodError };
+
+// Zod validates (and copies) every element of an array before the array-length rule reports the
+// problem, so the confirm index arrays are capped just past the row limit before parsing. One
+// element beyond the limit is kept so `.max()` still rejects the request on its length, and arrays
+// within the limit are passed through untouched so a valid request parses exactly as submitted.
+const QUESTION_IMPORT_INDEX_FIELDS = ["selectedSourceIndexes", "duplicateOverrideSourceIndexes"] as const;
+
+function capQuestionImportIndexArrays(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return body;
+  }
+
+  let capped = body as Record<string, unknown>;
+  for (const field of QUESTION_IMPORT_INDEX_FIELDS) {
+    const value = capped[field];
+    if (Array.isArray(value) && value.length > QUESTION_IMPORT_MAX_ROWS + 1) {
+      capped = { ...capped, [field]: value.slice(0, QUESTION_IMPORT_MAX_ROWS + 1) };
+    }
+  }
+
+  return capped;
+}
+
+async function parseQuestionImportBody<T extends { document: unknown }>(
+  c: Context<AppEnv>,
+  schema: z.ZodSchema<T>,
+  prepareBody: (body: unknown) => unknown = (body) => body,
+): Promise<QuestionImportBodyResult<T>> {
+  const bounded = await readBoundedRequestText(c.req.raw, QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
+  if (bounded.tooLarge) {
+    return { kind: "tooLarge" };
+  }
+
+  let parsedJson: unknown = null;
+  try {
+    parsedJson = bounded.text ? JSON.parse(bounded.text) : null;
+  } catch {
+    parsedJson = null;
+  }
+
+  const parsedBody = parseJsonBody(schema, prepareBody(parsedJson));
+  if (!parsedBody.success) {
+    return { kind: "invalid", error: parsedBody.error };
+  }
+
+  const documentMeasurement = measureQuestionImportDocumentBytes(parsedBody.data.document);
+  if (documentMeasurement.kind === "invalid") {
+    return { kind: "invalidDocumentShape" };
+  }
+
+  if (documentMeasurement.bytes > QUESTION_IMPORT_MAX_DOCUMENT_BYTES) {
+    return { kind: "tooLarge" };
+  }
+
+  return { kind: "ok", data: parsedBody.data };
+}
+
+function questionImportInvalidDocumentShape(c: Context<AppEnv>, message: string) {
+  return validationError(c, message, [{ path: "document", message: "Document nesting/shape is invalid.", code: "custom" }]);
+}
+
+function validationIssueMessage(issue: z.core.$ZodIssue, path: string) {
   const field = path.split(".").at(-1) ?? path;
   const messages = validationMessages[field] ?? validationMessages[path];
   const issueCode = issue.code;
@@ -218,11 +365,7 @@ function validationIssueMessage(issue: z.core.$ZodIssue) {
 }
 
 function zodValidationDetails(error: z.ZodError) {
-  return error.issues.map((issue) => ({
-    path: issuePath(issue),
-    message: validationIssueMessage(issue),
-    code: issue.code,
-  }));
+  return boundedValidationDetails(error, { formatMessage: validationIssueMessage });
 }
 
 function parsedValidationError(c: Context<AppEnv>, message: string, error: z.ZodError) {
@@ -412,6 +555,20 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     const parsedBody = await adminJson(c, questionCreateSchema);
     if (!parsedBody.success) return parsedValidationError(c, "Invalid question payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.createQuestion(parsedBody.data));
+  });
+  router.post("/questions/import/preview", async (c) => {
+    const parsedBody = await parseQuestionImportBody(c, questionImportPreviewRequestSchema);
+    if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalidDocumentShape") return questionImportInvalidDocumentShape(c, "Invalid question import preview payload");
+    if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import preview payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.previewQuestionImport(parsedBody.data));
+  });
+  router.post("/questions/import", async (c) => {
+    const parsedBody = await parseQuestionImportBody(c, questionImportConfirmRequestSchema, capQuestionImportIndexArrays);
+    if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalidDocumentShape") return questionImportInvalidDocumentShape(c, "Invalid question import payload");
+    if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.importQuestions(parsedBody.data));
   });
   router.patch("/questions/:id", async (c) => {
     const id = adminUuidParam(c);

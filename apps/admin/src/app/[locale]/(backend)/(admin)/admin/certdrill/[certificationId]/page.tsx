@@ -8,6 +8,11 @@ function firstSearchParamString(value: SearchParamValue) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function parsePositiveIntegerSearchParam(value: SearchParamValue) {
+  const parsed = Number(firstSearchParamString(value));
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export default async function AdminCertDrillCertificationPage({
   params,
   searchParams,
@@ -16,7 +21,7 @@ export default async function AdminCertDrillCertificationPage({
   searchParams: Promise<Record<string, SearchParamValue>>;
 }) {
   const [{ certificationId }, query] = await Promise.all([params, searchParams]);
-  const { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab } = query;
+  const { categoryId, examFormId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab, imported } = query;
   const certifications = await getCertDrillCertificationsServer();
 
   return (
@@ -36,6 +41,7 @@ export default async function AdminCertDrillCertificationPage({
         feedbackStatus={firstSearchParamString(feedbackStatus)}
         selectedTab={firstSearchParamString(tab)}
         questionTableQuery={query}
+        importedQuestionCount={parsePositiveIntegerSearchParam(imported)}
       />
     </Container>
   );

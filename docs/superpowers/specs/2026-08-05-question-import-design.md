@@ -191,7 +191,16 @@ The only accepted document shape is:
 - The document contains between 1 and 500 questions.
 - Unknown top-level document properties are document errors.
 - Unknown question and answer properties are row errors.
-- The request body must not exceed 5 MB.
+- The request body must not exceed 5 MB, plus a 64 KiB envelope allowance that
+  the shared transport cap adds for the surrounding request fields. The global
+  request guardrails enforce that transport cap.
+- The admin server action body limit is larger than the transport cap: the
+  document travels inside a JSON string, so escaping can roughly double it. The
+  limit therefore clears at least twice the raw document cap plus envelope
+  overhead.
+- The admin page measures the current pasted or edited JSON in UTF-8 bytes and
+  refuses to send an over-sized document to either server action. The server
+  action repeats the same check, and the API enforces it again.
 
 ### Question Rules
 
@@ -241,7 +250,9 @@ The server assigns all persistence identifiers and order.
 ## Server API
 
 Two authenticated admin endpoints are added under the existing CertDrill admin
-router.
+router. Both run whole-document validation, so the shared request guardrails
+rate limit them like the other expensive admin mutations: the confirm endpoint
+more tightly than the read-only preview endpoint.
 
 ### Preview
 
@@ -347,7 +358,7 @@ A focused import schema module owns:
 - A strict top-level envelope schema for `version` and `questions`.
 - Strict per-question and per-answer schemas.
 - Normalized TypeScript types.
-- The 5 MB and 500-question constants.
+- The 5 MB document, transport envelope, and 500-question constants.
 - Document hashing.
 
 It reuses the existing safe citation URL rule and the two-to-ten answer limit.
@@ -356,6 +367,41 @@ The top-level transport schema accepts each `questions` item as unknown long
 enough to preserve a preview row for malformed questions. Each item is then
 parsed independently with the strict question schema. This keeps invalid rows
 visible without weakening the canonical format.
+
+### Bounded Validation
+
+A 5 MB document can hold millions of malformed elements, so validation is
+bounded in both work and retained errors. No bound relaxes the canonical format:
+invalid rows stay visible and unselectable.
+
+- An over-long `questions` array is capped just past the 500-row limit before
+  schema validation. It is a document error either way.
+- An `answers` array longer than 10 is rejected on its length alone. Only the
+  first 10 answers are schema-validated, so the row still reports useful element
+  errors. The submitted answer count is preserved in the preview row.
+- `citationUrls` entries are validated outside the schema, entry by entry, so a
+  malformed array is processed linearly and cannot emit one schema issue per
+  element. Valid documents keep unlimited optional citations.
+- Row errors are capped at 25 and document errors at 50. Unknown-key expansion
+  shares the same budget. When issues are dropped, one deterministic marker
+  (`Additional validation errors were omitted.`) is appended last, so the preview
+  response never carries an unbounded issue list.
+- Document hashing serializes canonical JSON with an explicit stack instead of a
+  recursive walk, so deeply nested hostile input cannot overflow the stack.
+
+The same reasoning applies to the request envelope around the document, which is
+validated before the document itself:
+
+- The confirm `selectedSourceIndexes` and `duplicateOverrideSourceIndexes`
+  arrays are capped just past the 500-row limit before schema parsing, because
+  the schema validates every element before the array-length rule reports the
+  problem. One element beyond the limit is kept, so the request is still
+  rejected on its length. Arrays within the limit are parsed exactly as
+  submitted.
+- Route validation details are capped at 20 entries with the same deterministic
+  truncation marker appended last. Unknown keys are expanded to one bounded
+  detail each, so the single Zod issue whose message lists every unknown key is
+  never echoed back. A hostile body therefore cannot grow the error response.
 
 ### Preview Service
 
@@ -393,7 +439,9 @@ For within-batch duplicates:
 
 - The first occurrence is not marked as a batch duplicate solely because of
   later rows.
-- Every later occurrence references all earlier matching source indexes.
+- Every later occurrence references all earlier matching valid source indexes.
+- Structurally or category-invalid rows are never indexed for later rows, so an
+  unimportable row cannot turn a later valid row into a batch duplicate.
 - An existing-question duplicate and a batch duplicate can both be reported.
 
 Duplicate warnings do not make a row structurally invalid.
@@ -522,7 +570,8 @@ Document-level errors appear above the input:
 - Unknown top-level properties.
 - Request too large.
 
-Document errors prevent preview-table display.
+Document errors prevent preview-table display. At most 50 document issues are
+returned, followed by the truncation marker when more existed.
 
 ### Row Errors
 
@@ -538,7 +587,8 @@ Each row can report multiple field-specific errors:
 - Unsafe citation URL.
 - Unknown question or answer properties.
 
-Invalid rows are visible but not selectable.
+Invalid rows are visible but not selectable. At most 25 issues are returned per
+row, followed by the truncation marker when more existed.
 
 ### Duplicate Warnings
 
@@ -644,8 +694,23 @@ Cover:
 - Admin authentication and Origin protection.
 - Preview and confirm request validation.
 - Request-size limit.
+- Per-endpoint rate limits on both import endpoints.
 - Typed conflict response.
 - Successful result shape.
+
+### Adversarial Validation Tests
+
+Cover:
+
+- Over-long `answers` arrays reporting only the max-answer error, with the
+  submitted answer count preserved.
+- Huge malformed `citationUrls` arrays and unknown-key sets across many rows.
+- Row and document error caps plus the deterministic truncation marker.
+- Bounded preview serialization size.
+- Huge invalid index arrays and unknown-key sets in the request envelope,
+  staying fast with bounded response details and no service delegation.
+- Later valid rows staying valid, selectable, and selected by default.
+- Confirm-time analysis staying bounded inside the transaction.
 
 ### Admin Tests
 

@@ -2,6 +2,7 @@ type ApiErrorBody = {
   error?: string | {
     code?: string;
     message?: string;
+    details?: unknown;
   };
   errorCode?: string;
   requestId?: string;
@@ -10,6 +11,10 @@ type ApiErrorBody = {
 function getApiErrorCode(body: ApiErrorBody | null, response: Response) {
   const nestedCode = typeof body?.error === "object" && body.error !== null ? body.error.code : undefined;
   return nestedCode ?? body?.errorCode ?? response.headers.get("x-error-code") ?? undefined;
+}
+
+function getApiErrorDetails(body: ApiErrorBody | null) {
+  return typeof body?.error === "object" && body.error !== null ? body.error.details : undefined;
 }
 
 function getApiErrorMessage(body: ApiErrorBody | null, rawBody: string, response: Response) {
@@ -29,17 +34,20 @@ export class ApiRequestError extends Error {
   errorCode?: string;
   requestId?: string;
   digest?: string;
+  details?: unknown;
 
   constructor({
     status,
     message,
     errorCode,
     requestId,
+    details,
   }: {
     status: number;
     message: string;
     errorCode?: string;
     requestId?: string;
+    details?: unknown;
   }) {
     super(message);
     this.name = "ApiRequestError";
@@ -47,6 +55,7 @@ export class ApiRequestError extends Error {
     this.errorCode = errorCode;
     this.requestId = requestId;
     this.digest = errorCode ?? requestId;
+    this.details = details;
   }
 }
 
@@ -114,6 +123,7 @@ export function createApiRequest(options: ApiRequestFactoryOptions) {
         message,
         errorCode,
         requestId,
+        details: getApiErrorDetails(parsedBody),
       });
     }
 

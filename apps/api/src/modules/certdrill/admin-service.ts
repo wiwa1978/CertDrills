@@ -20,6 +20,11 @@ import {
   createDrizzleAdminQuestionIndexRepository,
   type AdminQuestionIndexQueryInput,
 } from "./admin-question-index";
+import {
+  createQuestionImportService,
+  type QuestionImportConfirmInput,
+  type QuestionImportPreviewInput,
+} from "./question-import-service";
 import { validateCategorySiblingWeights, validateQuestionForPublish } from "./validation";
 
 type CertDrillAdminQuestionIndex = Pick<
@@ -27,9 +32,15 @@ type CertDrillAdminQuestionIndex = Pick<
   "query"
 >;
 
+type CertDrillAdminQuestionImportService = Pick<
+  ReturnType<typeof createQuestionImportService>,
+  "preview" | "confirm"
+>;
+
 type CertDrillAdminServiceDeps = {
   db: any;
   questionIndex?: CertDrillAdminQuestionIndex;
+  questionImport?: CertDrillAdminQuestionImportService;
 };
 
 export type CertDrillAdminServiceErrorCode =
@@ -166,6 +177,15 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
   const questionIndex = deps.questionIndex ?? createCertDrillAdminQuestionIndex({
     repository: createDrizzleAdminQuestionIndexRepository({ db: deps.db }),
   });
+  const questionImport = deps.questionImport ?? createQuestionImportService({ db: deps.db });
+
+  async function previewQuestionImport(input: QuestionImportPreviewInput) {
+    return questionImport.preview(input);
+  }
+
+  async function importQuestions(input: QuestionImportConfirmInput) {
+    return questionImport.confirm(input);
+  }
 
   async function createCertification(input: CertificationInput) {
     const vendor = await resolveVendor(input.vendorId, input.vendor);
@@ -669,6 +689,8 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     createQuestion,
     updateQuestion,
     publishQuestion,
+    previewQuestionImport,
+    importQuestions,
     createExamForm,
     listExamForms,
     updateExamForm,

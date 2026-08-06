@@ -64,6 +64,40 @@ describe("CertDrill admin service", () => {
     expect(query).toHaveBeenCalledWith(input);
   });
 
+  it("delegates question import preview and confirm to the focused import service", async () => {
+    const { db } = createAdminDb({});
+    const previewResult = {
+      documentVersion: 1 as const,
+      documentHash: "a".repeat(64),
+      totals: {
+        submitted: 0,
+        valid: 0,
+        invalid: 0,
+        duplicateExisting: 0,
+        duplicateBatch: 0,
+        selectedByDefault: 0,
+      },
+      rows: [],
+    };
+    const confirmResult = { importedCount: 0, questionIds: [] };
+    const preview = vi.fn().mockResolvedValue(previewResult);
+    const confirm = vi.fn().mockResolvedValue(confirmResult);
+    const service = createCertDrillAdminService({ db, questionImport: { preview, confirm } });
+    const previewInput = { certificationId: ids.cert, document: { version: 1, questions: [] } };
+    const confirmInput = {
+      ...previewInput,
+      previewDocumentHash: previewResult.documentHash,
+      selectedSourceIndexes: [],
+      duplicateOverrideSourceIndexes: [],
+    };
+
+    await expect(service.previewQuestionImport(previewInput)).resolves.toEqual(previewResult);
+    await expect(service.importQuestions(confirmInput)).resolves.toEqual(confirmResult);
+
+    expect(preview).toHaveBeenCalledWith(previewInput);
+    expect(confirm).toHaveBeenCalledWith(confirmInput);
+  });
+
   it("creates, lists, and updates certifications", async () => {
     const { db, inserts, updates } = createAdminDb({
       certifications: [{ id: ids.cert, code: "AWS-SAA-C03", name: "AWS Architect", vendor: "AWS", isActive: true }],
