@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CertDrillAdminServiceError } from "../src/modules/certdrill/admin-service";
+import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_ROWS } from "../src/modules/certdrill/question-import";
+import { QuestionImportServiceError } from "../src/modules/certdrill/question-import-service";
 import { createCertDrillAdminRouter } from "../src/modules/certdrill/routes";
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
@@ -24,6 +26,8 @@ const service = {
   createQuestion: vi.fn(),
   updateQuestion: vi.fn(),
   publishQuestion: vi.fn(),
+  previewQuestionImport: vi.fn(),
+  importQuestions: vi.fn(),
   listExamForms: vi.fn(),
   createExamForm: vi.fn(),
   updateExamForm: vi.fn(),
@@ -401,6 +405,247 @@ describe("CertDrill admin routes", () => {
       error: {
         code: "CERTDRILL_ADMIN_INVALID_CATEGORY_WEIGHTS",
         message: "Sibling category weights must not exceed 100. Current total: 105.",
+      },
+    });
+  });
+});
+
+describe("CertDrill admin question import routes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const validPreviewBody = {
+    certificationId,
+    document: { version: 1, questions: [] },
+  };
+
+  const previewDocumentHash = "a".repeat(64);
+
+  const validConfirmBody = {
+    ...validPreviewBody,
+    previewDocumentHash,
+    selectedSourceIndexes: [0],
+    duplicateOverrideSourceIndexes: [],
+  };
+
+  it("delegates preview requests to the service and returns its result", async () => {
+    const previewResult = {
+      documentVersion: 1,
+      documentHash: previewDocumentHash,
+      totals: { submitted: 1, valid: 1, invalid: 0, duplicateExisting: 0, duplicateBatch: 0, selectedByDefault: 1 },
+      rows: [],
+    };
+    service.previewQuestionImport.mockResolvedValueOnce(previewResult);
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validPreviewBody),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, data: previewResult });
+    expect(service.previewQuestionImport).toHaveBeenCalledWith(validPreviewBody);
+  });
+
+  it("delegates confirm requests to the service and returns its result", async () => {
+    const importResult = { importedCount: 1, questionIds: ["10000000-0000-4100-8100-000000000001"] };
+    service.importQuestions.mockResolvedValueOnce(importResult);
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validConfirmBody),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, data: importResult });
+    expect(service.importQuestions).toHaveBeenCalledWith(validConfirmBody);
+  });
+
+  it("rejects preview requests missing required fields before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ document: { version: 1, questions: [] } }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid question import preview payload",
+        details: expect.arrayContaining([expect.objectContaining({ path: "certificationId" })]),
+      },
+    });
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  });
+
+  it("rejects preview requests with unexpected top-level fields before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validPreviewBody, extra: "not-allowed" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON bodies before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not valid json",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED" },
+    });
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty selectedSourceIndexes array before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validConfirmBody, selectedSourceIndexes: [] }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED", message: "Invalid question import payload" },
+    });
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rejects out-of-range source indexes before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validConfirmBody, selectedSourceIndexes: [QUESTION_IMPORT_MAX_ROWS] }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED", message: "Invalid question import payload" },
+    });
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rejects a duplicateOverrideSourceIndexes array longer than the row cap", async () => {
+    const tooMany = Array.from({ length: QUESTION_IMPORT_MAX_ROWS + 1 }, (_, index) => index % QUESTION_IMPORT_MAX_ROWS);
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validConfirmBody, duplicateOverrideSourceIndexes: tooMany }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed previewDocumentHash before delegation", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validConfirmBody, previewDocumentHash: "not-a-hash" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request whose total body exceeds the transport size limit", async () => {
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": String(6 * 1024 * 1024) },
+      body: JSON.stringify(validPreviewBody),
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request whose serialized document exceeds 5 MiB", async () => {
+    const oversizedDocument = { version: 1, note: "a".repeat(QUESTION_IMPORT_MAX_DOCUMENT_BYTES + 1024) };
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ certificationId, document: oversizedDocument }),
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
+  });
+
+  it("maps a question import conflict to a typed 409 with refreshed preview details", async () => {
+    const refreshedPreview = {
+      documentVersion: 1,
+      documentHash: "b".repeat(64),
+      totals: { submitted: 1, valid: 1, invalid: 0, duplicateExisting: 1, duplicateBatch: 0, selectedByDefault: 0 },
+      rows: [{ sourceIndex: 0, valid: true, duplicate: { existingQuestionIds: ["q-1"], earlierSourceIndexes: [] } }],
+    };
+    service.importQuestions.mockRejectedValueOnce(new QuestionImportServiceError(
+      "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT",
+      "Question import selection no longer matches the current preview. Review the refreshed preview.",
+      refreshedPreview,
+    ));
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validConfirmBody),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT",
+        message: "Question import selection no longer matches the current preview. Review the refreshed preview.",
+        details: refreshedPreview,
+      },
+    });
+  });
+
+  it("maps an invalid question import document error to a 400 with issue details", async () => {
+    const issues = [{ field: "version", message: "Unsupported document version." }];
+    service.previewQuestionImport.mockRejectedValueOnce(new QuestionImportServiceError(
+      "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+      "Question import document is invalid.",
+      issues,
+    ));
+
+    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validPreviewBody),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "CERTDRILL_ADMIN_INVALID_QUESTION_IMPORT",
+        message: "Question import document is invalid.",
+        details: issues,
       },
     });
   });

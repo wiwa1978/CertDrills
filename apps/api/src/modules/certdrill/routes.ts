@@ -7,12 +7,15 @@ import {
   createCertDrillExamAttemptRequestSchema,
   createCertDrillQuestionFeedbackRequestSchema,
 } from "@platform/contracts";
+import { errorCode } from "@platform/contracts/wire";
 
 import type { AppEnv } from "../../context";
-import { badRequest, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
+import { badRequest, fail, forbidden, notFound, ok, parseJsonBody, unauthorized, validationError } from "../../lib/http";
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
+import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
+import { QuestionImportServiceError } from "./question-import-service";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
 
@@ -93,6 +96,25 @@ const mockGenerationSchema = z.object({
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const certificationIdParamSchema = z.object({ certificationId: z.string().uuid() });
 
+const questionImportPreviewRequestSchema = z.object({
+  certificationId: z.string().uuid(),
+  document: z.unknown(),
+}).strict();
+
+const questionImportSourceIndexSchema = z.number().int().min(0).max(QUESTION_IMPORT_MAX_ROWS - 1);
+
+const questionImportConfirmRequestSchema = questionImportPreviewRequestSchema.extend({
+  previewDocumentHash: z.string().regex(/^[a-f0-9]{64}$/, "Preview document hash must be a 64-character lowercase hex string."),
+  selectedSourceIndexes: z.array(questionImportSourceIndexSchema)
+    .min(1, "At least one question must be selected.")
+    .max(QUESTION_IMPORT_MAX_ROWS, `Must select at most ${QUESTION_IMPORT_MAX_ROWS} questions.`),
+  duplicateOverrideSourceIndexes: z.array(questionImportSourceIndexSchema)
+    .max(QUESTION_IMPORT_MAX_ROWS, `Must override at most ${QUESTION_IMPORT_MAX_ROWS} duplicate rows.`),
+}).strict();
+
+const QUESTION_IMPORT_MAX_ENVELOPE_BYTES = 64 * 1024;
+const QUESTION_IMPORT_MAX_RAW_BODY_BYTES = QUESTION_IMPORT_MAX_DOCUMENT_BYTES + QUESTION_IMPORT_MAX_ENVELOPE_BYTES;
+
 const validationMessages: Record<string, { required?: string; uuid?: string; url?: string; min?: string }> = {
   certificationId: { required: "Certification ID is required.", uuid: "Certification ID must be a valid UUID." },
   categoryId: { required: "Category ID is required.", uuid: "Category ID must be a valid UUID." },
@@ -168,24 +190,39 @@ function certDrillErrorResponse(c: Context<AppEnv>, error: unknown) {
   throw error;
 }
 
+function certDrillAdminErrorJson(
+  c: Context<AppEnv>,
+  code: string,
+  message: string,
+  details: unknown,
+  status: 400 | 409,
+) {
+  const requestId = c.get("requestId");
+  const response = c.json({
+    success: false,
+    error: {
+      code,
+      message,
+      ...(details !== undefined ? { details } : {}),
+    },
+    ...(requestId ? { requestId } : {}),
+  }, status);
+
+  if (requestId) {
+    response.headers.set("x-request-id", requestId);
+  }
+
+  return response;
+}
+
 function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
+  if (error instanceof QuestionImportServiceError) {
+    const status = error.code === "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT" ? 409 : 400;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
+  }
+
   if (error instanceof CertDrillAdminServiceError) {
-    const requestId = c.get("requestId");
-    const response = c.json({
-      success: false,
-      error: {
-        code: error.code,
-        message: error.message,
-        ...(error.details !== undefined ? { details: error.details } : {}),
-      },
-      ...(requestId ? { requestId } : {}),
-    }, 400);
-
-    if (requestId) {
-      response.headers.set("x-request-id", requestId);
-    }
-
-    return response;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, 400);
   }
 
   throw error;
@@ -194,6 +231,89 @@ function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
 async function adminJson<T>(c: Context<AppEnv>, schema: z.ZodSchema<T>) {
   const body = await c.req.json().catch(() => null);
   return parseJsonBody(schema, body);
+}
+
+function questionImportPayloadTooLarge(c: Context<AppEnv>) {
+  return fail(c, "Question import payload is too large.", 413, { errorCode: errorCode.payloadTooLarge });
+}
+
+// Reads the request body up to `maxBytes` without buffering an unbounded amount of data, so a
+// hostile or oversized transport payload cannot be fully parsed just to measure its size.
+async function readBoundedRequestText(request: Request, maxBytes: number): Promise<{ tooLarge: true } | { tooLarge: false; text: string }> {
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      return { tooLarge: true };
+    }
+  }
+
+  if (!request.body) {
+    return { tooLarge: false, text: await request.text() };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytesRead = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      bytesRead += value.byteLength;
+      if (bytesRead > maxBytes) {
+        return { tooLarge: true };
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(bytesRead);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { tooLarge: false, text: new TextDecoder().decode(bytes) };
+}
+
+type QuestionImportBodyResult<T> =
+  | { kind: "ok"; data: T }
+  | { kind: "tooLarge" }
+  | { kind: "invalid"; error: z.ZodError };
+
+async function parseQuestionImportBody<T extends { document: unknown }>(
+  c: Context<AppEnv>,
+  schema: z.ZodSchema<T>,
+): Promise<QuestionImportBodyResult<T>> {
+  const bounded = await readBoundedRequestText(c.req.raw, QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
+  if (bounded.tooLarge) {
+    return { kind: "tooLarge" };
+  }
+
+  let parsedJson: unknown = null;
+  try {
+    parsedJson = bounded.text ? JSON.parse(bounded.text) : null;
+  } catch {
+    parsedJson = null;
+  }
+
+  const parsedBody = parseJsonBody(schema, parsedJson);
+  if (!parsedBody.success) {
+    return { kind: "invalid", error: parsedBody.error };
+  }
+
+  const documentBytes = new TextEncoder().encode(JSON.stringify(parsedBody.data.document)).length;
+  if (documentBytes > QUESTION_IMPORT_MAX_DOCUMENT_BYTES) {
+    return { kind: "tooLarge" };
+  }
+
+  return { kind: "ok", data: parsedBody.data };
 }
 
 function issuePath(issue: z.core.$ZodIssue) {
@@ -412,6 +532,18 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     const parsedBody = await adminJson(c, questionCreateSchema);
     if (!parsedBody.success) return parsedValidationError(c, "Invalid question payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.createQuestion(parsedBody.data));
+  });
+  router.post("/questions/import/preview", async (c) => {
+    const parsedBody = await parseQuestionImportBody(c, questionImportPreviewRequestSchema);
+    if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import preview payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.previewQuestionImport(parsedBody.data));
+  });
+  router.post("/questions/import", async (c) => {
+    const parsedBody = await parseQuestionImportBody(c, questionImportConfirmRequestSchema);
+    if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.importQuestions(parsedBody.data));
   });
   router.patch("/questions/:id", async (c) => {
     const id = adminUuidParam(c);
