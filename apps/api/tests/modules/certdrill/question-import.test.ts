@@ -6,6 +6,7 @@ import {
   QUESTION_IMPORT_MAX_ROWS,
   QuestionImportDocumentError,
   analyzeQuestionImport,
+  hashQuestionImportDocument,
   normalizeImportedStem,
   type QuestionImportCategoryReference,
   type QuestionImportExistingQuestionReference,
@@ -329,6 +330,28 @@ describe("CertDrill question import analysis", () => {
     };
 
     expect(analyze(documentA).preview.documentHash).toBe(analyze(documentB).preview.documentHash);
+  });
+
+  it("hashes object keys with deterministic code-unit ordering", () => {
+    const original = {
+      _: "underscore",
+      a: "lowercase",
+      A: "uppercase",
+      é: "accented",
+      "!": "punctuation",
+    };
+    const reordered = {
+      é: "accented",
+      A: "uppercase",
+      "!": "punctuation",
+      a: "lowercase",
+      _: "underscore",
+    };
+
+    expect(hashQuestionImportDocument(reordered)).toBe(hashQuestionImportDocument(original));
+    expect(hashQuestionImportDocument(original)).toBe(
+      "ec16636f2cd0e823735e3f523e381bc043f6eeb0037b15f98a53f9717ec777cc",
+    );
   });
 
   it("resolves categories case-insensitively after trimming import codes", () => {

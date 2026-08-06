@@ -133,8 +133,6 @@ const documentSchema = z.object({
     .max(QUESTION_IMPORT_MAX_ROWS, `Must include at most ${QUESTION_IMPORT_MAX_ROWS} questions.`),
 }).strict();
 
-type ParsedQuestionRow = z.output<typeof questionSchema>;
-
 type AnalyzeQuestionImportInput = {
   document: unknown;
   categories: QuestionImportCategoryReference[];
@@ -158,7 +156,7 @@ export function analyzeQuestionImport({ document, categories, existingQuestions 
     throw new QuestionImportDocumentError(formatZodIssues(parsedDocument.error.issues, { rootField: "document" }));
   }
 
-  const documentHash = hashStableJson(parsedDocument.data);
+  const documentHash = hashQuestionImportDocument(parsedDocument.data);
   const categoryIndex = indexCategories(categories);
   const existingQuestionIndex = indexExistingQuestions(existingQuestions);
   const batchStemIndex = new Map<string, number[]>();
@@ -323,7 +321,7 @@ function normalizeCategoryCode(categoryCode: string) {
   return categoryCode.trim().toLowerCase();
 }
 
-function hashStableJson(value: unknown) {
+export function hashQuestionImportDocument(value: unknown) {
   return createHash("sha256").update(JSON.stringify(sortJsonValue(value))).digest("hex");
 }
 
@@ -337,7 +335,7 @@ function sortJsonValue(value: unknown): unknown {
   }
 
   return Object.keys(value)
-    .sort((left, right) => left.localeCompare(right))
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
     .reduce<Record<string, unknown>>((sorted, key) => {
       const entry = value[key];
       if (entry !== undefined) {
