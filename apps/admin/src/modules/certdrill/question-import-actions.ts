@@ -8,10 +8,10 @@ import {
 } from "@/lib/api/certdrill.server";
 
 import { questionImportErrorMessage, stripApiErrorStatusPrefix } from "./question-import-error";
+import { exceedsQuestionImportByteLimit, QUESTION_IMPORT_TOO_LARGE_MESSAGE } from "./question-import-size";
 import {
   isQuestionImportFieldErrorList,
   isQuestionImportPreviewResult,
-  MAX_QUESTION_IMPORT_BYTES,
   type CertDrillQuestionImportConfirmActionResult,
   type CertDrillQuestionImportPreviewActionResult,
 } from "./question-import-types";
@@ -31,9 +31,10 @@ function parseQuestionImportRawJson(rawJson: string): QuestionImportRawParseResu
     return { valid: false, message: "Add question import JSON first." };
   }
 
-  const byteLength = Buffer.byteLength(rawJson, "utf8");
-  if (byteLength > MAX_QUESTION_IMPORT_BYTES) {
-    return { valid: false, message: "Question import JSON must not exceed 5 MB." };
+  // The server action boundary re-checks the size with the same helper the client uses, so a
+  // client that skipped the check (or a direct action invocation) is still rejected.
+  if (exceedsQuestionImportByteLimit(rawJson)) {
+    return { valid: false, message: QUESTION_IMPORT_TOO_LARGE_MESSAGE };
   }
 
   try {

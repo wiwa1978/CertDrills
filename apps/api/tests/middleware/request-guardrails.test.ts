@@ -7,7 +7,7 @@ vi.mock("../../src/env", () => ({
   },
 }));
 
-const { clearRequestGuardrailStateForTests, requestGuardrails } = await import("../../src/middleware/request-guardrails");
+const { clearRequestGuardrailStateForTests, getRouteGuardrailForTests, requestGuardrails } = await import("../../src/middleware/request-guardrails");
 const { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES } = await import("../../src/modules/certdrill/question-import");
 const { createCertDrillAdminRouter } = await import("../../src/modules/certdrill/routes");
 
@@ -37,6 +37,20 @@ function buildCertDrillApp() {
   app.use("/*", requestGuardrails);
   app.route("/api/admin/certdrill", createCertDrillAdminRouter({ service: certDrillAdminService as never }));
   return app;
+}
+
+const questionImportPaths = [
+  "/api/admin/certdrill/questions/import",
+  "/api/admin/certdrill/questions/import/preview",
+] as const;
+
+// Reads the guardrail table itself so the configured rate-limit entries are asserted, not just the
+// observable 429 behaviour of one endpoint.
+function questionImportRateLimits() {
+  return Object.fromEntries(questionImportPaths.map((path) => [
+    path,
+    getRouteGuardrailForTests("POST", path)?.rateLimit,
+  ])) as Record<(typeof questionImportPaths)[number], { windowMs: number; max: number }>;
 }
 
 function buildImportDocument(byteTarget: number) {
@@ -184,5 +198,64 @@ describe("requestGuardrails question import coverage", () => {
 
     expect(res.status).toBe(413);
     expect(certDrillAdminService.createQuestion).not.toHaveBeenCalled();
+  });
+
+  it("configures admin-appropriate rate limits for both import endpoints", () => {
+    expect(questionImportRateLimits()).toEqual({
+      "/api/admin/certdrill/questions/import": { windowMs: 60_000, max: 10 },
+      "/api/admin/certdrill/questions/import/preview": { windowMs: 60_000, max: 30 },
+    });
+  });
+
+  it("rate limits repeated confirm imports from one client", async () => {
+    certDrillAdminService.importQuestions.mockResolvedValue({ importedCount: 0, questionIds: [] });
+    const app = buildCertDrillApp();
+    const body = JSON.stringify({
+      certificationId,
+      document: buildImportDocument(16),
+      previewDocumentHash,
+      selectedSourceIndexes: [0],
+      duplicateOverrideSourceIndexes: [],
+    });
+    const send = () => app.request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+
+    const confirmLimit = questionImportRateLimits()["/api/admin/certdrill/questions/import"].max;
+    for (let attempt = 0; attempt < confirmLimit; attempt += 1) {
+      expect((await send()).status).toBe(200);
+    }
+
+    const limited = await send();
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBeTruthy();
+    await expect(limited.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "RATE_LIMITED" },
+    });
+    expect(certDrillAdminService.importQuestions).toHaveBeenCalledTimes(confirmLimit);
+  });
+
+  it("rate limits repeated preview requests from one client above the confirm allowance", async () => {
+    certDrillAdminService.previewQuestionImport.mockResolvedValue({ documentHash: previewDocumentHash });
+    const app = buildCertDrillApp();
+    const body = JSON.stringify({ certificationId, document: buildImportDocument(16) });
+    const send = () => app.request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+
+    const previewLimit = questionImportRateLimits()["/api/admin/certdrill/questions/import/preview"].max;
+    expect(previewLimit).toBeGreaterThan(questionImportRateLimits()["/api/admin/certdrill/questions/import"].max);
+
+    for (let attempt = 0; attempt < previewLimit; attempt += 1) {
+      expect((await send()).status).toBe(200);
+    }
+
+    expect((await send()).status).toBe(429);
+    expect(certDrillAdminService.previewQuestionImport).toHaveBeenCalledTimes(previewLimit);
   });
 });

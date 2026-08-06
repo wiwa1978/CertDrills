@@ -37,10 +37,12 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     authInterrupts: true,
-    // Question import server actions carry the whole import document (5 MiB cap) plus envelope
-    // overhead, so the default 1 MB server action body limit must be raised past it.
+    // Question import server actions carry the whole import document (5 MiB cap). The document is
+    // sent inside a JSON string, so escaping can roughly double its transport size, and the action
+    // envelope adds more on top - the limit is therefore well above 2x the raw document cap rather
+    // than just above 5 MiB.
     serverActions: {
-      bodySizeLimit: "6mb",
+      bodySizeLimit: "12mb",
     },
   },
   images: {

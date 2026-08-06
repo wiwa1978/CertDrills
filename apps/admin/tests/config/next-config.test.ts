@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 import {
   MAX_QUESTION_IMPORT_BYTES,
+  MAX_QUESTION_IMPORT_ENVELOPE_BYTES,
   MAX_QUESTION_IMPORT_TRANSPORT_BYTES,
 } from "@/modules/certdrill/question-import-types";
 
@@ -35,19 +36,25 @@ describe("admin next config server actions", () => {
       .experimental?.serverActions;
 
     expect(serverActions).toBeDefined();
-    expect(serverActions?.bodySizeLimit).toBe("6mb");
+    expect(serverActions?.bodySizeLimit).toBe("12mb");
   });
 
-  it("keeps the limit above the question import document cap plus envelope overhead", () => {
+  it("covers worst-case JSON escaping of a full-size document plus the action envelope", () => {
     const serverActions = (nextConfig as { experimental?: { serverActions?: { bodySizeLimit?: unknown } } })
       .experimental?.serverActions;
 
-    expect(parseSizeLimit(serverActions?.bodySizeLimit)).toBeGreaterThanOrEqual(MAX_QUESTION_IMPORT_TRANSPORT_BYTES);
+    // The document travels inside a JSON string, so escaping can roughly double its transport
+    // size: the limit must clear at least 2x the accepted raw JSON size plus envelope overhead,
+    // not merely 5 MiB.
+    const worstCaseTransportBytes = 2 * MAX_QUESTION_IMPORT_BYTES + MAX_QUESTION_IMPORT_ENVELOPE_BYTES;
+
+    expect(parseSizeLimit(serverActions?.bodySizeLimit)).toBeGreaterThanOrEqual(worstCaseTransportBytes);
+    expect(parseSizeLimit(serverActions?.bodySizeLimit)).toBeGreaterThan(MAX_QUESTION_IMPORT_TRANSPORT_BYTES);
     expect(MAX_QUESTION_IMPORT_TRANSPORT_BYTES).toBeGreaterThan(MAX_QUESTION_IMPORT_BYTES);
   });
 
   it("documents why the default 1 MB server action limit is raised", () => {
     expect(nextConfigSource).toContain("serverActions");
-    expect(nextConfigSource).toContain('bodySizeLimit: "6mb"');
+    expect(nextConfigSource).toContain('bodySizeLimit: "12mb"');
   });
 });

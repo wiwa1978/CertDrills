@@ -8,6 +8,7 @@ import {
 
 import {
   QUESTION_IMPORT_DOCUMENT_VERSION,
+  QUESTION_IMPORT_MAX_ROW_ERRORS,
   QUESTION_IMPORT_MAX_ROWS,
 } from "../../../src/modules/certdrill/question-import";
 import { createQuestionImportService } from "../../../src/modules/certdrill/question-import-service";
@@ -523,5 +524,59 @@ describe("CertDrill question import service", () => {
 
     expect(state.questions).toHaveLength(2);
     expect(state.answers).toEqual([]);
+  });
+
+  it("keeps preview and confirm-time analysis bounded for a hostile document", async () => {
+    const { db, state, tracking } = createHarness(baseState());
+    const service = createQuestionImportService({ db });
+    const hostileDocument = buildDocument([
+      buildQuestion({
+        stem: "Hostile row",
+        answers: Array.from({ length: 100_000 }, (_, index) => ({ text: "", isCorrect: index === 0 })),
+      }),
+      buildQuestion({
+        stem: "Second hostile row",
+        answers: [
+          {
+            text: "Correct answer",
+            isCorrect: true,
+            citationUrls: Array.from({ length: 100_000 }, (_, index) => `not a url ${index}`),
+          },
+          { text: "Wrong answer", isCorrect: false },
+        ],
+      }),
+      freshQuestion,
+    ]);
+
+    const preview = await service.preview({ certificationId: ids.certification, document: hostileDocument });
+
+    expect(preview.rows.map((row) => row.valid)).toEqual([false, false, true]);
+    expect(preview.rows.every((row) => row.errors.length <= QUESTION_IMPORT_MAX_ROW_ERRORS + 1)).toBe(true);
+    expect(preview.rows[0].answerCount).toBe(100_000);
+    expect(JSON.stringify(preview).length).toBeLessThan(64 * 1024);
+
+    // Confirm reruns the same bounded analysis inside the transaction: the hostile rows stay
+    // unselectable and nothing is inserted.
+    await expect(service.confirm({
+      certificationId: ids.certification,
+      document: hostileDocument,
+      previewDocumentHash: preview.documentHash,
+      selectedSourceIndexes: [0, 2],
+      duplicateOverrideSourceIndexes: [],
+    })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT" });
+
+    expect(tracking.insertCalls).toEqual([]);
+    expect(state.questions).toHaveLength(2);
+
+    const imported = await service.confirm({
+      certificationId: ids.certification,
+      document: hostileDocument,
+      previewDocumentHash: preview.documentHash,
+      selectedSourceIndexes: [2],
+      duplicateOverrideSourceIndexes: [],
+    });
+
+    expect(imported.importedCount).toBe(1);
+    expect(state.questions).toHaveLength(3);
   });
 });

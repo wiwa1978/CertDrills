@@ -6,7 +6,17 @@ import { isSafeCitationUrl } from "./validation";
 
 export const QUESTION_IMPORT_DOCUMENT_VERSION = 1 as const;
 export const QUESTION_IMPORT_MAX_ROWS = 500;
+export const QUESTION_IMPORT_MIN_ANSWERS = 2;
+export const QUESTION_IMPORT_MAX_ANSWERS = 10;
 export const QUESTION_IMPORT_MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+// Validation error budgets. A hostile document can hold millions of malformed entries (an
+// oversized `answers` array, a huge `citationUrls` array, or thousands of unknown keys), so every
+// error list is capped and a deterministic marker is appended when issues were dropped. This keeps
+// validation memory and the preview response bounded: at most
+// QUESTION_IMPORT_MAX_ROWS * (QUESTION_IMPORT_MAX_ROW_ERRORS + 1) row errors are ever returned.
+export const QUESTION_IMPORT_MAX_ROW_ERRORS = 25;
+export const QUESTION_IMPORT_MAX_DOCUMENT_ERRORS = 50;
+export const QUESTION_IMPORT_TRUNCATED_ERRORS_MESSAGE = "Additional validation errors were omitted.";
 // Headroom for the request envelope around the document (certification id, preview hash, and the
 // selected/override index arrays). Exported so the global request guardrails and the import routes
 // share one transport cap instead of drifting apart.
@@ -95,38 +105,20 @@ const answerSchema = z.object({
   text: z.string().trim().min(1, "Answer text is required."),
   isCorrect: z.boolean(),
   explanation: z.string().trim().optional().default(""),
-  citationUrls: z.array(
-    z.string()
-      .trim()
-      .refine((value) => {
-        try {
-          new URL(value);
-          return true;
-        } catch {
-          return false;
-        }
-      }, "Citation URLs must be valid URLs.")
-      .refine(isSafeCitationUrl, "Citation URLs must use http, https, or mailto."),
-  ).optional().default([]),
+  // Citation URLs pass through the schema untouched and are checked by `normalizeCitationUrls`
+  // instead. A per-element Zod schema would emit one issue per malformed entry, so a single answer
+  // carrying millions of bad citations could produce millions of issues.
+  citationUrls: z.unknown().optional(),
 }).strict();
 
+// Answer-count rules (min, max, and exactly one correct answer) live in `validateQuestionRow`
+// rather than in the schema, so an over-long `answers` array is rejected on its length without
+// schema-validating every extra element.
 const questionSchema = z.object({
   categoryCode: z.string().trim().min(1, "Category code is required."),
   stem: z.string().trim().min(1, "Stem is required."),
   difficulty: difficultySchema.optional().default("medium"),
-  answers: z.array(answerSchema)
-    .min(2, "Must include at least 2 answers.")
-    .max(10, "Must include at most 10 answers.")
-    .superRefine((answers, ctx) => {
-      const correctCount = answers.filter((answer) => answer.isCorrect).length;
-      if (correctCount !== 1) {
-        ctx.addIssue({
-          code: "custom",
-          path: [],
-          message: "Exactly one answer must be correct.",
-        });
-      }
-    }),
+  answers: z.array(answerSchema),
 }).strict();
 
 const documentSchema = z.object({
@@ -156,31 +148,28 @@ export function normalizeImportedStem(stem: string) {
 }
 
 export function analyzeQuestionImport({ document, categories, existingQuestions }: AnalyzeQuestionImportInput) {
-  const parsedDocument = documentSchema.safeParse(document);
-  if (!parsedDocument.success) {
-    throw new QuestionImportDocumentError(formatZodIssues(parsedDocument.error.issues, { rootField: "document" }));
-  }
+  const parsedDocument = parseImportDocument(document);
 
-  const documentHash = hashQuestionImportDocument(parsedDocument.data);
+  const documentHash = hashQuestionImportDocument(parsedDocument);
   const categoryIndex = indexCategories(categories);
   const existingQuestionIndex = indexExistingQuestions(existingQuestions);
   const batchStemIndex = new Map<string, number[]>();
   const normalizedRows = new Map<number, NormalizedImportedQuestion>();
 
-  const rows = parsedDocument.data.questions.map((row, sourceIndex) => {
+  const rows = parsedDocument.questions.map((row, sourceIndex) => {
     const previewBase = buildPreviewBase(row, sourceIndex);
-    const parsedRow = questionSchema.safeParse(row);
-    const rowErrors = parsedRow.success ? [] : formatZodIssues(parsedRow.error.issues, { rootField: "row" });
+    const rowErrors = new BoundedFieldErrors({ limit: QUESTION_IMPORT_MAX_ROW_ERRORS, markerField: "row", sort: true });
+    const parsedRow = validateQuestionRow(row, rowErrors);
     const categoryResolution = resolveCategory(previewBase.categoryCode, categoryIndex);
 
     if (categoryResolution.status === "resolved") {
       previewBase.categoryId = categoryResolution.category.id;
     } else if (categoryResolution.status !== "skipped") {
-      rowErrors.push(categoryResolution.error);
+      rowErrors.add(categoryResolution.error.field, categoryResolution.error.message);
     }
 
-    const duplicateStem = parsedRow.success ? parsedRow.data.stem : previewBase.stem;
-    const valid = parsedRow.success && categoryResolution.status === "resolved" && rowErrors.length === 0;
+    const duplicateStem = parsedRow ? parsedRow.stem : previewBase.stem;
+    const valid = parsedRow !== null && categoryResolution.status === "resolved" && !rowErrors.hasErrors;
     // Invalid rows can still surface their own existing-question matches, but they are never
     // indexed for later rows: an unimportable row must not turn a later valid row into a
     // within-batch duplicate.
@@ -189,32 +178,28 @@ export function analyzeQuestionImport({ document, categories, existingQuestions 
 
     const previewRow: QuestionImportPreviewRow = {
       sourceIndex,
-      categoryCode: parsedRow.success ? parsedRow.data.categoryCode : previewBase.categoryCode,
+      categoryCode: parsedRow ? parsedRow.categoryCode : previewBase.categoryCode,
       categoryId: previewBase.categoryId,
-      stem: parsedRow.success ? parsedRow.data.stem : previewBase.stem,
-      difficulty: parsedRow.success ? parsedRow.data.difficulty : previewBase.difficulty,
-      answerCount: parsedRow.success ? parsedRow.data.answers.length : previewBase.answerCount,
+      stem: parsedRow ? parsedRow.stem : previewBase.stem,
+      difficulty: parsedRow ? parsedRow.difficulty : previewBase.difficulty,
+      // Always the submitted answer count, so an over-limit row still reports how many answers it
+      // actually carried even though only the first allowed answers were schema-validated.
+      answerCount: previewBase.answerCount,
       valid,
       duplicate,
       selectedByDefault,
-      errors: sortFieldErrors(rowErrors),
+      errors: rowErrors.toFieldErrors(),
     };
 
-    if (valid && parsedRow.success && categoryResolution.status === "resolved") {
-      const normalizedStem = normalizeImportedStem(parsedRow.data.stem);
+    if (valid && parsedRow && categoryResolution.status === "resolved") {
       normalizedRows.set(sourceIndex, {
         sourceIndex,
         categoryId: categoryResolution.category.id,
-        categoryCode: parsedRow.data.categoryCode,
-        stem: parsedRow.data.stem,
-        normalizedStem,
-        difficulty: parsedRow.data.difficulty,
-        answers: parsedRow.data.answers.map((answer) => ({
-          text: answer.text,
-          isCorrect: answer.isCorrect,
-          explanation: answer.explanation,
-          citationUrls: answer.citationUrls,
-        })),
+        categoryCode: parsedRow.categoryCode,
+        stem: parsedRow.stem,
+        normalizedStem: normalizeImportedStem(parsedRow.stem),
+        difficulty: parsedRow.difficulty,
+        answers: parsedRow.answers,
       });
     }
 
@@ -237,6 +222,218 @@ export function analyzeQuestionImport({ document, categories, existingQuestions 
     } satisfies QuestionImportPreviewResult,
     normalizedRows,
   };
+}
+
+// Bounded, sortable field-error accumulator. Once the limit is reached the collector stops
+// retaining errors and records that issues were dropped, so callers can also stop scanning
+// hostile input instead of walking millions of entries that can never be reported.
+class BoundedFieldErrors {
+  private readonly errors: QuestionImportFieldError[] = [];
+  private truncated = false;
+
+  constructor(private readonly options: { limit: number; markerField: string; sort: boolean }) {}
+
+  get isFull() {
+    return this.errors.length >= this.options.limit;
+  }
+
+  get hasErrors() {
+    return this.errors.length > 0 || this.truncated;
+  }
+
+  /** Returns false when the error was dropped because the budget is exhausted. */
+  add(field: string, message: string) {
+    if (this.isFull) {
+      this.truncated = true;
+      return false;
+    }
+
+    this.errors.push({ field, message });
+    return true;
+  }
+
+  addZodIssues(issues: ReadonlyArray<z.ZodIssue>) {
+    for (const issue of issues) {
+      if (issue.code === "unrecognized_keys") {
+        const keys = "keys" in issue && Array.isArray(issue.keys) ? issue.keys : [];
+        for (const key of keys) {
+          if (!this.add(pathToField([...issue.path, key], this.options.markerField), "Unknown field.")) return;
+        }
+        continue;
+      }
+
+      if (!this.add(pathToField(issue.path, this.options.markerField), issue.message)) return;
+    }
+  }
+
+  toFieldErrors(): QuestionImportFieldError[] {
+    const errors = this.options.sort ? sortFieldErrors(this.errors) : [...this.errors];
+    if (this.truncated) {
+      errors.push({ field: this.options.markerField, message: QUESTION_IMPORT_TRUNCATED_ERRORS_MESSAGE });
+    }
+
+    return errors;
+  }
+}
+
+function parseImportDocument(document: unknown) {
+  const parsed = documentSchema.safeParse(capDocumentQuestions(document));
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const documentErrors = new BoundedFieldErrors({
+    limit: QUESTION_IMPORT_MAX_DOCUMENT_ERRORS,
+    markerField: "document",
+    sort: false,
+  });
+  documentErrors.addZodIssues(parsed.error.issues);
+  throw new QuestionImportDocumentError(documentErrors.toFieldErrors());
+}
+
+// Zod validates (and copies) every element of `questions` before the max-rows check reports the
+// problem, so an over-long array is capped just past the limit first. The document is rejected
+// either way and the work stays bounded by the row limit instead of the submitted row count.
+function capDocumentQuestions(document: unknown): unknown {
+  if (!isRecord(document) || !Array.isArray(document.questions) || document.questions.length <= QUESTION_IMPORT_MAX_ROWS) {
+    return document;
+  }
+
+  return { ...document, questions: document.questions.slice(0, QUESTION_IMPORT_MAX_ROWS + 1) };
+}
+
+type ValidatedQuestionRow = {
+  categoryCode: string;
+  stem: string;
+  difficulty: QuestionImportDifficulty;
+  answers: NormalizedImportedAnswer[];
+};
+
+function validateQuestionRow(row: unknown, errors: BoundedFieldErrors): ValidatedQuestionRow | null {
+  const rawAnswers = isRecord(row) && Array.isArray(row.answers) ? row.answers : null;
+  const answersOverLimit = rawAnswers !== null && rawAnswers.length > QUESTION_IMPORT_MAX_ANSWERS;
+  // Only the first allowed answers are schema-validated. An `answers` array with millions of
+  // entries is rejected on its length alone, and validating every extra element would let one
+  // hostile row emit millions of issues.
+  const cappedAnswers = answersOverLimit ? rawAnswers.slice(0, QUESTION_IMPORT_MAX_ANSWERS) : rawAnswers;
+  const candidate = answersOverLimit ? { ...(row as Record<string, unknown>), answers: cappedAnswers } : row;
+
+  const parsed = questionSchema.safeParse(candidate);
+  if (!parsed.success) {
+    errors.addZodIssues(parsed.error.issues);
+  }
+
+  if (rawAnswers) {
+    if (rawAnswers.length < QUESTION_IMPORT_MIN_ANSWERS) {
+      errors.add("answers", `Must include at least ${QUESTION_IMPORT_MIN_ANSWERS} answers.`);
+    }
+
+    if (answersOverLimit) {
+      errors.add("answers", `Must include at most ${QUESTION_IMPORT_MAX_ANSWERS} answers.`);
+    } else if (countCorrectAnswers(rawAnswers) !== 1) {
+      errors.add("answers", "Exactly one answer must be correct.");
+    }
+  }
+
+  const citationUrls = normalizeAnswerCitations(cappedAnswers ?? [], errors);
+  if (!parsed.success || citationUrls === null) {
+    return null;
+  }
+
+  return {
+    categoryCode: parsed.data.categoryCode,
+    stem: parsed.data.stem,
+    difficulty: parsed.data.difficulty,
+    answers: parsed.data.answers.map((answer, index) => ({
+      text: answer.text,
+      isCorrect: answer.isCorrect,
+      explanation: answer.explanation,
+      citationUrls: citationUrls[index] ?? [],
+    })),
+  };
+}
+
+function countCorrectAnswers(answers: ReadonlyArray<unknown>) {
+  return answers.filter((answer) => isRecord(answer) && answer.isCorrect === true).length;
+}
+
+function normalizeAnswerCitations(answers: ReadonlyArray<unknown>, errors: BoundedFieldErrors): string[][] | null {
+  const normalized: string[][] = [];
+  let valid = true;
+
+  for (const [index, answer] of answers.entries()) {
+    const citationUrls = normalizeCitationUrls(
+      isRecord(answer) ? answer.citationUrls : undefined,
+      `answers.${index}.citationUrls`,
+      errors,
+    );
+
+    if (citationUrls === null) {
+      valid = false;
+      // Remaining answers are still checked so every answer reports its own citation problems,
+      // unless the row error budget is already exhausted and nothing more can be reported.
+      if (errors.isFull) return null;
+      continue;
+    }
+
+    if (valid) {
+      normalized.push(citationUrls);
+    }
+  }
+
+  return valid ? normalized : null;
+}
+
+// Deliberately hand-rolled instead of a per-element Zod schema: a hostile array can hold millions
+// of malformed entries, so entries are checked linearly and scanning stops as soon as the row
+// error budget is exhausted. The row stays invalid either way.
+function normalizeCitationUrls(value: unknown, field: string, errors: BoundedFieldErrors): string[] | null {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    errors.add(field, "Citation URLs must be provided as an array.");
+    return null;
+  }
+
+  const normalized: string[] = [];
+  let valid = true;
+
+  for (const [index, entry] of value.entries()) {
+    const entryField = `${field}.${index}`;
+
+    if (typeof entry !== "string") {
+      valid = false;
+      if (!errors.add(entryField, "Citation URLs must be strings.")) return null;
+      continue;
+    }
+
+    const citationUrl = entry.trim();
+    if (!isSafeCitationUrl(citationUrl)) {
+      valid = false;
+      const message = isParsableUrl(citationUrl)
+        ? "Citation URLs must use http, https, or mailto."
+        : "Citation URLs must be valid URLs.";
+      if (!errors.add(entryField, message)) return null;
+      continue;
+    }
+
+    if (valid) {
+      normalized.push(citationUrl);
+    }
+  }
+
+  return valid ? normalized : null;
+}
+
+function isParsableUrl(value: string) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildPreviewBase(row: unknown, sourceIndex: number) {
@@ -333,44 +530,65 @@ function normalizeCategoryCode(categoryCode: string) {
 }
 
 export function hashQuestionImportDocument(value: unknown) {
-  return createHash("sha256").update(JSON.stringify(sortJsonValue(value))).digest("hex");
+  return createHash("sha256").update(serializeWithSortedKeys(value)).digest("hex");
 }
 
-function sortJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => sortJsonValue(entry));
-  }
+type SerializationFrame =
+  | { kind: "value"; value: unknown }
+  | { kind: "literal"; text: string };
 
-  if (!isRecord(value)) {
-    return value;
-  }
+// Canonical JSON serialization with recursively key-sorted objects, written with an explicit stack.
+// Both a recursive walk and `JSON.stringify` with a replacer recurse per nesting level, so a deeply
+// nested (but small) hostile document could overflow the stack before validation ever rejected it.
+function serializeWithSortedKeys(value: unknown) {
+  const output: string[] = [];
+  const stack: SerializationFrame[] = [{ kind: "value", value }];
 
-  return Object.keys(value)
-    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
-    .reduce<Record<string, unknown>>((sorted, key) => {
-      const entry = value[key];
-      if (entry !== undefined) {
-        sorted[key] = sortJsonValue(entry);
-      }
-      return sorted;
-    }, {});
-}
+  while (stack.length > 0) {
+    const frame = stack.pop() as SerializationFrame;
 
-function formatZodIssues(issues: z.ZodIssue[], options: { rootField: string }) {
-  return issues.flatMap<QuestionImportFieldError>((issue) => {
-    if (issue.code === "unrecognized_keys") {
-      const keys = "keys" in issue && Array.isArray(issue.keys) ? issue.keys : [];
-      return keys.map((key) => ({
-        field: pathToField([...issue.path, key], options.rootField),
-        message: "Unknown field.",
-      }));
+    if (frame.kind === "literal") {
+      output.push(frame.text);
+      continue;
     }
 
-    return [{
-      field: pathToField(issue.path, options.rootField),
-      message: issue.message,
-    }];
-  });
+    const entry = frame.value;
+
+    if (Array.isArray(entry)) {
+      output.push("[");
+      stack.push({ kind: "literal", text: "]" });
+      for (let index = entry.length - 1; index >= 0; index -= 1) {
+        stack.push({ kind: "value", value: entry[index] });
+        if (index > 0) {
+          stack.push({ kind: "literal", text: "," });
+        }
+      }
+      continue;
+    }
+
+    if (isRecord(entry)) {
+      const keys = Object.keys(entry)
+        .filter((key) => entry[key] !== undefined)
+        .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+
+      output.push("{");
+      stack.push({ kind: "literal", text: "}" });
+      for (let index = keys.length - 1; index >= 0; index -= 1) {
+        stack.push({ kind: "value", value: entry[keys[index]] });
+        stack.push({ kind: "literal", text: `${JSON.stringify(keys[index])}:` });
+        if (index > 0) {
+          stack.push({ kind: "literal", text: "," });
+        }
+      }
+      continue;
+    }
+
+    // `JSON.stringify` returns undefined for values it cannot represent (undefined, functions,
+    // symbols); inside an array those serialize as null, which is what JSON.stringify would emit.
+    output.push(JSON.stringify(entry) ?? "null");
+  }
+
+  return output.join("");
 }
 
 function pathToField(path: ReadonlyArray<PropertyKey>, rootField: string) {

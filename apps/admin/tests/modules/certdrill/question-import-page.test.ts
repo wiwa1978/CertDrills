@@ -96,6 +96,14 @@ const previewMarkupFixture: CertDrillQuestionImportPreviewResult = {
   ],
 };
 
+// Slices out one handler body from the client component source, so guard ordering inside the
+// handler can be asserted without a DOM test runner.
+function formFunctionBody(name: string) {
+  const start = questionImportFormSource.indexOf(`async function ${name}(`);
+  const end = questionImportFormSource.indexOf("\n  }", start);
+  return questionImportFormSource.slice(start, end);
+}
+
 function renderPreviewDetails(pending: boolean) {
   return renderToStaticMarkup(
     createElement(QuestionImportPreviewDetails, {
@@ -226,6 +234,26 @@ describe("question import form", () => {
     expect(questionImportFormSource).toContain("function handleTextareaChange(");
     expect(questionImportFormSource).toContain("setPreview(null)");
     expect(questionImportFormSource).toContain("setMessage(null)");
+  });
+
+  it("checks the current raw JSON UTF-8 size before invoking either server action", () => {
+    expect(questionImportFormSource).toContain('from "./question-import-size"');
+    expect(questionImportFormSource).toContain("exceedsQuestionImportByteLimit");
+    expect(questionImportFormSource).toContain("setMessage(QUESTION_IMPORT_TOO_LARGE_MESSAGE)");
+
+    const validateBody = formFunctionBody("handleValidate");
+    const validateGuardIndex = validateBody.indexOf("exceedsQuestionImportByteLimit(rawJson)");
+    expect(validateGuardIndex).toBeGreaterThan(-1);
+    expect(validateBody.indexOf("await previewAction(")).toBeGreaterThan(validateGuardIndex);
+    // The pasted JSON is preserved: only the stale preview state is dropped.
+    expect(validateBody).not.toContain("setRawJson(");
+
+    const confirmBody = formFunctionBody("handleConfirm");
+    const confirmGuardIndex = confirmBody.indexOf("exceedsQuestionImportByteLimit(rawJson)");
+    expect(confirmGuardIndex).toBeGreaterThan(-1);
+    expect(confirmBody.indexOf("await confirmAction({")).toBeGreaterThan(confirmGuardIndex);
+    // Nothing was sent, so the confirmed preview and selection stay on screen for a retry.
+    expect(confirmBody.slice(confirmGuardIndex, confirmBody.indexOf("await confirmAction({"))).not.toContain("setPreview(null)");
   });
 
   it("wires the validate-and-preview action with a pending, disabled submit state", () => {

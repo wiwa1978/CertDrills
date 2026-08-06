@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { questionEditorHref } from "./question-editor-href";
 import { compactQuestionId } from "./question-id";
 import { questionImportErrorMessage } from "./question-import-error";
+import { exceedsQuestionImportByteLimit, QUESTION_IMPORT_TOO_LARGE_MESSAGE } from "./question-import-size";
 import {
   areAllQuestionImportDuplicatesIncluded,
   initialQuestionImportSelection,
@@ -272,7 +273,7 @@ export function QuestionImportForm({
     clearPreviewState();
 
     if (file.size > MAX_QUESTION_IMPORT_BYTES) {
-      setMessage("Question import JSON must not exceed 5 MB.");
+      setMessage(QUESTION_IMPORT_TOO_LARGE_MESSAGE);
       return;
     }
 
@@ -287,6 +288,17 @@ export function QuestionImportForm({
 
   async function handleValidate() {
     if (pending) return;
+
+    // The pasted/edited text is measured in UTF-8 bytes before anything is sent: `file.size` only
+    // covers uploads, and multibyte edits can push the document past the limit afterwards. The raw
+    // JSON is kept so the admin can trim it down.
+    if (exceedsQuestionImportByteLimit(rawJson)) {
+      setPreview(null);
+      setSelection(initialQuestionImportSelection([]));
+      setMessage(QUESTION_IMPORT_TOO_LARGE_MESSAGE);
+      setDocumentErrors([]);
+      return;
+    }
 
     setOperation("preview");
     setMessage(null);
@@ -320,6 +332,15 @@ export function QuestionImportForm({
 
   async function handleConfirm() {
     if (pending || !preview || selection.selected.length === 0) return;
+
+    // Same pre-send byte check as preview. Nothing is imported, so the current preview and
+    // selection stay on screen for a retry after the document is trimmed.
+    if (exceedsQuestionImportByteLimit(rawJson)) {
+      setMessage(QUESTION_IMPORT_TOO_LARGE_MESSAGE);
+      setDocumentErrors([]);
+      setPendingFocus("conflict");
+      return;
+    }
 
     setOperation("confirm");
     setMessage(null);
