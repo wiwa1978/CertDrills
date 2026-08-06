@@ -10,6 +10,7 @@ import {
   createCertDrillAdminMockGenerationJobServer,
   createCertDrillAdminQuestionServer,
   createCertDrillAdminResourceServer,
+  ingestCertDrillAdminResourceServer,
   archiveCertDrillAdminCategoryServer,
   archiveCertDrillAdminCertificationServer,
   publishCertDrillAdminQuestionServer,
@@ -444,6 +445,19 @@ export async function updateCertDrillResourceAction(formData: FormData) {
 
   await updateCertDrillAdminResourceServer(resourceId, payload);
   revalidateCertDrillAdminPage();
+}
+
+export async function ingestCertDrillResourceAction(formData: FormData) {
+  const resourceId = requiredString(formData, "resourceId");
+  if (!resourceId) {
+    throw new Error("Resource ID is required.");
+  }
+
+  try {
+    await ingestCertDrillAdminResourceServer(resourceId);
+  } finally {
+    revalidateCertDrillAdminPage();
+  }
 }
 
 export async function createCertDrillMockGenerationAction(formData: FormData) {

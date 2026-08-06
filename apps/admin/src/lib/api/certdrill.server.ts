@@ -153,7 +153,11 @@ export type CertDrillAdminResourceInput = {
 };
 
 export type CertDrillAdminResourceUpdateInput = Partial<CertDrillAdminResourceInput>;
-export type CertDrillAdminResource = CertDrillAdminResourceInput & { id: string };
+export type CertDrillAdminResource = CertDrillAdminResourceInput & {
+  id: string;
+  ingestedAt?: Nullable<string>;
+  ingestError?: Nullable<string>;
+};
 
 export type CertDrillAdminMockGenerationInput = {
   certificationId: string;
@@ -351,6 +355,10 @@ export async function updateCertDrillAdminResourceServer(
   payload: CertDrillAdminResourceUpdateInput,
 ): Promise<CertDrillAdminResource> {
   return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}`, jsonRequestInit("PATCH", payload));
+}
+
+export async function ingestCertDrillAdminResourceServer(resourceId: string): Promise<CertDrillAdminResource> {
+  return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));
 }
 
 export async function createCertDrillAdminMockGenerationJobServer(
