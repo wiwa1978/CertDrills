@@ -1278,7 +1278,7 @@ function AdminCertificationOverviewTable({ certifications }: { certifications: A
         const visibility = archivedAt ? "Archived" : !isActive ? "Inactive" : enabledAt ? "Scheduled" : "Visible";
 
         return (
-          <Link
+          <LocalizedLink
             key={certification.id}
             href={certdrillAdminDetailHref(certification.id)}
             className="group block h-full rounded-xl outline-none transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -1303,7 +1303,7 @@ function AdminCertificationOverviewTable({ certifications }: { certifications: A
                 </div>
               </CardContent>
             </Card>
-          </Link>
+          </LocalizedLink>
         );
       })}
     </div>

@@ -105,8 +105,10 @@ describe("CertDrill admin page copy", () => {
   });
 
   it("links overview cards to certification details without nested actions", () => {
-    expect(certificationOverviewSource).toContain("key={certification.id}");
+    expect(certificationOverviewSource).toContain("<LocalizedLink");
     expect(certificationOverviewSource).toContain("href={certdrillAdminDetailHref(certification.id)}");
+    expect(certificationOverviewSource).toContain("key={certification.id}");
+    expect(certificationOverviewSource).not.toContain("<Link key={certification.id}");
     expect(certificationOverviewSource).toContain("Card");
     expect(certificationOverviewSource).not.toContain("Open details");
     expect(certificationOverviewSource).not.toContain("Archive certification");
