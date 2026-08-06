@@ -98,6 +98,40 @@ describe("CertDrill admin service", () => {
     expect(confirm).toHaveBeenCalledWith(confirmInput);
   });
 
+  it("delegates blueprint parse lifecycle calls to the focused parse service", async () => {
+    const { db } = createAdminDb({});
+    const start = vi.fn().mockResolvedValue({ id: "run-1", status: "pending" });
+    const get = vi.fn().mockResolvedValue({ id: "run-1", status: "completed" });
+    const list = vi.fn().mockResolvedValue([{ id: "run-1", status: "completed" }]);
+    const processPending = vi.fn().mockResolvedValue({ checked: 2, completed: 1, failed: 1 });
+    const service = createCertDrillAdminService({
+      db,
+      blueprintParse: { start, get, list, processPending },
+    } as never);
+
+    await expect(service.startBlueprintParseRun({ certificationId: ids.cert, resourceId: ids.resource })).resolves.toEqual({
+      id: "run-1",
+      status: "pending",
+    });
+    await expect(service.getBlueprintParseRun("run-1")).resolves.toEqual({
+      id: "run-1",
+      status: "completed",
+    });
+    await expect(service.listBlueprintParseRuns(ids.cert)).resolves.toEqual([
+      { id: "run-1", status: "completed" },
+    ]);
+    await expect(service.processPendingBlueprintParseRuns(2)).resolves.toEqual({
+      checked: 2,
+      completed: 1,
+      failed: 1,
+    });
+
+    expect(start).toHaveBeenCalledWith({ certificationId: ids.cert, resourceId: ids.resource });
+    expect(get).toHaveBeenCalledWith("run-1");
+    expect(list).toHaveBeenCalledWith(ids.cert);
+    expect(processPending).toHaveBeenCalledWith(2);
+  });
+
   it("creates, lists, and updates certifications", async () => {
     const { db, inserts, updates } = createAdminDb({
       certifications: [{ id: ids.cert, code: "AWS-SAA-C03", name: "AWS Architect", vendor: "AWS", isActive: true }],
