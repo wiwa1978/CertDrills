@@ -50,20 +50,34 @@ describe("extractResourceDocument", () => {
     });
   });
 
-  it("extracts title and text from a real pdf", async () => {
+  it("accepts parameterized html content types case-insensitively", async () => {
+    await expect(
+      extractResourceDocument({
+        contentType: "Text/HTML; Charset=UTF-8",
+        body: "<html><head><title>Title</title></head><body><main>Hello</main></body></html>",
+      }),
+    ).resolves.toMatchObject({
+      title: "Title",
+      contentType: "text/html",
+      text: "Hello",
+    });
+  });
+
+  it("extracts title and text from a multi-page pdf", async () => {
     const pdf = await PDFDocument.create();
     pdf.setTitle("PDF Resource Title");
-    const page = pdf.addPage([400, 400]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
-    page.drawText("First page text", { x: 40, y: 340, size: 18, font });
-    page.drawText("Second line", { x: 40, y: 310, size: 18, font });
+    const firstPage = pdf.addPage([400, 400]);
+    firstPage.drawText("First page text", { x: 40, y: 340, size: 18, font });
+    const secondPage = pdf.addPage([400, 400]);
+    secondPage.drawText("Second page text", { x: 40, y: 340, size: 18, font });
 
     const bytes = await pdf.save();
 
     await expect(extractResourceDocument({ contentType: "application/pdf", body: bytes })).resolves.toEqual({
       title: "PDF Resource Title",
       contentType: "application/pdf",
-      text: "First page text\nSecond line",
+      text: "First page text\n\nSecond page text",
     });
   });
 

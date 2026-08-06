@@ -1,7 +1,9 @@
 import { load } from "cheerio";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join, sep } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export type ExtractedResourceContentType = "text/html" | "application/pdf";
 
@@ -58,6 +60,9 @@ const BLOCK_WITH_SINGLE_LINES = new Set([
 ]);
 
 const LIST_CONTAINER_TAGS = new Set(["dl", "ol", "ul"]);
+const pdfjsDistPackageDir = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
+const pdfjsDistStandardFontDataUrl = pathToFileURL(join(pdfjsDistPackageDir, "standard_fonts") + sep).toString();
+const pdfjsDistCMapUrl = pathToFileURL(join(pdfjsDistPackageDir, "cmaps") + sep).toString();
 
 type ExtractResourceDocumentInput = {
   contentType: string;
@@ -104,15 +109,17 @@ export function normalizeResourceText(value: string) {
 }
 
 export async function extractResourceDocument(input: ExtractResourceDocumentInput): Promise<ExtractedResourceDocument> {
-  if (input.contentType === "text/html") {
+  const contentType = normalizeContentType(input.contentType);
+
+  if (contentType === "text/html") {
     return extractHtmlDocument(input.body);
   }
 
-  if (input.contentType === "application/pdf") {
+  if (contentType === "application/pdf") {
     return extractPdfDocument(input.body);
   }
 
-  throw new ResourceExtractionError("UNSUPPORTED_CONTENT_TYPE", `Unsupported content type: ${input.contentType}`);
+  throw new ResourceExtractionError("UNSUPPORTED_CONTENT_TYPE", `Unsupported content type: ${contentType || input.contentType}`);
 }
 
 async function extractHtmlDocument(body: string | ArrayBuffer | ArrayBufferView): Promise<ExtractedResourceDocument> {
@@ -143,7 +150,9 @@ async function extractPdfDocument(body: string | ArrayBuffer | ArrayBufferView):
   const data = toUint8Array(body);
   const loadingTask = getDocument({
     data,
-    standardFontDataUrl: new URL("../../../../../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString(),
+    cMapUrl: pdfjsDistCMapUrl,
+    cMapPacked: true,
+    standardFontDataUrl: pdfjsDistStandardFontDataUrl,
     useWorkerFetch: false,
     BinaryDataFactory: LocalBinaryDataFactory,
   });
@@ -303,6 +312,10 @@ function normalizeResourceTitle(value: string | null | undefined) {
 
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeContentType(contentType: string) {
+  return contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
 function decodeTextBody(body: ArrayBuffer | ArrayBufferView) {
