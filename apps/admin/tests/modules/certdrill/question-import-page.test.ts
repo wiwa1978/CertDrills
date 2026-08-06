@@ -1,12 +1,24 @@
 import { readFileSync } from "node:fs";
 
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { questionImportHref } from "@/modules/certdrill/question-editor-href";
+// next-intl's `createNavigation()` eagerly imports `next/navigation` at module scope, which this
+// workspace's installed `next` version does not expose under an extensionless specifier. Real
+// Next.js builds resolve this fine through webpack, but a plain Node/Vitest module graph cannot -
+// so real (non-mocked) rendering of anything importing "@/i18n/navigation" needs this stub.
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({ href, children }: { href: string; children?: ReactNode }) => createElement("a", { href }, children),
+  useRouter: () => ({ push: () => {}, refresh: () => {} }),
+}));
+
+import { questionEditorHref, questionImportHref } from "@/modules/certdrill/question-editor-href";
 import { QuestionImportForm } from "@/modules/certdrill/question-import-form";
-import type { CertDrillQuestionImportPreviewActionResult } from "@/modules/certdrill/question-import-types";
+import type {
+  CertDrillQuestionImportConfirmActionResult,
+  CertDrillQuestionImportPreviewActionResult,
+} from "@/modules/certdrill/question-import-types";
 
 function readSource(relativePath: string) {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
@@ -14,6 +26,7 @@ function readSource(relativePath: string) {
 
 const questionImportPageSource = readSource("../../../src/modules/certdrill/question-import-page.tsx");
 const questionImportFormSource = readSource("../../../src/modules/certdrill/question-import-form.tsx");
+const questionImportSelectionSource = readSource("../../../src/modules/certdrill/question-import-selection.ts");
 const importRouteSource = readSource(
   "../../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/questions/import/page.tsx",
 );
@@ -21,13 +34,21 @@ const exampleJson = readSource("../../../public/question-import-example.json");
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
 
-async function harmlessAction(): Promise<CertDrillQuestionImportPreviewActionResult> {
+async function harmlessPreviewAction(): Promise<CertDrillQuestionImportPreviewActionResult> {
+  return { status: "error", message: "not used" };
+}
+
+async function harmlessConfirmAction(): Promise<CertDrillQuestionImportConfirmActionResult> {
   return { status: "error", message: "not used" };
 }
 
 function renderForm() {
   return renderToStaticMarkup(
-    createElement(QuestionImportForm, { certificationId, action: harmlessAction }),
+    createElement(QuestionImportForm, {
+      certificationId,
+      previewAction: harmlessPreviewAction,
+      confirmAction: harmlessConfirmAction,
+    }),
   );
 }
 
@@ -76,7 +97,12 @@ describe("question import page", () => {
     expect(questionImportPageSource).toContain('href="/question-import-example.json"');
     expect(questionImportPageSource).toContain("download");
     expect(questionImportPageSource).toContain('import { QuestionImportForm } from "./question-import-form";');
-    expect(questionImportPageSource).toContain("<QuestionImportForm certificationId={certificationId} action={previewCertDrillQuestionImportAction} />");
+    expect(questionImportPageSource).toContain("previewCertDrillQuestionImportAction");
+    expect(questionImportPageSource).toContain("confirmCertDrillQuestionImportAction");
+    expect(questionImportPageSource).toContain("<QuestionImportForm");
+    expect(questionImportPageSource).toContain("certificationId={certificationId}");
+    expect(questionImportPageSource).toContain("previewAction={previewCertDrillQuestionImportAction}");
+    expect(questionImportPageSource).toContain("confirmAction={confirmCertDrillQuestionImportAction}");
   });
 });
 
@@ -149,18 +175,147 @@ describe("question import form", () => {
     expect(questionImportFormSource).toContain("Validate and preview");
     expect(questionImportFormSource).toContain("disabled={pending}");
     expect(questionImportFormSource).toContain("if (pending) return;");
-    expect(questionImportFormSource).toContain("setPending(true)");
-    expect(questionImportFormSource).toContain("setPending(false)");
-    expect(questionImportFormSource).toContain("await action({ certificationId, rawJson })");
+    expect(questionImportFormSource).toContain('setOperation("preview")');
+    expect(questionImportFormSource).toContain("setOperation(null)");
+    expect(questionImportFormSource).toContain("await previewAction({ certificationId, rawJson })");
   });
 
-  it("shows preview totals after a successful validation without saving anything", () => {
+  it("shows preview totals, including the selected count, after a successful validation without saving anything", () => {
     expect(questionImportFormSource).toContain("preview.totals.submitted");
     expect(questionImportFormSource).toContain("preview.totals.valid");
     expect(questionImportFormSource).toContain("preview.totals.invalid");
     expect(questionImportFormSource).toContain("preview.totals.duplicateExisting");
     expect(questionImportFormSource).toContain("preview.totals.duplicateBatch");
+    expect(questionImportFormSource).toContain("selection.selected.length");
     expect(questionImportFormSource).toContain("Nothing has been imported yet.");
+  });
+
+  it("initializes default selection from the preview rows and moves focus to the preview heading on success", () => {
+    expect(questionImportFormSource).toContain("initialQuestionImportSelection(result.preview.rows)");
+    expect(questionImportFormSource).toContain('setPendingFocus("preview")');
+    expect(questionImportFormSource).toContain("previewHeadingRef.current?.focus()");
+    expect(questionImportFormSource).toContain('<h2 ref={previewHeadingRef} tabIndex={-1}');
+  });
+
+  it("clears the preview, selection, and message together whenever the raw JSON changes", () => {
+    expect(questionImportFormSource).toContain("function clearPreviewState()");
+    expect(questionImportFormSource).toContain("setSelection(initialQuestionImportSelection([]))");
+
+    const clearBodyStart = questionImportFormSource.indexOf("function clearPreviewState()");
+    const clearBodyEnd = questionImportFormSource.indexOf("}", clearBodyStart);
+    const clearBody = questionImportFormSource.slice(clearBodyStart, clearBodyEnd);
+    expect(clearBody).toContain("setPreview(null)");
+    expect(clearBody).toContain("setSelection(initialQuestionImportSelection([]))");
+    expect(clearBody).toContain("setMessage(null)");
+
+    expect(questionImportFormSource).toContain("clearPreviewState();\n\n    if (file.size > MAX_QUESTION_IMPORT_BYTES)");
+    expect(questionImportFormSource).toContain("setRawJson(event.target.value);\n    clearPreviewState();");
+  });
+
+  it("renders every preview row with a checkbox, row number, category, stem, difficulty, answer count, validation, duplicate status, and errors", () => {
+    expect(questionImportFormSource).toContain("preview.rows.map((row) =>");
+    expect(questionImportFormSource).toContain("const rowNumber = row.sourceIndex + 1;");
+    expect(questionImportFormSource).toContain('aria-label={`Import row ${rowNumber}`}');
+    expect(questionImportFormSource).toContain("<TableCell>{rowNumber}</TableCell>");
+    expect(questionImportFormSource).toContain("{row.categoryCode}</TableCell>");
+    expect(questionImportFormSource).toContain("{row.stem}</TableCell>");
+    expect(questionImportFormSource).toContain("<Badge variant=\"secondary\">{row.difficulty}</Badge>");
+    expect(questionImportFormSource).toContain("<TableCell>{row.answerCount}</TableCell>");
+    expect(questionImportFormSource).toContain("{row.valid ? \"Valid\" : \"Invalid\"}");
+    expect(questionImportFormSource).toContain("row.errors.map((error, index) =>");
+    expect(questionImportFormSource).toContain("${error.field}: ${error.message}");
+  });
+
+  it("disables the checkbox for invalid rows", () => {
+    expect(questionImportFormSource).toContain("checked={selection.selected.includes(row.sourceIndex)}");
+    expect(questionImportFormSource).toContain("disabled={!row.valid}");
+  });
+
+  it("distinguishes existing certification duplicates from earlier source rows and links compact existing IDs", () => {
+    expect(questionImportFormSource).toContain("isQuestionImportRowDuplicate(row)");
+    expect(questionImportFormSource).toContain("Matches existing question(s): ");
+    expect(questionImportFormSource).toContain("row.duplicate.existingQuestionIds.map((questionId, index) =>");
+    expect(questionImportFormSource).toContain("questionEditorHref(certificationId, questionId)");
+    expect(questionImportFormSource).toContain("compactQuestionId(questionId)");
+    expect(questionImportFormSource).toContain("Duplicates earlier row(s) ");
+    expect(questionImportFormSource).toContain("row.duplicate.earlierSourceIndexes.map((earlierIndex) => earlierIndex + 1)");
+    expect(questionImportFormSource).toContain('import { Link as LocalizedLink, useRouter } from "@/i18n/navigation";');
+  });
+
+  it("wires a per-row duplicate checkbox as an explicit override via setQuestionImportRowSelected", () => {
+    expect(questionImportFormSource).toContain("function handleToggleRow(sourceIndex: number, selected: boolean)");
+    expect(questionImportFormSource).toContain("setQuestionImportRowSelected(current, preview.rows, sourceIndex, selected)");
+    expect(questionImportFormSource).toContain("onCheckedChange={(checked) => handleToggleRow(row.sourceIndex, checked === true)}");
+  });
+
+  it("wires a batch Include duplicates checkbox that explains it permits intentional duplicates", () => {
+    expect(questionImportFormSource).toContain('aria-label="Include duplicates"');
+    expect(questionImportFormSource).toContain("areAllQuestionImportDuplicatesIncluded(selection, preview.rows)");
+    expect(questionImportFormSource).toContain("function handleToggleDuplicatesIncluded(included: boolean)");
+    expect(questionImportFormSource).toContain("setQuestionImportDuplicatesIncluded(current, preview.rows, included)");
+    expect(questionImportFormSource).toContain("so you can intentionally import duplicate questions");
+  });
+
+  it("disables the Import selected questions button when nothing is selected or an operation is pending, and shows a busy label", () => {
+    expect(questionImportFormSource).toContain("Import selected questions");
+    expect(questionImportFormSource).toContain("disabled={pending || selection.selected.length === 0}");
+    expect(questionImportFormSource).toContain('operation === "confirm" ? "Importing..." : "Import selected questions"');
+    expect(questionImportFormSource).toContain('aria-busy={pending}');
+  });
+
+  it("confirms with the same raw document, preview hash, selected indexes, and override indexes", () => {
+    expect(questionImportFormSource).toContain("if (pending || !preview || selection.selected.length === 0) return;");
+    expect(questionImportFormSource).toContain("await confirmAction({");
+    expect(questionImportFormSource).toContain("certificationId,");
+    expect(questionImportFormSource).toContain("rawJson,");
+    expect(questionImportFormSource).toContain("previewDocumentHash: preview.documentHash,");
+    expect(questionImportFormSource).toContain("selectedSourceIndexes: selection.selected,");
+    expect(questionImportFormSource).toContain("duplicateOverrideSourceIndexes: selection.duplicateOverrides,");
+  });
+
+  it("pushes the localized imported-questions URL and refreshes on confirm success", () => {
+    expect(questionImportFormSource).toContain('function importedQuestionsHref(certificationId: string, importedCount: number) {');
+    expect(questionImportFormSource).toContain('return `/admin/certdrill/${certificationId}?tab=questions&imported=${importedCount}`;');
+    expect(questionImportFormSource).toContain('router.push(importedQuestionsHref(certificationId, result.importedCount));');
+    expect(questionImportFormSource).toContain("router.refresh();");
+  });
+
+  it("replaces the preview and reconciles the selection on a typed conflict, moving focus to the alert without touching the raw input", () => {
+    const confirmBodyStart = questionImportFormSource.indexOf("async function handleConfirm()");
+    const confirmBodyEnd = questionImportFormSource.indexOf("\n  function handleToggleRow(");
+    const confirmBody = questionImportFormSource.slice(confirmBodyStart, confirmBodyEnd);
+
+    expect(confirmBody).toContain('if (result.status === "conflict") {');
+    expect(confirmBody).toContain("setPreview(result.preview);");
+    expect(confirmBody).toContain("reconcileQuestionImportSelection(selection, result.preview.rows)");
+    expect(confirmBody).toContain("setMessage(result.message);");
+    expect(confirmBody).toContain('setPendingFocus("conflict");');
+    expect(confirmBody).not.toContain("setRawJson");
+    expect(questionImportFormSource).toContain("conflictAlertRef.current?.focus();");
+    expect(questionImportFormSource).toContain('ref={conflictAlertRef}\n          role="alert"\n          tabIndex={-1}');
+  });
+
+  it("shows a generic error message without redirecting, clearing input, or claiming success", () => {
+    const confirmBodyStart = questionImportFormSource.indexOf("async function handleConfirm()");
+    const confirmBodyEnd = questionImportFormSource.indexOf("\n  function handleToggleRow(");
+    const confirmBody = questionImportFormSource.slice(confirmBodyStart, confirmBodyEnd);
+    const conflictBranchStart = confirmBody.indexOf('if (result.status === "conflict")');
+    const conflictBranchEnd = confirmBody.indexOf("}\n\n      setMessage(result.message);");
+    const afterConflictBranch = confirmBody.slice(conflictBranchEnd);
+
+    expect(afterConflictBranch).toContain("setMessage(result.message);");
+    expect(afterConflictBranch).not.toContain("router.push");
+    expect(afterConflictBranch).not.toContain("setRawJson");
+    expect(conflictBranchStart).toBeGreaterThan(-1);
+  });
+
+  it("uses one pure selection module for default selection, row/batch toggles, and conflict reconciliation", () => {
+    expect(questionImportFormSource).toContain('from "./question-import-selection"');
+    expect(questionImportSelectionSource).toContain("export type QuestionImportSelectionState");
+    expect(questionImportSelectionSource).toContain("export function initialQuestionImportSelection(");
+    expect(questionImportSelectionSource).toContain("export function setQuestionImportRowSelected(");
+    expect(questionImportSelectionSource).toContain("export function setQuestionImportDuplicatesIncluded(");
+    expect(questionImportSelectionSource).toContain("export function reconcileQuestionImportSelection(");
   });
 
   it("renders an accessible initial upload state via SSR markup", () => {
@@ -171,5 +326,16 @@ describe("question import form", () => {
     expect(markup).toContain('accept=".json,application/json"');
     expect(markup).toContain("Validate and preview");
     expect(markup).not.toContain('disabled=""');
+    // No preview yet, so the confirm button, table, and batch checkbox must not render.
+    expect(markup).not.toContain("Import selected questions");
+    expect(markup).not.toContain("Include duplicates");
+  });
+});
+
+describe("question editor href reused for import duplicate links", () => {
+  it("builds a per-question editor href", () => {
+    expect(questionEditorHref(certificationId, "33333333-3333-4333-8333-333333333333")).toBe(
+      `/admin/certdrill/${certificationId}/questions/33333333-3333-4333-8333-333333333333`,
+    );
   });
 });

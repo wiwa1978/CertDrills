@@ -7,7 +7,10 @@ import {
   listCertDrillAdminCertificationsServer,
 } from "@/lib/api/certdrill.server";
 
-import { previewCertDrillQuestionImportAction } from "./question-import-actions";
+import {
+  confirmCertDrillQuestionImportAction,
+  previewCertDrillQuestionImportAction,
+} from "./question-import-actions";
 import { QuestionImportForm } from "./question-import-form";
 
 export async function QuestionImportPage({ certificationId }: { certificationId: string }) {
@@ -60,7 +63,11 @@ export async function QuestionImportPage({ certificationId }: { certificationId:
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <QuestionImportForm certificationId={certificationId} action={previewCertDrillQuestionImportAction} />
+          <QuestionImportForm
+            certificationId={certificationId}
+            previewAction={previewCertDrillQuestionImportAction}
+            confirmAction={confirmCertDrillQuestionImportAction}
+          />
         </CardContent>
       </Card>
     </div>

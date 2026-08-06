@@ -1,37 +1,97 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 
+import { Link as LocalizedLink, useRouter } from "@/i18n/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
+import { questionEditorHref } from "./question-editor-href";
+import { compactQuestionId } from "./question-id";
+import {
+  areAllQuestionImportDuplicatesIncluded,
+  initialQuestionImportSelection,
+  isQuestionImportRowDuplicate,
+  reconcileQuestionImportSelection,
+  setQuestionImportDuplicatesIncluded,
+  setQuestionImportRowSelected,
+  type QuestionImportSelectionState,
+} from "./question-import-selection";
 import {
   MAX_QUESTION_IMPORT_BYTES,
+  type CertDrillQuestionImportConfirmActionResult,
   type CertDrillQuestionImportPreviewActionResult,
   type CertDrillQuestionImportPreviewResult,
 } from "./question-import-types";
 
 type QuestionImportTab = "upload" | "paste";
 
-type QuestionImportAction = (input: {
+type QuestionImportOperation = "preview" | "confirm" | null;
+
+type QuestionImportPreviewAction = (input: {
   certificationId: string;
   rawJson: string;
 }) => Promise<CertDrillQuestionImportPreviewActionResult>;
 
+type QuestionImportConfirmAction = (input: {
+  certificationId: string;
+  rawJson: string;
+  previewDocumentHash: string;
+  selectedSourceIndexes: number[];
+  duplicateOverrideSourceIndexes: number[];
+}) => Promise<CertDrillQuestionImportConfirmActionResult>;
+
+function importedQuestionsHref(certificationId: string, importedCount: number) {
+  return `/admin/certdrill/${certificationId}?tab=questions&imported=${importedCount}`;
+}
+
 export function QuestionImportForm({
   certificationId,
-  action,
+  previewAction,
+  confirmAction,
 }: {
   certificationId: string;
-  action: QuestionImportAction;
+  previewAction: QuestionImportPreviewAction;
+  confirmAction: QuestionImportConfirmAction;
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<QuestionImportTab>("upload");
   const [rawJson, setRawJson] = useState("");
   const [preview, setPreview] = useState<CertDrillQuestionImportPreviewResult | null>(null);
+  const [selection, setSelection] = useState<QuestionImportSelectionState>(() => initialQuestionImportSelection([]));
   const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [operation, setOperation] = useState<QuestionImportOperation>(null);
+  const [pendingFocus, setPendingFocus] = useState<"preview" | "conflict" | null>(null);
+  const previewHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const conflictAlertRef = useRef<HTMLDivElement | null>(null);
+  const pending = operation !== null;
+
+  useEffect(() => {
+    if (!pendingFocus) return;
+
+    if (pendingFocus === "preview") {
+      previewHeadingRef.current?.focus();
+    } else {
+      conflictAlertRef.current?.focus();
+    }
+    setPendingFocus(null);
+  }, [pendingFocus]);
+
+  function clearPreviewState() {
+    setPreview(null);
+    setSelection(initialQuestionImportSelection([]));
+    setMessage(null);
+  }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const input = event.target;
@@ -42,8 +102,7 @@ export function QuestionImportForm({
     input.value = "";
     if (!file) return;
 
-    setPreview(null);
-    setMessage(null);
+    clearPreviewState();
 
     if (file.size > MAX_QUESTION_IMPORT_BYTES) {
       setMessage("Question import JSON must not exceed 5 MB.");
@@ -56,31 +115,80 @@ export function QuestionImportForm({
 
   function handleTextareaChange(event: ChangeEvent<HTMLTextAreaElement>) {
     setRawJson(event.target.value);
-    setPreview(null);
-    setMessage(null);
+    clearPreviewState();
   }
 
   async function handleValidate() {
     if (pending) return;
 
-    setPending(true);
+    setOperation("preview");
     setMessage(null);
     try {
-      const result = await action({ certificationId, rawJson });
+      const result = await previewAction({ certificationId, rawJson });
       if (result.status === "preview") {
         setPreview(result.preview);
+        setSelection(initialQuestionImportSelection(result.preview.rows));
         setMessage(null);
+        setPendingFocus("preview");
       } else {
         setPreview(null);
+        setSelection(initialQuestionImportSelection([]));
         setMessage(result.message);
       }
     } finally {
-      setPending(false);
+      setOperation(null);
     }
   }
 
+  async function handleConfirm() {
+    if (pending || !preview || selection.selected.length === 0) return;
+
+    setOperation("confirm");
+    setMessage(null);
+    try {
+      const result = await confirmAction({
+        certificationId,
+        rawJson,
+        previewDocumentHash: preview.documentHash,
+        selectedSourceIndexes: selection.selected,
+        duplicateOverrideSourceIndexes: selection.duplicateOverrides,
+      });
+
+      if (result.status === "success") {
+        router.push(importedQuestionsHref(certificationId, result.importedCount));
+        router.refresh();
+        return;
+      }
+
+      if (result.status === "conflict") {
+        setPreview(result.preview);
+        setSelection(reconcileQuestionImportSelection(selection, result.preview.rows));
+        setMessage(result.message);
+        setPendingFocus("conflict");
+        return;
+      }
+
+      setMessage(result.message);
+    } finally {
+      setOperation(null);
+    }
+  }
+
+  function handleToggleRow(sourceIndex: number, selected: boolean) {
+    if (!preview) return;
+    setSelection((current) => setQuestionImportRowSelected(current, preview.rows, sourceIndex, selected));
+  }
+
+  function handleToggleDuplicatesIncluded(included: boolean) {
+    if (!preview) return;
+    setSelection((current) => setQuestionImportDuplicatesIncluded(current, preview.rows, included));
+  }
+
+  const hasDuplicateRows = Boolean(preview?.rows.some((row) => row.valid && isQuestionImportRowDuplicate(row)));
+  const includeDuplicatesChecked = preview ? areAllQuestionImportDuplicatesIncluded(selection, preview.rows) : false;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={pending}>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as QuestionImportTab)}>
         <TabsList>
           <TabsTrigger value="upload">Upload JSON</TabsTrigger>
@@ -113,25 +221,144 @@ export function QuestionImportForm({
       </div>
 
       {message ? (
-        <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm">
+        <div
+          ref={conflictAlertRef}
+          role="alert"
+          tabIndex={-1}
+          className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm outline-none"
+        >
           {message}
         </div>
       ) : null}
 
-      <Button type="button" onClick={handleValidate} disabled={pending}>
-        {pending ? "Validating..." : "Validate and preview"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={handleValidate} disabled={pending}>
+          {operation === "preview" ? "Validating..." : "Validate and preview"}
+        </Button>
+        {preview ? (
+          <Button
+            type="button"
+            onClick={handleConfirm}
+            disabled={pending || selection.selected.length === 0}
+          >
+            {operation === "confirm" ? "Importing..." : "Import selected questions"}
+          </Button>
+        ) : null}
+      </div>
 
       {preview ? (
-        <div role="status" className="rounded-md border border-green-600/40 bg-green-600/10 p-4 text-sm">
-          <p className="font-semibold">Preview ready. Nothing has been imported yet.</p>
-          <ul className="mt-2 space-y-1">
+        <div role="status" className="space-y-4 rounded-md border border-green-600/40 bg-green-600/10 p-4 text-sm">
+          <h2 ref={previewHeadingRef} tabIndex={-1} className="font-semibold outline-none">
+            Preview ready. Nothing has been imported yet.
+          </h2>
+          <ul className="space-y-1">
             <li>{`Submitted: ${preview.totals.submitted}`}</li>
             <li>{`Valid: ${preview.totals.valid}`}</li>
             <li>{`Invalid: ${preview.totals.invalid}`}</li>
             <li>{`Existing duplicates: ${preview.totals.duplicateExisting}`}</li>
             <li>{`Batch duplicates: ${preview.totals.duplicateBatch}`}</li>
+            <li>{`Selected: ${selection.selected.length}`}</li>
           </ul>
+
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="question-import-include-duplicates"
+              aria-label="Include duplicates"
+              checked={includeDuplicatesChecked}
+              disabled={!hasDuplicateRows}
+              onCheckedChange={(checked) => handleToggleDuplicatesIncluded(checked === true)}
+            />
+            <div className="space-y-1">
+              <Label htmlFor="question-import-include-duplicates">Include duplicates</Label>
+              <p className="text-sm text-muted-foreground">
+                Selecting this includes rows flagged as duplicates, so you can intentionally import duplicate questions.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead><span className="sr-only">Select</span></TableHead>
+                  <TableHead>Row</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Stem</TableHead>
+                  <TableHead>Difficulty</TableHead>
+                  <TableHead>Answers</TableHead>
+                  <TableHead>Validation</TableHead>
+                  <TableHead>Duplicates</TableHead>
+                  <TableHead>Errors</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {preview.rows.map((row) => {
+                  const rowNumber = row.sourceIndex + 1;
+                  const isDuplicate = isQuestionImportRowDuplicate(row);
+
+                  return (
+                    <TableRow key={row.sourceIndex}>
+                      <TableCell>
+                        <Checkbox
+                          aria-label={`Import row ${rowNumber}`}
+                          checked={selection.selected.includes(row.sourceIndex)}
+                          disabled={!row.valid}
+                          onCheckedChange={(checked) => handleToggleRow(row.sourceIndex, checked === true)}
+                        />
+                      </TableCell>
+                      <TableCell>{rowNumber}</TableCell>
+                      <TableCell className="whitespace-normal">{row.categoryCode}</TableCell>
+                      <TableCell className="max-w-md whitespace-normal">{row.stem}</TableCell>
+                      <TableCell><Badge variant="secondary">{row.difficulty}</Badge></TableCell>
+                      <TableCell>{row.answerCount}</TableCell>
+                      <TableCell>
+                        <Badge variant={row.valid ? "outline" : "destructive"}>
+                          {row.valid ? "Valid" : "Invalid"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-normal">
+                        {isDuplicate ? (
+                          <div className="space-y-1">
+                            {row.duplicate.existingQuestionIds.length > 0 ? (
+                              <p>
+                                {"Matches existing question(s): "}
+                                {row.duplicate.existingQuestionIds.map((questionId, index) => (
+                                  <span key={questionId}>
+                                    {index > 0 ? ", " : ""}
+                                    <LocalizedLink
+                                      href={questionEditorHref(certificationId, questionId)}
+                                      className="underline underline-offset-2"
+                                    >
+                                      <span className="sr-only">Question {questionId}</span>
+                                      <span aria-hidden="true">{compactQuestionId(questionId)}</span>
+                                    </LocalizedLink>
+                                  </span>
+                                ))}
+                              </p>
+                            ) : null}
+                            {row.duplicate.earlierSourceIndexes.length > 0 ? (
+                              <p>
+                                {`Duplicates earlier row(s) ${row.duplicate.earlierSourceIndexes.map((earlierIndex) => earlierIndex + 1).join(", ")} in this document.`}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : <span className="text-muted-foreground">None</span>}
+                      </TableCell>
+                      <TableCell className="whitespace-normal">
+                        {row.errors.length > 0 ? (
+                          <ul className="space-y-1 text-destructive">
+                            {row.errors.map((error, index) => (
+                              <li key={`${error.field}-${index}`}>{`${error.field}: ${error.message}`}</li>
+                            ))}
+                          </ul>
+                        ) : <span className="text-muted-foreground">None</span>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       ) : null}
     </div>
