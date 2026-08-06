@@ -53,6 +53,20 @@ function issueMessages(error: z.ZodError) {
   return error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
 }
 
+const unsupportedStructuredOutputKeywords = [
+  "default",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "format",
+  "minimum",
+  "maximum",
+  "multipleOf",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+] as const;
+
 function findSchemaKeywordPaths(value: unknown, keyword: string, path = "$"): string[] {
   if (Array.isArray(value)) {
     return value.flatMap((item, index) => findSchemaKeywordPaths(item, keyword, `${path}[${index}]`));
@@ -67,6 +81,12 @@ function findSchemaKeywordPaths(value: unknown, keyword: string, path = "$"): st
   }
 
   return [];
+}
+
+function findUnsupportedSchemaKeywords(value: unknown) {
+  return Object.fromEntries(
+    unsupportedStructuredOutputKeywords.map((keyword) => [keyword, findSchemaKeywordPaths(value, keyword)]),
+  );
 }
 
 describe("CertDrill blueprint proposal validation", () => {
@@ -311,8 +331,19 @@ describe("CertDrill blueprint proposal validation", () => {
   });
 
   it("exports a strict JSON schema suitable for structured output", () => {
-    expect(findSchemaKeywordPaths(blueprintProposalJsonSchema, "default")).toEqual([]);
-    expect(findSchemaKeywordPaths(blueprintProposalJsonSchema, "minLength")).toEqual([]);
+    expect(findUnsupportedSchemaKeywords(blueprintProposalJsonSchema)).toEqual({
+      default: [],
+      minLength: [],
+      maxLength: [],
+      pattern: [],
+      format: [],
+      minimum: [],
+      maximum: [],
+      multipleOf: [],
+      minItems: [],
+      maxItems: [],
+      uniqueItems: [],
+    });
 
     expect(blueprintProposalJsonSchema).toMatchObject({
       type: "object",
@@ -329,21 +360,44 @@ describe("CertDrill blueprint proposal validation", () => {
         },
         categories: {
           type: "array",
-          minItems: 1,
           items: {
             type: "object",
             additionalProperties: false,
             required: ["code", "name", "parentCode", "weightPct", "sortOrder", "evidence"],
             properties: {
+              code: {
+                type: "string",
+              },
+              name: {
+                type: "string",
+              },
+              parentCode: {
+                anyOf: [{ type: "string" }, { type: "null" }],
+              },
               weightPct: {
                 anyOf: [
-                  {
-                    type: "number",
-                    minimum: 0,
-                    maximum: 100,
-                  },
+                  { type: "number" },
                   { type: "null" },
                 ],
+              },
+              sortOrder: {
+                type: "integer",
+              },
+              evidence: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["excerpt", "location"],
+                  properties: {
+                    excerpt: {
+                      type: "string",
+                    },
+                    location: {
+                      anyOf: [{ type: "string" }, { type: "null" }],
+                    },
+                  },
+                },
               },
             },
           },

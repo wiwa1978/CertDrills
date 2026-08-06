@@ -56,7 +56,19 @@ function buildIncorrectTotalWarning(total: number) {
   return `Top-level category weights total ${formatWeight(total)} instead of ${formatWeight(TOP_LEVEL_WEIGHT_TARGET)}.`;
 }
 
-const unsupportedStructuredOutputKeywords = new Set(["default", "minLength"]);
+const unsupportedStructuredOutputKeywords = new Set([
+  "default",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "format",
+  "minimum",
+  "maximum",
+  "multipleOf",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+]);
 
 function sanitizeStructuredOutputSchema(value: unknown): unknown {
   if (Array.isArray(value)) {
