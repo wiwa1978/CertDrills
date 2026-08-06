@@ -176,28 +176,41 @@ describe("question import example document", () => {
     version: number;
     questions: Array<{
       categoryCode: string;
+      stem: string;
       difficulty: string;
-      answers: Array<{ isCorrect: boolean; explanation: string; citationUrls: string[] }>;
+      answers: Array<{
+        text: string;
+        isCorrect: boolean;
+        explanation: string;
+        citationUrls: string[];
+      }>;
     }>;
   };
 
-  it("matches the canonical version 1 shape with one SEC-01, medium-difficulty question", () => {
+  it("matches the canonical version 1 shape with realistic AI-agent examples", () => {
     expect(example.version).toBe(1);
-    expect(example.questions).toHaveLength(1);
+    expect(example.questions).toHaveLength(3);
+    expect(new Set(example.questions.map((question) => question.difficulty))).toEqual(
+      new Set(["easy", "medium", "hard"]),
+    );
+    expect(example.questions.some((question) => question.stem.includes("**"))).toBe(true);
 
-    const [question] = example.questions;
-    expect(question.categoryCode).toBe("SEC-01");
-    expect(question.difficulty).toBe("medium");
-    expect(question.answers).toHaveLength(2);
-    expect(question.answers.filter((answer) => answer.isCorrect)).toHaveLength(1);
-    for (const answer of question.answers) {
-      expect(answer.explanation.trim().length).toBeGreaterThan(0);
+    for (const question of example.questions) {
+      expect(question.categoryCode.trim().length).toBeGreaterThan(0);
+      expect(question.stem.trim().length).toBeGreaterThan(0);
+      expect(question.answers.length).toBeGreaterThanOrEqual(2);
+      expect(question.answers.filter((answer) => answer.isCorrect)).toHaveLength(1);
+      for (const answer of question.answers) {
+        expect(answer.text.trim().length).toBeGreaterThan(0);
+        expect(answer.explanation.trim().length).toBeGreaterThan(0);
+      }
     }
   });
 
   it("only includes safe http(s) citation URLs", () => {
-    const [question] = example.questions;
-    const citationUrls = question.answers.flatMap((answer) => answer.citationUrls);
+    const citationUrls = example.questions.flatMap((question) =>
+      question.answers.flatMap((answer) => answer.citationUrls),
+    );
     expect(citationUrls.length).toBeGreaterThan(0);
     for (const url of citationUrls) {
       expect(new URL(url).protocol).toMatch(/^https?:$/);

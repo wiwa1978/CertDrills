@@ -3,19 +3,75 @@
   "questions": [
     {
       "categoryCode": "SEC-01",
-      "stem": "Which control best limits the blast radius of a compromised cloud credential?",
+      "stem": "Which principle grants only the permissions needed for the current task?",
+      "difficulty": "easy",
+      "answers": [
+        {
+          "text": "Least privilege",
+          "isCorrect": true,
+          "explanation": "Least privilege grants only the access required to complete the current task.",
+          "citationUrls": ["https://csrc.nist.gov/glossary/term/least_privilege"]
+        },
+        {
+          "text": "Separation of duties",
+          "isCorrect": false,
+          "explanation": "Separation of duties splits responsibilities across multiple people or roles; it does not itself minimize permissions.",
+          "citationUrls": ["https://csrc.nist.gov/glossary/term/separation_of_duty"]
+        }
+      ]
+    },
+    {
+      "categoryCode": "SEC-01",
+      "stem": "Which change most reduces the **blast radius** of a compromised long-lived administrator credential?",
       "difficulty": "medium",
       "answers": [
         {
-          "text": "Scope the credential to a short-lived, least-privilege role",
+          "text": "Replace it with a short-lived, least-privilege role credential",
           "isCorrect": true,
-          "explanation": "Short-lived, least-privilege credentials limit what an attacker can do if the credential is stolen.",
-          "citationUrls": ["https://owasp.org/www-project-top-ten/"]
+          "explanation": "A short-lived role credential limits both how long the credential can be abused and what it can do.",
+          "citationUrls": ["https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"]
         },
         {
-          "text": "Share one long-lived admin credential across all services",
+          "text": "Encrypt the config file that stores the same credential",
           "isCorrect": false,
-          "explanation": "Long-lived, shared admin credentials maximize the impact of a single compromise.",
+          "explanation": "Encryption helps protect the file at rest, but it does not reduce the privilege or lifetime of the credential itself.",
+          "citationUrls": []
+        },
+        {
+          "text": "Rotate the same admin credential once a year",
+          "isCorrect": false,
+          "explanation": "Annual rotation alone still leaves a long-lived, high-privilege credential in circulation.",
+          "citationUrls": []
+        }
+      ]
+    },
+    {
+      "categoryCode": "SEC-01",
+      "stem": "A policy currently grants `Action: \"*\"` and `Resource: \"*\"`. Which remediation most directly applies **least privilege**?",
+      "difficulty": "hard",
+      "answers": [
+        {
+          "text": "Derive the required API actions and resource IDs from observed behavior, then allow only those combinations",
+          "isCorrect": true,
+          "explanation": "Least privilege requires narrowing broad wildcards to the exact actions and resources the workload actually needs.",
+          "citationUrls": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html"]
+        },
+        {
+          "text": "Keep the wildcards but require MFA",
+          "isCorrect": false,
+          "explanation": "MFA adds an authentication factor, but it does not restrict the permissions granted by the policy.",
+          "citationUrls": []
+        },
+        {
+          "text": "Keep the actions and add source-IP restrictions",
+          "isCorrect": false,
+          "explanation": "Source-IP restrictions can help limit access paths, but the policy still grants overly broad permissions.",
+          "citationUrls": []
+        },
+        {
+          "text": "Copy the wildcard policy to the renamed role",
+          "isCorrect": false,
+          "explanation": "Renaming a role does not change the overly broad permission scope of the policy.",
           "citationUrls": []
         }
       ]
