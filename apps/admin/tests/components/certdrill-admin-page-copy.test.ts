@@ -31,6 +31,10 @@ const editQuestionRouteSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/questions/[questionId]/page.tsx", import.meta.url),
   "utf8",
 );
+const certificationOverviewSource = source.slice(
+  source.indexOf("function AdminCertificationOverviewTable"),
+  source.indexOf("function CategoryTable"),
+);
 
 describe("CertDrill admin page copy", () => {
   it("uses a client-side question filter toolbar", () => {
@@ -57,8 +61,6 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Feedback");
     expect(source).toContain("Manage CertDrill content for the selected certification.");
     expect(source).toContain("Certification overview");
-    expect(source).toContain("Open details");
-    expect(source).toContain("Archive certification");
     expect(source).toContain("Back to certifications");
     expect(source).toContain("Update certification details");
     expect(source).toContain("Selected certification");
@@ -85,6 +87,17 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Create or update resource");
     expect(source).toContain("Mock generation");
     expect(source).toContain("Draft questions");
+  });
+
+  it("links overview cards to certification details without nested actions", () => {
+    expect(certificationOverviewSource).toContain("key={certification.id}");
+    expect(certificationOverviewSource).toContain("href={certdrillAdminDetailHref(certification.id)}");
+    expect(certificationOverviewSource).toContain("Card");
+    expect(certificationOverviewSource).not.toContain("Open details");
+    expect(certificationOverviewSource).not.toContain("Archive certification");
+    expect(certificationOverviewSource).not.toContain("<form action={archiveCertDrillCertificationAction}>");
+    expect(certificationOverviewSource).toContain("certification.logoUrl");
+    expect(certificationOverviewSource).toContain("publishedQuestionCount");
   });
 
   it("shows question feedback review copy and fields", () => {

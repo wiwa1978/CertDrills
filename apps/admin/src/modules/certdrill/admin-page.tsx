@@ -1278,33 +1278,32 @@ function AdminCertificationOverviewTable({ certifications }: { certifications: A
         const visibility = archivedAt ? "Archived" : !isActive ? "Inactive" : enabledAt ? "Scheduled" : "Visible";
 
         return (
-          <Card key={certification.id} className="h-full">
-            <CardHeader>
-              <div className="flex items-start gap-3">
-                <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted text-sm font-semibold">
-                  {logoUrl ? <img src={logoUrl} alt={`${certification.code} logo`} className="size-full object-contain p-1" /> : certification.code.slice(0, 2)}
+          <Link
+            key={certification.id}
+            href={certdrillAdminDetailHref(certification.id)}
+            className="group block h-full rounded-xl outline-none transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Card className="h-full transition-colors group-hover:border-primary/40">
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted text-sm font-semibold">
+                    {logoUrl ? <img src={logoUrl} alt={`${certification.code} logo`} className="size-full object-contain p-1" /> : certification.code.slice(0, 2)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="truncate text-lg">{certification.code}</CardTitle>
+                    <CardDescription className="line-clamp-2">{certification.name}</CardDescription>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <CardTitle className="truncate text-lg">{certification.code}</CardTitle>
-                  <CardDescription className="line-clamp-2">{certification.name}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{certification.vendor}</Badge>
+                  <Badge variant="outline">{visibility}</Badge>
+                  <Badge variant="secondary">{publishedQuestionCount.toLocaleString()} questions</Badge>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">{certification.vendor}</Badge>
-                <Badge variant="outline">{visibility}</Badge>
-                <Badge variant="secondary">{publishedQuestionCount.toLocaleString()} questions</Badge>
-              </div>
-              <Button asChild size="sm" className="w-full">
-                <Link href={certdrillAdminDetailHref(certification.id)}>Open details</Link>
-              </Button>
-              <form action={archiveCertDrillCertificationAction}>
-                <input type="hidden" name="certificationId" value={certification.id} />
-                <Button type="submit" size="sm" variant="destructive" className="w-full">Archive certification</Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         );
       })}
     </div>
