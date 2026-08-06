@@ -35,6 +35,7 @@ describe("admin Dutch messages", () => {
       expect(messages.breadcrumb.certdrill).toBe("CertDrill");
       expect(messages.breadcrumb.questions).toBeTruthy();
       expect(messages.breadcrumb.new).toBeTruthy();
+      expect(messages.breadcrumb.import).toBeTruthy();
       expect(messages.breadcrumb.operations).toBeTruthy();
     }
   });
