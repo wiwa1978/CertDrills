@@ -35,6 +35,10 @@ const certificationOverviewSource = source.slice(
   source.indexOf("function AdminCertificationOverviewTable"),
   source.indexOf("function CategoryTable"),
 );
+const certificationArchiveFormSource = source.slice(
+  source.indexOf("<form action={archiveCertDrillCertificationAction}>"),
+  source.indexOf("</form>", source.indexOf("<form action={archiveCertDrillCertificationAction}>")),
+);
 
 describe("CertDrill admin page copy", () => {
   it("uses a client-side question filter toolbar", () => {
@@ -80,13 +84,24 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Update category");
     expect(source).toContain("Archive category");
     expect(source).toContain("Pencil");
-    expect(source).toContain("Archive");
     expect(source).toContain("Create or update question");
     expect(source).toContain("Publish");
     expect(source).toContain("Create or update exam form");
     expect(source).toContain("Create or update resource");
     expect(source).toContain("Mock generation");
     expect(source).toContain("Draft questions");
+  });
+
+  it("keeps the selected certification archive form wired to the destructive action", () => {
+    expect(certificationArchiveFormSource).toContain(
+      "<form action={archiveCertDrillCertificationAction}>",
+    );
+    expect(certificationArchiveFormSource).toContain(
+      '<input type="hidden" name="certificationId" value={selectedAdminCertification.id} />',
+    );
+    expect(certificationArchiveFormSource).toContain(
+      '<Button type="submit" variant="destructive" size="sm">Archive</Button>',
+    );
   });
 
   it("links overview cards to certification details without nested actions", () => {
