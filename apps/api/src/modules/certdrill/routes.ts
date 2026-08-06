@@ -461,6 +461,11 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (!parsedBody.success) return parsedValidationError(c, "Invalid resource payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.updateResource(id, parsedBody.data));
   });
+  router.post("/resources/:id/ingest", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid resource id");
+    return withAdminAction(c, () => deps.service.ingestResource(id));
+  });
 
   router.post("/generation-jobs/mock", async (c) => {
     const parsedBody = await adminJson(c, mockGenerationSchema);
