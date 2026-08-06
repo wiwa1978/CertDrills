@@ -14,6 +14,11 @@ function readFrenchMessages() {
   return JSON.parse(readFileSync(new URL("../src/messages/fr.json", import.meta.url), "utf8"));
 }
 
+const creditsDashboardSource = readFileSync(
+  new URL("../src/components/layout/backend/admin/billing/credits-dashboard.tsx", import.meta.url),
+  "utf8",
+);
+
 describe("admin Dutch messages", () => {
   it("uses the admin product label in the hero badge", () => {
     expect(readDutchMessages().hero.badgeText).toBe("Singletenant - Hono - Admin");
@@ -32,5 +37,11 @@ describe("admin Dutch messages", () => {
       expect(messages.breadcrumb.new).toBeTruthy();
       expect(messages.breadcrumb.operations).toBeTruthy();
     }
+  });
+
+  it("uses the billing namespace for the credits dashboard heading", () => {
+    expect(creditsDashboardSource).toContain('const billingT = useTranslations("admin.billing");');
+    expect(creditsDashboardSource).toContain('{billingT("title")}');
+    expect(creditsDashboardSource).toContain('{billingT("description")}');
   });
 });
