@@ -20,6 +20,7 @@ import {
   createDrizzleAdminQuestionIndexRepository,
   type AdminQuestionIndexQueryInput,
 } from "./admin-question-index";
+import { createResourceIngestor, type ResourceIngestor } from "./resource-ingestion";
 import { validateCategorySiblingWeights, validateQuestionForPublish } from "./validation";
 
 type CertDrillAdminQuestionIndex = Pick<
@@ -30,9 +31,12 @@ type CertDrillAdminQuestionIndex = Pick<
 type CertDrillAdminServiceDeps = {
   db: any;
   questionIndex?: CertDrillAdminQuestionIndex;
+  resourceIngestor?: ResourceIngestor;
 };
 
 export type CertDrillAdminServiceErrorCode =
+  | "CERTDRILL_ADMIN_RESOURCE_NOT_FOUND"
+  | "CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED"
   | "CERTDRILL_ADMIN_INVALID_CATEGORY_WEIGHTS"
   | "CERTDRILL_ADMIN_CROSS_CERT_REFERENCE"
   | "CERTDRILL_ADMIN_CATEGORY_PARENT_CYCLE"
@@ -147,7 +151,17 @@ type QuestionRow = {
   mediaAssets?: QuestionInput["mediaAssets"];
   options?: Array<QuestionOptionInput & { id?: string }>;
 };
-type ResourceRow = { id: string; certificationId?: string; categoryId?: string | null };
+type ResourceRow = {
+  id: string;
+  certificationId?: string;
+  categoryId?: string | null;
+  url: string;
+  title: string;
+  rawContent?: string | null;
+  ingestedAt?: Date | null;
+  status?: "pending" | "ingested" | "failed";
+  ingestError?: string | null;
+};
 type GenerationJobRow = { id: string; certificationId?: string };
 type QuestionFeedbackRow = {
   id: string;
@@ -166,6 +180,7 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
   const questionIndex = deps.questionIndex ?? createCertDrillAdminQuestionIndex({
     repository: createDrizzleAdminQuestionIndexRepository({ db: deps.db }),
   });
+  const resourceIngestor = deps.resourceIngestor ?? createResourceIngestor();
 
   async function createCertification(input: CertificationInput) {
     const vendor = await resolveVendor(input.vendorId, input.vendor);
@@ -492,6 +507,39 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     return row;
   }
 
+  async function ingestResource(id: string) {
+    const resource = await deps.db.query.certdrillLearnResources.findFirst({
+      where: eq(certdrillLearnResources.id, id),
+    }) as ResourceRow | null;
+
+    if (!resource) {
+      throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_RESOURCE_NOT_FOUND", "Resource not found.");
+    }
+
+    try {
+      const result = await resourceIngestor.ingest(resource.url);
+      const [row] = await deps.db.update(certdrillLearnResources).set({
+        url: result.finalUrl,
+        title: result.title?.trim() ? result.title : resource.title,
+        rawContent: result.rawContent,
+        ingestedAt: result.ingestedAt,
+        status: "ingested",
+        ingestError: null,
+        updatedAt: new Date(),
+      }).where(eq(certdrillLearnResources.id, id)).returning();
+      return row;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Resource ingestion failed.";
+      await deps.db.update(certdrillLearnResources).set({
+        status: "failed",
+        ingestError: message,
+        updatedAt: new Date(),
+      }).where(eq(certdrillLearnResources.id, id));
+
+      throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED", message);
+    }
+  }
+
   async function createMockGenerationJob(input: MockGenerationInput) {
     await assertCategoryBelongsToCertification(deps.db, input.certificationId, input.categoryId);
     await assertResourceIdsBelongToCertification(input.certificationId, input.resourceIds ?? [], "Generation resource IDs must belong to the certification");
@@ -675,6 +723,7 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     createResource,
     listResources,
     updateResource,
+    ingestResource,
     createMockGenerationJob,
     listQuestionFeedbackForAdmin,
     updateQuestionFeedback,
