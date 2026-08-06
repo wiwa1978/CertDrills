@@ -511,33 +511,37 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     const resource = await deps.db.query.certdrillLearnResources.findFirst({
       where: eq(certdrillLearnResources.id, id),
     }) as ResourceRow | null;
-
     if (!resource) {
       throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_RESOURCE_NOT_FOUND", "Resource not found.");
     }
 
+    let result;
     try {
-      const result = await resourceIngestor.ingest(resource.url);
-      const [row] = await deps.db.update(certdrillLearnResources).set({
-        url: result.finalUrl,
-        title: result.title?.trim() ? result.title : resource.title,
-        rawContent: result.rawContent,
-        ingestedAt: result.ingestedAt,
-        status: "ingested",
-        ingestError: null,
-        updatedAt: new Date(),
-      }).where(eq(certdrillLearnResources.id, id)).returning();
-      return row;
+      result = await resourceIngestor.ingest(resource.url);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Resource ingestion failed.";
       await deps.db.update(certdrillLearnResources).set({
         status: "failed",
         ingestError: message,
         updatedAt: new Date(),
-      }).where(eq(certdrillLearnResources.id, id));
+      }).where(eq(certdrillLearnResources.id, id)).returning();
 
       throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED", message);
     }
+
+    const [row] = await deps.db.update(certdrillLearnResources).set({
+      url: result.finalUrl,
+      title: result.title?.trim() ? result.title : resource.title,
+      rawContent: result.rawContent,
+      ingestedAt: result.ingestedAt,
+      status: "ingested",
+      ingestError: null,
+      updatedAt: new Date(),
+    }).where(eq(certdrillLearnResources.id, id)).returning();
+    if (!row) {
+      throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_RESOURCE_NOT_FOUND", "Resource not found.");
+    }
+    return row;
   }
 
   async function createMockGenerationJob(input: MockGenerationInput) {
