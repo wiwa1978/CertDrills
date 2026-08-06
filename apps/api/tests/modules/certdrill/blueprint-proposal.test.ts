@@ -53,6 +53,22 @@ function issueMessages(error: z.ZodError) {
   return error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
 }
 
+function findSchemaKeywordPaths(value: unknown, keyword: string, path = "$"): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => findSchemaKeywordPaths(item, keyword, `${path}[${index}]`));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([entryKey, entryValue]) => (
+      entryKey === keyword
+        ? [path]
+        : findSchemaKeywordPaths(entryValue, keyword, `${path}.${entryKey}`)
+    ));
+  }
+
+  return [];
+}
+
 describe("CertDrill blueprint proposal validation", () => {
   it("normalizes codes, trims schema strings, preserves order, and applies defaults", () => {
     const result = validateBlueprintProposal(createProposal({
@@ -295,6 +311,9 @@ describe("CertDrill blueprint proposal validation", () => {
   });
 
   it("exports a strict JSON schema suitable for structured output", () => {
+    expect(findSchemaKeywordPaths(blueprintProposalJsonSchema, "default")).toEqual([]);
+    expect(findSchemaKeywordPaths(blueprintProposalJsonSchema, "minLength")).toEqual([]);
+
     expect(blueprintProposalJsonSchema).toMatchObject({
       type: "object",
       additionalProperties: false,
@@ -306,8 +325,7 @@ describe("CertDrill blueprint proposal validation", () => {
         },
         warnings: {
           type: "array",
-          default: [],
-          items: { type: "string", minLength: 1 },
+          items: { type: "string" },
         },
         categories: {
           type: "array",
@@ -316,6 +334,18 @@ describe("CertDrill blueprint proposal validation", () => {
             type: "object",
             additionalProperties: false,
             required: ["code", "name", "parentCode", "weightPct", "sortOrder", "evidence"],
+            properties: {
+              weightPct: {
+                anyOf: [
+                  {
+                    type: "number",
+                    minimum: 0,
+                    maximum: 100,
+                  },
+                  { type: "null" },
+                ],
+              },
+            },
           },
         },
       },

@@ -26,6 +26,9 @@ export const blueprintProposalSchema = z.object({
 
 export type BlueprintProposal = z.infer<typeof blueprintProposalSchema>;
 
+function normalizeCode(code: string): string;
+function normalizeCode(code: null): null;
+function normalizeCode(code: string | null): string | null;
 function normalizeCode(code: string | null) {
   return code === null ? null : code.toUpperCase();
 }
@@ -53,11 +56,29 @@ function buildIncorrectTotalWarning(total: number) {
   return `Top-level category weights total ${formatWeight(total)} instead of ${formatWeight(TOP_LEVEL_WEIGHT_TARGET)}.`;
 }
 
+const unsupportedStructuredOutputKeywords = new Set(["default", "minLength"]);
+
+function sanitizeStructuredOutputSchema(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeStructuredOutputSchema);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !unsupportedStructuredOutputKeywords.has(key))
+        .map(([key, nestedValue]) => [key, sanitizeStructuredOutputSchema(nestedValue)]),
+    );
+  }
+
+  return value;
+}
+
 export function validateBlueprintProposal(value: unknown): BlueprintProposal {
   const parsed = blueprintProposalSchema.parse(value);
   const categories = parsed.categories.map((category) => ({
     ...category,
-    code: normalizeCode(category.code) ?? category.code,
+    code: normalizeCode(category.code),
     parentCode: normalizeCode(category.parentCode),
   }));
   const issues: z.ZodIssue[] = [];
@@ -145,4 +166,4 @@ const { $schema: _ignoredSchema, ...jsonSchema } = z.toJSONSchema(blueprintPropo
   unrepresentable: "any",
 });
 
-export const blueprintProposalJsonSchema: Record<string, unknown> = jsonSchema;
+export const blueprintProposalJsonSchema = sanitizeStructuredOutputSchema(jsonSchema) as Record<string, unknown>;
