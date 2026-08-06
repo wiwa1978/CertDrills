@@ -14,7 +14,7 @@ import { badRequest, boundedValidationDetails, fail, forbidden, notFound, ok, pa
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
-import { QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
+import { measureQuestionImportDocumentBytes, QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
 import { QuestionImportServiceError } from "./question-import-service";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
@@ -285,6 +285,7 @@ async function readBoundedRequestText(request: Request, maxBytes: number): Promi
 type QuestionImportBodyResult<T> =
   | { kind: "ok"; data: T }
   | { kind: "tooLarge" }
+  | { kind: "invalidDocumentShape" }
   | { kind: "invalid"; error: z.ZodError };
 
 // Zod validates (and copies) every element of an array before the array-length rule reports the
@@ -331,12 +332,20 @@ async function parseQuestionImportBody<T extends { document: unknown }>(
     return { kind: "invalid", error: parsedBody.error };
   }
 
-  const documentBytes = new TextEncoder().encode(JSON.stringify(parsedBody.data.document)).length;
-  if (documentBytes > QUESTION_IMPORT_MAX_DOCUMENT_BYTES) {
+  const documentMeasurement = measureQuestionImportDocumentBytes(parsedBody.data.document);
+  if (documentMeasurement.kind === "invalid") {
+    return { kind: "invalidDocumentShape" };
+  }
+
+  if (documentMeasurement.bytes > QUESTION_IMPORT_MAX_DOCUMENT_BYTES) {
     return { kind: "tooLarge" };
   }
 
   return { kind: "ok", data: parsedBody.data };
+}
+
+function questionImportInvalidDocumentShape(c: Context<AppEnv>, message: string) {
+  return validationError(c, message, [{ path: "document", message: "Document nesting/shape is invalid.", code: "custom" }]);
 }
 
 function validationIssueMessage(issue: z.core.$ZodIssue, path: string) {
@@ -550,12 +559,14 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
   router.post("/questions/import/preview", async (c) => {
     const parsedBody = await parseQuestionImportBody(c, questionImportPreviewRequestSchema);
     if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalidDocumentShape") return questionImportInvalidDocumentShape(c, "Invalid question import preview payload");
     if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import preview payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.previewQuestionImport(parsedBody.data));
   });
   router.post("/questions/import", async (c) => {
     const parsedBody = await parseQuestionImportBody(c, questionImportConfirmRequestSchema, capQuestionImportIndexArrays);
     if (parsedBody.kind === "tooLarge") return questionImportPayloadTooLarge(c);
+    if (parsedBody.kind === "invalidDocumentShape") return questionImportInvalidDocumentShape(c, "Invalid question import payload");
     if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.importQuestions(parsedBody.data));
   });

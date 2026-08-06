@@ -5,6 +5,7 @@ import { MAX_VALIDATION_DETAILS, TRUNCATED_VALIDATION_DETAILS_MESSAGE, UNKNOWN_F
 import { CertDrillAdminServiceError } from "../src/modules/certdrill/admin-service";
 import {
   QUESTION_IMPORT_MAX_DOCUMENT_BYTES,
+  QUESTION_IMPORT_MAX_DOCUMENT_NESTING,
   QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
   QUESTION_IMPORT_MAX_ROWS,
 } from "../src/modules/certdrill/question-import";
@@ -447,6 +448,10 @@ describe("CertDrill admin question import routes", () => {
       + `,"selectedSourceIndexes":${selected},"duplicateOverrideSourceIndexes":${overrides}}`;
   }
 
+  function deeplyNestedDocumentJson(depth: number) {
+    return "[".repeat(depth) + "0" + "]".repeat(depth);
+  }
+
   it("delegates preview requests to the service and returns its result", async () => {
     const previewResult = {
       documentVersion: 1,
@@ -732,6 +737,41 @@ describe("CertDrill admin question import routes", () => {
     });
 
     expect(response.status).toBe(400);
+    expect(service.importQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rejects a deeply nested document before delegating preview or confirm requests", async () => {
+    const document = deeplyNestedDocumentJson(QUESTION_IMPORT_MAX_DOCUMENT_NESTING * 8);
+    const previewResponse = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: `{"certificationId":"${certificationId}","document":${document}}`,
+    });
+    const confirmResponse = await createApp().request("/api/admin/certdrill/questions/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: `{"certificationId":"${certificationId}","document":${document},"previewDocumentHash":"${previewDocumentHash}","selectedSourceIndexes":[0],"duplicateOverrideSourceIndexes":[]}`,
+    });
+
+    await expect(previewResponse.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid question import preview payload",
+        details: [{ path: "document", message: "Document nesting/shape is invalid.", code: "custom" }],
+      },
+    });
+    await expect(confirmResponse.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid question import payload",
+        details: [{ path: "document", message: "Document nesting/shape is invalid.", code: "custom" }],
+      },
+    });
+    expect(previewResponse.status).toBe(400);
+    expect(confirmResponse.status).toBe(400);
+    expect(service.previewQuestionImport).not.toHaveBeenCalled();
     expect(service.importQuestions).not.toHaveBeenCalled();
   });
 

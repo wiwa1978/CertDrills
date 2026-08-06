@@ -9,6 +9,9 @@ export const QUESTION_IMPORT_MAX_ROWS = 500;
 export const QUESTION_IMPORT_MIN_ANSWERS = 2;
 export const QUESTION_IMPORT_MAX_ANSWERS = 10;
 export const QUESTION_IMPORT_MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+// Valid import documents are shallow; this leaves ample headroom while rejecting hostile inputs
+// before engine-specific JSON serialization limits can turn them into 500s.
+export const QUESTION_IMPORT_MAX_DOCUMENT_NESTING = 256;
 // Validation error budgets. A hostile document can hold millions of malformed entries (an
 // oversized `answers` array, a huge `citationUrls` array, or thousands of unknown keys), so every
 // error list is capped and a deterministic marker is appended when issues were dropped. This keeps
@@ -534,15 +537,34 @@ export function hashQuestionImportDocument(value: unknown) {
 }
 
 type SerializationFrame =
-  | { kind: "value"; value: unknown }
+  | { kind: "value"; value: unknown; depth: number }
   | { kind: "literal"; text: string };
+
+type QuestionImportDocumentBytesResult =
+  | { kind: "ok"; bytes: number }
+  | { kind: "invalid" };
+
+class QuestionImportDocumentShapeError extends Error {}
+
+export function measureQuestionImportDocumentBytes(value: unknown): QuestionImportDocumentBytesResult {
+  try {
+    const serialized = serializeWithSortedKeys(value, QUESTION_IMPORT_MAX_DOCUMENT_NESTING);
+    return { kind: "ok", bytes: Buffer.byteLength(serialized, "utf8") };
+  } catch (error) {
+    if (error instanceof QuestionImportDocumentShapeError) {
+      return { kind: "invalid" };
+    }
+
+    throw error;
+  }
+}
 
 // Canonical JSON serialization with recursively key-sorted objects, written with an explicit stack.
 // Both a recursive walk and `JSON.stringify` with a replacer recurse per nesting level, so a deeply
 // nested (but small) hostile document could overflow the stack before validation ever rejected it.
-function serializeWithSortedKeys(value: unknown) {
+function serializeWithSortedKeys(value: unknown, maxDepth = Number.POSITIVE_INFINITY) {
   const output: string[] = [];
-  const stack: SerializationFrame[] = [{ kind: "value", value }];
+  const stack: SerializationFrame[] = [{ kind: "value", value, depth: 0 }];
 
   while (stack.length > 0) {
     const frame = stack.pop() as SerializationFrame;
@@ -555,10 +577,14 @@ function serializeWithSortedKeys(value: unknown) {
     const entry = frame.value;
 
     if (Array.isArray(entry)) {
+      if (frame.depth >= maxDepth) {
+        throw new QuestionImportDocumentShapeError();
+      }
+
       output.push("[");
       stack.push({ kind: "literal", text: "]" });
       for (let index = entry.length - 1; index >= 0; index -= 1) {
-        stack.push({ kind: "value", value: entry[index] });
+        stack.push({ kind: "value", value: entry[index], depth: frame.depth + 1 });
         if (index > 0) {
           stack.push({ kind: "literal", text: "," });
         }
@@ -567,6 +593,10 @@ function serializeWithSortedKeys(value: unknown) {
     }
 
     if (isRecord(entry)) {
+      if (frame.depth >= maxDepth) {
+        throw new QuestionImportDocumentShapeError();
+      }
+
       const keys = Object.keys(entry)
         .filter((key) => entry[key] !== undefined)
         .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
@@ -574,7 +604,7 @@ function serializeWithSortedKeys(value: unknown) {
       output.push("{");
       stack.push({ kind: "literal", text: "}" });
       for (let index = keys.length - 1; index >= 0; index -= 1) {
-        stack.push({ kind: "value", value: entry[keys[index]] });
+        stack.push({ kind: "value", value: entry[keys[index]], depth: frame.depth + 1 });
         stack.push({ kind: "literal", text: `${JSON.stringify(keys[index])}:` });
         if (index > 0) {
           stack.push({ kind: "literal", text: "," });
