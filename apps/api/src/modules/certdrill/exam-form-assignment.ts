@@ -209,30 +209,51 @@ function calculateAllocations(
     );
   }
 
+  const target = BigInt(targetQuestionCount);
   const allocations = weightedCategories.map(({ category, weightBasisPoints }) => {
-    const numerator = targetQuestionCount * weightBasisPoints;
+    const numerator = target * BigInt(weightBasisPoints);
     return {
       category,
       weightBasisPoints,
-      allocatedCount: Math.floor(numerator / 10_000),
-      remainder: numerator % 10_000,
+      allocatedCount: numerator / 10_000n,
+      remainder: numerator % 10_000n,
     };
   });
-  let remaining = targetQuestionCount - allocations.reduce((total, item) => total + item.allocatedCount, 0);
+  let remaining = target - allocations.reduce((total, item) => total + item.allocatedCount, 0n);
 
-  for (const allocation of [...allocations].sort((a, b) => b.remainder - a.remainder || compareCategories(a.category, b.category))) {
-    if (remaining === 0) {
+  for (const allocation of [...allocations].sort((a, b) => compareRemainders(a, b))) {
+    if (remaining === 0n) {
       break;
     }
-    allocation.allocatedCount += 1;
-    remaining -= 1;
+    allocation.allocatedCount += 1n;
+    remaining -= 1n;
   }
 
   return allocations.map(({ category, weightBasisPoints, allocatedCount }) => ({
     category,
     weightBasisPoints,
-    allocatedCount,
+    allocatedCount: safeAllocationNumber(allocatedCount),
   }));
+}
+
+function compareRemainders(
+  a: { category: ExamFormAssignmentCategory; remainder: bigint },
+  b: { category: ExamFormAssignmentCategory; remainder: bigint },
+) {
+  if (a.remainder !== b.remainder) {
+    return a.remainder > b.remainder ? -1 : 1;
+  }
+  return compareCategories(a.category, b.category);
+}
+
+function safeAllocationNumber(allocatedCount: bigint) {
+  if (allocatedCount < 0n || allocatedCount > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ExamFormAssignmentError(
+      "CERTDRILL_ADMIN_EXAM_FORM_WEIGHTS",
+      "Calculated question allocation exceeds the safe integer range.",
+    );
+  }
+  return Number(allocatedCount);
 }
 
 function parseWeight(category: ExamFormAssignmentCategory): number {

@@ -5,6 +5,7 @@ import {
   planExamFormAssignment,
   topLevelCategoryId,
   validateExamFormAssignment,
+  type ExamFormAllocationSnapshotItem,
   type ExamFormAssignmentCategory,
 } from "../../../src/modules/certdrill/exam-form-assignment";
 
@@ -63,6 +64,34 @@ describe("planExamFormAssignment", () => {
     });
   });
 
+  it("keeps large safe-integer quota products exact", () => {
+    const targetQuestionCount = 8_630_051_048_750;
+
+    try {
+      planExamFormAssignment({
+        categories: [
+          category("a", null, "95.16", 1),
+          category("b", null, "4.84", 2),
+        ],
+        questions: [],
+        targetQuestionCount,
+      });
+      throw new Error("Expected assignment error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ExamFormAssignmentError);
+      expect(error).toMatchObject({
+        code: "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY",
+        details: [
+          { categoryId: "a", requiredCount: 8_212_356_577_991, availableCount: 0 },
+          { categoryId: "b", requiredCount: 417_694_470_759, availableCount: 0 },
+        ],
+      });
+
+      const details = (error as ExamFormAssignmentError).details as Array<{ requiredCount: number }>;
+      expect(details.reduce((sum, item) => sum + item.requiredCount, 0)).toBe(targetQuestionCount);
+    }
+  });
+
   it("reports every category shortage without redistributing from surplus", () => {
     const categories = [
       category("a", null, "50.00", 1, { name: "Alpha" }),
@@ -108,7 +137,7 @@ describe("planExamFormAssignment", () => {
     );
   });
 
-  it.each([null, 0, -1, "invalid", "12.345"])("rejects the invalid top-level weight %s", (weightPct) => {
+  it.each([null, 0, -1, "invalid", "12.345", Number.NaN, Number.POSITIVE_INFINITY])("rejects the invalid top-level weight %s", (weightPct) => {
     expectAssignmentError(
       () => planExamFormAssignment({
         categories: [
@@ -191,6 +220,36 @@ describe("planExamFormAssignment", () => {
 
     expect(result.questionIds).toEqual(["q-1", "q-2"]);
     expect(new Set(result.questionIds).size).toBe(result.questionIds.length);
+  });
+
+  it("uses arbitrary-depth descendant questions in planner pools", () => {
+    const result = planExamFormAssignment({
+      categories: [
+        category("root", null, "100.00", 1),
+        category("child", "root", null, 1),
+        category("grandchild", "child", null, 1),
+      ],
+      questions: [{ id: "deep-question", categoryId: "grandchild" }],
+      targetQuestionCount: 1,
+      rng: () => 0.999,
+    });
+
+    expect(result.questionIds).toEqual(["deep-question"]);
+  });
+
+  it("moves question membership with deterministic Fisher-Yates randomness", () => {
+    const result = planExamFormAssignment({
+      categories: [category("a", null, "100.00", 1)],
+      questions: [
+        { id: "q-1", categoryId: "a" },
+        { id: "q-2", categoryId: "a" },
+        { id: "q-3", categoryId: "a" },
+      ],
+      targetQuestionCount: 2,
+      rng: () => 0,
+    });
+
+    expect(result.questionIds).toEqual(["q-2", "q-3"]);
   });
 
   it("ignores archived top-level categories", () => {
@@ -378,6 +437,37 @@ describe("validateExamFormAssignment", () => {
         ],
       }),
       "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY",
+    );
+  });
+
+  it("rejects assigned questions with missing ancestry", () => {
+    expectAssignmentError(
+      () => validateExamFormAssignment({
+        categories: [
+          category("valid", null, "100.00", 1),
+          category("orphan", "missing", null, 1),
+        ],
+        questions: [{ id: "q-1", categoryId: "orphan" }],
+        targetQuestionCount: 1,
+        questionIds: ["q-1"],
+        allocationSnapshot: [
+          { categoryId: "valid", categoryName: "VALID", weightPct: "100.00", allocatedCount: 1, assignedCount: 1 },
+        ],
+      }),
+      "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY",
+    );
+  });
+
+  it("rejects structurally malformed snapshot items", () => {
+    expectAssignmentError(
+      () => validateExamFormAssignment({
+        categories: [category("a", null, "100.00", 1)],
+        questions: [{ id: "q-1", categoryId: "a" }],
+        targetQuestionCount: 1,
+        questionIds: ["q-1"],
+        allocationSnapshot: [null as unknown as ExamFormAllocationSnapshotItem],
+      }),
+      "CERTDRILL_ADMIN_EXAM_FORM_WEIGHTS",
     );
   });
 });
