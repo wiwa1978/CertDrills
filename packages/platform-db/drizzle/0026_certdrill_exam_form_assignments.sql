@@ -1,5 +1,5 @@
 ALTER TABLE "certdrill_exam_forms" ADD COLUMN "target_question_count" integer;
-ALTER TABLE "certdrill_exam_forms" ADD COLUMN "generated_at" timestamp with time zone;
+ALTER TABLE "certdrill_exam_forms" ADD COLUMN "generated_at" timestamp with time zone DEFAULT now();
 ALTER TABLE "certdrill_exam_forms" ADD COLUMN "assignment_version" integer DEFAULT 1 NOT NULL;
 ALTER TABLE "certdrill_exam_forms" ADD COLUMN "allocation_snapshot" jsonb DEFAULT '[]'::jsonb NOT NULL;
 
@@ -61,12 +61,9 @@ SET "allocation_snapshot" = "snapshot"."allocation_snapshot"
 FROM "allocation_snapshots" "snapshot"
 WHERE "snapshot"."form_id" = "form"."id";
 
-UPDATE "certdrill_exam_forms"
-SET "is_active" = false
-WHERE cardinality("question_ids") = 0;
-
-UPDATE "certdrill_exam_forms" form SET is_active=false
-WHERE COALESCE((SELECT sum((allocation ->> 'assignedCount')::integer) FROM jsonb_array_elements(form.allocation_snapshot) allocation),0) <> cardinality(form.question_ids);
+UPDATE "certdrill_exam_forms" form SET "is_active" = false
+WHERE cardinality(form."question_ids") = 0
+   OR COALESCE((SELECT sum((allocation ->> 'assignedCount')::integer) FROM jsonb_array_elements(form."allocation_snapshot") allocation), 0) <> cardinality(form."question_ids");
 
 ALTER TABLE "certdrill_exam_forms" ALTER COLUMN "target_question_count" SET NOT NULL;
 ALTER TABLE "certdrill_exam_forms" ALTER COLUMN "generated_at" SET NOT NULL;

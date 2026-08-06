@@ -1,7 +1,14 @@
+import { readFileSync } from "node:fs";
+
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { certdrillExamForms } from "@platform/platform-db";
+
+const migrationSql = readFileSync(
+  new URL("../../../../../packages/platform-db/drizzle/0026_certdrill_exam_form_assignments.sql", import.meta.url),
+  "utf8",
+);
 
 describe("CertDrill exam form schema", () => {
   it("persists generated assignment metadata", () => {
@@ -14,6 +21,23 @@ describe("CertDrill exam form schema", () => {
         "allocationSnapshot",
         "generatedAt",
       ]),
+    );
+  });
+
+  it("gives generated timestamps a database default", () => {
+    expect(migrationSql).toMatch(
+      /ADD COLUMN "generated_at" timestamp with time zone DEFAULT now\(\)/,
+    );
+  });
+
+  it("deactivates invalid legacy assignments in one update", () => {
+    const deactivationUpdates = migrationSql.match(
+      /UPDATE "certdrill_exam_forms"(?:.|\n)*?SET "?is_active"?\s*=\s*false/g,
+    );
+
+    expect(deactivationUpdates).toHaveLength(1);
+    expect(migrationSql).toMatch(
+      /WHERE cardinality\(form\."question_ids"\) = 0\s+OR COALESCE\(\(SELECT sum\(\(allocation ->> 'assignedCount'\)::integer\) FROM jsonb_array_elements\(form\."allocation_snapshot"\) allocation\), 0\) <> cardinality\(form\."question_ids"\)/,
     );
   });
 });
