@@ -34,6 +34,8 @@ export type CertDrillDifficulty = "easy" | "medium" | "hard";
 export type CertDrillResourceStatus = "pending" | "ingested" | "failed";
 export type CertDrillContentMode = "deep_content" | "outline_blueprint";
 export type CertDrillSourceType = "module" | "unit" | "study-guide" | "exam-blueprint" | "doc";
+export type CertDrillBlueprintParseStatus = "pending" | "running" | "completed" | "failed";
+export type CertDrillBlueprintConfidence = "high" | "medium" | "low";
 export type CertDrillJobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type CertDrillReviewQueueReason = "incorrect" | "low_confidence" | "incorrect_low_confidence";
 export type CertDrillReviewQueueStatus = "active" | "completed" | "dismissed";
@@ -139,6 +141,37 @@ export const certdrillLearnResources = pgTable(
     index("certdrill_learn_resources_certification_id_idx").on(table.certificationId),
     index("certdrill_learn_resources_category_id_idx").on(table.categoryId),
     index("certdrill_learn_resources_status_idx").on(table.status),
+  ],
+);
+
+export const certdrillBlueprintParseRuns = pgTable(
+  "certdrill_blueprint_parse_runs",
+  {
+    id,
+    certificationId: uuid("certification_id")
+      .references(() => certdrillCertifications.id, { onDelete: "cascade" })
+      .notNull(),
+    resourceId: uuid("resource_id")
+      .references(() => certdrillLearnResources.id, { onDelete: "cascade" })
+      .notNull(),
+    status: text("status").$type<CertDrillBlueprintParseStatus>().default("pending").notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    contentChecksum: text("content_checksum").notNull(),
+    proposalJson: jsonb("proposal_json"),
+    rawOutput: text("raw_output"),
+    confidence: text("confidence").$type<CertDrillBlueprintConfidence>(),
+    warningsJson: jsonb("warnings_json").default(sql`'[]'::jsonb`).notNull(),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("certdrill_blueprint_parse_runs_certification_id_idx").on(table.certificationId),
+    index("certdrill_blueprint_parse_runs_resource_id_idx").on(table.resourceId),
+    index("certdrill_blueprint_parse_runs_status_idx").on(table.status),
   ],
 );
 
