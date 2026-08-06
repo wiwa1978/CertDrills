@@ -14,6 +14,7 @@ import { badRequest, boundedValidationDetails, fail, forbidden, notFound, ok, pa
 import { CertDrillAccessDeniedError } from "./access";
 import type { AdminQuestionIndexQueryInput } from "./admin-question-index";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./admin-service";
+import { BlueprintParseServiceError } from "./blueprint-parse-service";
 import { measureQuestionImportDocumentBytes, QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
 import { QuestionImportServiceError } from "./question-import-service";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
@@ -93,6 +94,9 @@ const mockGenerationSchema = z.object({
   requestedCount: z.number().int().positive().max(25).optional(),
   resourceIds: z.array(z.string().uuid()).optional(),
 });
+const blueprintParseRunCreateSchema = z.object({
+  resourceId: z.string().uuid(),
+}).strict();
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const certificationIdParamSchema = z.object({ certificationId: z.string().uuid() });
 const requiredDocumentSchema = z.custom<unknown>((value) => value !== undefined, {
@@ -124,6 +128,7 @@ const validationMessages: Record<string, { required?: string; uuid?: string; url
   examFormId: { uuid: "Exam form ID must be a valid UUID." },
   sourceResourceId: { uuid: "Source resource ID must be a valid UUID." },
   generationJobId: { uuid: "Generation job ID must be a valid UUID." },
+  resourceId: { required: "Resource ID is required.", uuid: "Resource ID must be a valid UUID." },
   resourceIds: { uuid: "Resource IDs must be valid UUIDs." },
   id: { uuid: "ID must be a valid UUID." },
   code: { required: "Code is required." },
@@ -216,6 +221,14 @@ function certDrillAdminErrorJson(
 }
 
 function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
+  if (error instanceof BlueprintParseServiceError) {
+    if (error.code === "CERTDRILL_BLUEPRINT_PARSE_CERTIFICATION_NOT_FOUND" || error.code === "CERTDRILL_BLUEPRINT_PARSE_RESOURCE_NOT_FOUND") {
+      return notFound(c, error.message);
+    }
+
+    return badRequest(c, error.message);
+  }
+
   if (error instanceof QuestionImportServiceError) {
     const status = error.code === "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT" ? 409 : 400;
     return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
@@ -402,9 +415,9 @@ function adminQuestionIndexQuery(c: Context<AppEnv>): AdminQuestionIndexQueryInp
   };
 }
 
-async function withAdminAction<T>(c: Context<AppEnv>, action: () => Promise<T>) {
+async function withAdminAction<T>(c: Context<AppEnv>, action: () => Promise<T>, status = 200) {
   try {
-    return ok(c, await action());
+    return ok(c, await action(), status);
   } catch (error) {
     return certDrillAdminErrorResponse(c, error);
   }
@@ -605,6 +618,33 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     const certificationId = adminCertificationIdParam(c);
     if (!certificationId) return validationError(c, "Invalid certification id");
     return withAdminAction(c, () => deps.service.listResources(certificationId));
+  });
+  router.post("/certifications/:certificationId/blueprint-parse-runs", async (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    const parsedBody = await adminJson(c, blueprintParseRunCreateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid blueprint parse run payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.startBlueprintParseRun({ certificationId, ...parsedBody.data }), 201);
+  });
+  router.get("/certifications/:certificationId/blueprint-parse-runs", (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    return withAdminAction(c, () => deps.service.listBlueprintParseRuns(certificationId));
+  });
+  router.get("/blueprint-parse-runs/:id", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid blueprint parse run id");
+
+    try {
+      const run = await deps.service.getBlueprintParseRun(id);
+      if (!run) {
+        return notFound(c, "Blueprint parse run not found.");
+      }
+
+      return ok(c, run);
+    } catch (error) {
+      return certDrillAdminErrorResponse(c, error);
+    }
   });
   router.post("/resources", async (c) => {
     const parsedBody = await adminJson(c, resourceCreateSchema);

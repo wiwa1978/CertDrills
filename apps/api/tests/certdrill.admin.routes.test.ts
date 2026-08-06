@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_VALIDATION_DETAILS, TRUNCATED_VALIDATION_DETAILS_MESSAGE, UNKNOWN_FIELD_VALIDATION_MESSAGE } from "../src/lib/http";
-import { CertDrillAdminServiceError } from "../src/modules/certdrill/admin-service";
+import { CertDrillAdminServiceError, type createCertDrillAdminService } from "../src/modules/certdrill/admin-service";
+import { BlueprintParseServiceError } from "../src/modules/certdrill/blueprint-parse-service";
 import {
   QUESTION_IMPORT_MAX_DOCUMENT_BYTES,
   QUESTION_IMPORT_MAX_DOCUMENT_NESTING,
@@ -18,37 +19,51 @@ const questionId = "44444444-4444-4444-8444-444444444444";
 const examFormId = "55555555-5555-4555-8555-555555555555";
 const resourceId = "66666666-6666-4666-8666-666666666666";
 const feedbackId = "77777777-7777-4777-8777-777777777777";
+const blueprintParseRunId = "88888888-8888-4888-8888-888888888889";
+
+type CertDrillAdminService = ReturnType<typeof createCertDrillAdminService>;
+type MockedCertDrillAdminService = {
+  [K in keyof CertDrillAdminService]: CertDrillAdminService[K] extends (...args: any[]) => any
+    ? ReturnType<typeof vi.fn<CertDrillAdminService[K]>>
+    : never;
+};
 
 const service = {
-  listCertifications: vi.fn(),
-  createCertification: vi.fn(),
-  updateCertification: vi.fn(),
-  archiveCertification: vi.fn(),
-  listCategories: vi.fn(),
-  createCategory: vi.fn(),
-  updateCategory: vi.fn(),
-  listQuestionIndex: vi.fn(),
-  listQuestions: vi.fn(),
-  createQuestion: vi.fn(),
-  updateQuestion: vi.fn(),
-  publishQuestion: vi.fn(),
-  previewQuestionImport: vi.fn(),
-  importQuestions: vi.fn(),
-  listExamForms: vi.fn(),
-  createExamForm: vi.fn(),
-  updateExamForm: vi.fn(),
-  listResources: vi.fn(),
-  createResource: vi.fn(),
-  updateResource: vi.fn(),
-  ingestResource: vi.fn(),
-  createMockGenerationJob: vi.fn(),
-  listQuestionFeedbackForAdmin: vi.fn(),
-  updateQuestionFeedback: vi.fn(),
-};
+  listCertifications: vi.fn<CertDrillAdminService["listCertifications"]>(),
+  listVendors: vi.fn<CertDrillAdminService["listVendors"]>(),
+  createCertification: vi.fn<CertDrillAdminService["createCertification"]>(),
+  updateCertification: vi.fn<CertDrillAdminService["updateCertification"]>(),
+  archiveCertification: vi.fn<CertDrillAdminService["archiveCertification"]>(),
+  listCategories: vi.fn<CertDrillAdminService["listCategories"]>(),
+  createCategory: vi.fn<CertDrillAdminService["createCategory"]>(),
+  updateCategory: vi.fn<CertDrillAdminService["updateCategory"]>(),
+  archiveCategory: vi.fn<CertDrillAdminService["archiveCategory"]>(),
+  listQuestionIndex: vi.fn<CertDrillAdminService["listQuestionIndex"]>(),
+  listQuestions: vi.fn<CertDrillAdminService["listQuestions"]>(),
+  createQuestion: vi.fn<CertDrillAdminService["createQuestion"]>(),
+  updateQuestion: vi.fn<CertDrillAdminService["updateQuestion"]>(),
+  publishQuestion: vi.fn<CertDrillAdminService["publishQuestion"]>(),
+  previewQuestionImport: vi.fn<CertDrillAdminService["previewQuestionImport"]>(),
+  importQuestions: vi.fn<CertDrillAdminService["importQuestions"]>(),
+  startBlueprintParseRun: vi.fn<CertDrillAdminService["startBlueprintParseRun"]>(),
+  getBlueprintParseRun: vi.fn<CertDrillAdminService["getBlueprintParseRun"]>(),
+  listBlueprintParseRuns: vi.fn<CertDrillAdminService["listBlueprintParseRuns"]>(),
+  processPendingBlueprintParseRuns: vi.fn<CertDrillAdminService["processPendingBlueprintParseRuns"]>(),
+  listExamForms: vi.fn<CertDrillAdminService["listExamForms"]>(),
+  createExamForm: vi.fn<CertDrillAdminService["createExamForm"]>(),
+  updateExamForm: vi.fn<CertDrillAdminService["updateExamForm"]>(),
+  listResources: vi.fn<CertDrillAdminService["listResources"]>(),
+  createResource: vi.fn<CertDrillAdminService["createResource"]>(),
+  updateResource: vi.fn<CertDrillAdminService["updateResource"]>(),
+  ingestResource: vi.fn<CertDrillAdminService["ingestResource"]>(),
+  createMockGenerationJob: vi.fn<CertDrillAdminService["createMockGenerationJob"]>(),
+  listQuestionFeedbackForAdmin: vi.fn<CertDrillAdminService["listQuestionFeedbackForAdmin"]>(),
+  updateQuestionFeedback: vi.fn<CertDrillAdminService["updateQuestionFeedback"]>(),
+} satisfies MockedCertDrillAdminService;
 
 function createApp() {
   const app = new Hono();
-  app.route("/api/admin/certdrill", createCertDrillAdminRouter({ service: service as never }));
+  app.route("/api/admin/certdrill", createCertDrillAdminRouter({ service }));
   return app;
 }
 
@@ -300,6 +315,149 @@ describe("CertDrill admin routes", () => {
     await expect(ingestResponse.json()).resolves.toEqual({ success: true, data: { id: resourceId, status: "ingested" } });
     expect(service.ingestResource).toHaveBeenCalledWith(resourceId);
     expect(service.createMockGenerationJob).toHaveBeenCalledWith({ certificationId, categoryId, prompt: "Prompt", topic: "Topic", requestedCount: 1 });
+  });
+
+  it("starts blueprint parse runs with the certification path id and returns 201", async () => {
+    const pendingRun = {
+      id: blueprintParseRunId,
+      certificationId,
+      resourceId,
+      status: "pending",
+    };
+    service.startBlueprintParseRun.mockResolvedValueOnce(pendingRun);
+
+    const response = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resourceId }),
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ success: true, data: pendingRun });
+    expect(service.startBlueprintParseRun).toHaveBeenCalledWith({ certificationId, resourceId });
+  });
+
+  it("delegates blueprint parse run list and detail requests", async () => {
+    const run = {
+      id: blueprintParseRunId,
+      certificationId,
+      resourceId,
+      status: "completed",
+    };
+    service.listBlueprintParseRuns.mockResolvedValueOnce([run]);
+    service.getBlueprintParseRun.mockResolvedValueOnce(run);
+
+    const listResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`);
+    const detailResponse = await createApp().request(`/api/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
+
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual({ success: true, data: [run] });
+    expect(service.listBlueprintParseRuns).toHaveBeenCalledWith(certificationId);
+
+    expect(detailResponse.status).toBe(200);
+    await expect(detailResponse.json()).resolves.toEqual({ success: true, data: run });
+    expect(service.getBlueprintParseRun).toHaveBeenCalledWith(blueprintParseRunId);
+  });
+
+  it("returns 404 when a blueprint parse run detail request does not exist", async () => {
+    service.getBlueprintParseRun.mockResolvedValueOnce(null);
+
+    const response = await createApp().request(`/api/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Blueprint parse run not found.",
+      },
+    });
+  });
+
+  it("rejects invalid blueprint parse run path and body values before delegation", async () => {
+    const invalidCertificationResponse = await createApp().request("/api/admin/certdrill/certifications/not-a-uuid/blueprint-parse-runs");
+    const invalidBodyResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resourceId: "not-a-uuid", extra: true }),
+    });
+    const invalidDetailResponse = await createApp().request("/api/admin/certdrill/blueprint-parse-runs/not-a-uuid");
+
+    expect(invalidCertificationResponse.status).toBe(400);
+    await expect(invalidCertificationResponse.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid certification id",
+      },
+    });
+
+    expect(invalidBodyResponse.status).toBe(400);
+    await expect(invalidBodyResponse.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid blueprint parse run payload",
+        details: expect.arrayContaining([
+          expect.objectContaining({ path: "resourceId", message: "Resource ID must be a valid UUID." }),
+          expect.objectContaining({ path: "extra", message: UNKNOWN_FIELD_VALIDATION_MESSAGE }),
+        ]),
+      },
+    });
+
+    expect(invalidDetailResponse.status).toBe(400);
+    await expect(invalidDetailResponse.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid blueprint parse run id",
+      },
+    });
+
+    expect(service.startBlueprintParseRun).not.toHaveBeenCalled();
+    expect(service.listBlueprintParseRuns).not.toHaveBeenCalled();
+    expect(service.getBlueprintParseRun).not.toHaveBeenCalled();
+  });
+
+  it("maps blueprint parse service errors to the established not-found and bad-request envelopes", async () => {
+    service.startBlueprintParseRun
+      .mockRejectedValueOnce(new BlueprintParseServiceError(
+        "CERTDRILL_BLUEPRINT_PARSE_RESOURCE_NOT_FOUND",
+        "Resource not found for certification.",
+      ))
+      .mockRejectedValueOnce(new BlueprintParseServiceError(
+        "CERTDRILL_BLUEPRINT_PARSE_SNAPSHOT_UNAVAILABLE",
+        "Resource does not have a usable ingested snapshot.",
+      ));
+
+    const notFoundResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resourceId }),
+    });
+    const badRequestResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resourceId }),
+    });
+
+    expect(notFoundResponse.status).toBe(404);
+    await expect(notFoundResponse.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Resource not found for certification.",
+      },
+    });
+
+    expect(badRequestResponse.status).toBe(400);
+    await expect(badRequestResponse.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "BAD_REQUEST",
+        message: "Resource does not have a usable ingested snapshot.",
+      },
+    });
   });
 
   it("rejects invalid resource ids before ingestion delegation", async () => {
