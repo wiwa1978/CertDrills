@@ -1,4 +1,4 @@
-import type { LookupOneOptions } from "node:dns";
+import type { LookupAddress, LookupOneOptions } from "node:dns";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,12 @@ const textDecoder = new TextDecoder();
 const PUBLIC_ADDRESS = "93.184.216.34";
 
 type LookupCallback = (error: NodeJS.ErrnoException | null, address: string, family: 4 | 6) => void;
+type LookupAllCallback = (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void;
+type LookupAllOptions = LookupOneOptions & { all: true };
+type InjectedLookup = {
+  (hostname: string, options: LookupOneOptions, callback: LookupCallback): void;
+  (hostname: string, options: LookupAllOptions, callback: LookupAllCallback): void;
+};
 
 function toBytes(value: string) {
   return textEncoder.encode(value);
@@ -220,7 +226,7 @@ describe("fetchPublicResource", () => {
 
   it("passes pinned validated addresses to the injected request lookup", async () => {
     const resolve = vi.fn().mockResolvedValue([PUBLIC_ADDRESS]);
-    const request = vi.fn(async ({ url, lookup }: { url: URL; lookup: (hostname: string, options: LookupOneOptions, callback: LookupCallback) => void }) => {
+    const request = vi.fn(async ({ url, lookup }: { url: URL; lookup: InjectedLookup }) => {
       const resolved = await new Promise<{ address: string; family: number }>((resolveLookup, rejectLookup) => {
         lookup(url.hostname, { family: 0, all: false, hints: 0 }, (error, address, family) => {
           if (error) {
@@ -246,6 +252,83 @@ describe("fetchPublicResource", () => {
 
     expect(result.contentType).toBe("application/pdf");
     expect(textDecoder.decode(result.body)).toBe("pdf");
+  });
+
+  it("returns all pinned validated addresses for all=true lookups", async () => {
+    const resolve = vi.fn().mockResolvedValue([PUBLIC_ADDRESS, "2606:2800:220:1:248:1893:25c8:1946"]);
+    const request = vi.fn(async ({ url, lookup }: { url: URL; lookup: InjectedLookup }) => {
+      const resolved = await new Promise<LookupAddress[]>((resolveLookup, rejectLookup) => {
+        lookup(url.hostname, { family: 0, all: true, hints: 0 }, (error, addresses) => {
+          if (error) {
+            rejectLookup(error);
+            return;
+          }
+
+          resolveLookup(addresses);
+        });
+      });
+
+      expect(resolved).toEqual([
+        { address: PUBLIC_ADDRESS, family: 4 },
+        { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
+      ]);
+
+      return {
+        statusCode: 200,
+        headers: { "content-type": "application/pdf" },
+        body: [toBytes("pdf")],
+      };
+    });
+
+    const result = await fetchPublicResource("https://example.com/file.pdf", { resolve, request });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(textDecoder.decode(result.body)).toBe("pdf");
+  });
+
+  it("returns ENOTFOUND with an empty address list when no pinned address matches an all=true family lookup", async () => {
+    const resolve = vi.fn().mockResolvedValue([PUBLIC_ADDRESS]);
+    const request = vi.fn(async ({ url, lookup }: { url: URL; lookup: InjectedLookup }) => {
+      const outcome = await new Promise<{ error: NodeJS.ErrnoException | null; addresses: LookupAddress[] }>((resolveLookup) => {
+        lookup(url.hostname, { family: 6, all: true, hints: 0 }, (error, addresses) => {
+          resolveLookup({ error, addresses });
+        });
+      });
+
+      expect(outcome.error).toMatchObject({ code: "ENOTFOUND" });
+      expect(outcome.addresses).toEqual([]);
+
+      return {
+        statusCode: 200,
+        headers: { "content-type": "application/pdf" },
+        body: [toBytes("pdf")],
+      };
+    });
+
+    await fetchPublicResource("https://example.com/file.pdf", { resolve, request });
+  });
+
+  it("returns ENOTFOUND with empty single-address fields when no pinned address matches a single-address family lookup", async () => {
+    const resolve = vi.fn().mockResolvedValue([PUBLIC_ADDRESS]);
+    const request = vi.fn(async ({ url, lookup }: { url: URL; lookup: InjectedLookup }) => {
+      const outcome = await new Promise<{ error: NodeJS.ErrnoException | null; address: string; family: 4 | 6 }>((resolveLookup) => {
+        lookup(url.hostname, { family: 6, all: false, hints: 0 }, (error, address, family) => {
+          resolveLookup({ error, address, family });
+        });
+      });
+
+      expect(outcome.error).toMatchObject({ code: "ENOTFOUND" });
+      expect(outcome.address).toBe("");
+      expect(outcome.family).toBe(4);
+
+      return {
+        statusCode: 200,
+        headers: { "content-type": "application/pdf" },
+        body: [toBytes("pdf")],
+      };
+    });
+
+    await fetchPublicResource("https://example.com/file.pdf", { resolve, request });
   });
 
   it("exports typed fetch errors", () => {

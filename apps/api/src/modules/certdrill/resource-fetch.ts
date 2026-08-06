@@ -1,5 +1,5 @@
 import { lookup as dnsLookup } from "node:dns/promises";
-import type { LookupOneOptions } from "node:dns";
+import type { LookupAddress, LookupAllOptions, LookupOneOptions } from "node:dns";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 
@@ -27,13 +27,13 @@ export class ResourceFetchError extends Error {
 
 export type ResourceFetchResolver = (hostname: string) => Promise<string[]>;
 
-export type ResourceLookupCallback = (error: NodeJS.ErrnoException | null, address: string, family: 4 | 6) => void;
-
-export type ResourceLookup = (
-  hostname: string,
-  options: LookupOneOptions,
-  callback: ResourceLookupCallback,
-) => void;
+export type ResourceLookupSingleCallback = (error: NodeJS.ErrnoException | null, address: string, family: 4 | 6) => void;
+export type ResourceLookupAllCallback = (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void;
+type ResourceLookupOptions = LookupOneOptions | LookupAllOptions;
+export type ResourceLookup = {
+  (hostname: string, options: LookupOneOptions, callback: ResourceLookupSingleCallback): void;
+  (hostname: string, options: LookupAllOptions, callback: ResourceLookupAllCallback): void;
+};
 
 export type ResourceFetchRequestInput = {
   url: URL;
@@ -213,22 +213,56 @@ function assertPublicAddress(address: string) {
 function createPinnedLookup(hostname: string, addresses: string[]): ResourceLookup {
   const normalizedHostname = stripIpv6Brackets(hostname);
 
-  return (requestedHostname, options, callback) => {
+  const allAddresses = addresses.map((address) => ({
+    address,
+    family: getAddressFamily(address),
+  }));
+
+  function pinnedLookup(requestedHostname: string, options: LookupOneOptions, callback: ResourceLookupSingleCallback): void;
+  function pinnedLookup(requestedHostname: string, options: LookupAllOptions, callback: ResourceLookupAllCallback): void;
+  function pinnedLookup(
+    requestedHostname: string,
+    options: ResourceLookupOptions,
+    callback: ResourceLookupSingleCallback | ResourceLookupAllCallback,
+  ) {
+    const callbackAll = callback as ResourceLookupAllCallback;
+    const callbackSingle = callback as ResourceLookupSingleCallback;
+
     if (requestedHostname !== hostname && stripIpv6Brackets(requestedHostname) !== normalizedHostname) {
-      callback(Object.assign(new Error(`Unexpected lookup hostname: ${requestedHostname}`), { code: "EINVAL" }), "", 4);
+      if (options.all === true) {
+        callbackAll(Object.assign(new Error(`Unexpected lookup hostname: ${requestedHostname}`), { code: "EINVAL" }), []);
+        return;
+      }
+
+      callbackSingle(Object.assign(new Error(`Unexpected lookup hostname: ${requestedHostname}`), { code: "EINVAL" }), "", 4);
       return;
     }
 
     const family = options.family === 4 || options.family === 6 ? options.family : 0;
-    const selectedAddress = addresses.find((address) => family === 0 || getAddressFamily(address) === family) ?? addresses[0];
+    const eligibleAddresses = family === 0
+      ? allAddresses
+      : allAddresses.filter((address) => address.family === family);
 
-    if (!selectedAddress) {
-      callback(Object.assign(new Error(`No validated addresses available for ${hostname}`), { code: "ENOTFOUND" }), "", 4);
+    if (eligibleAddresses.length === 0) {
+      if (options.all === true) {
+        callbackAll(Object.assign(new Error(`No validated addresses available for ${hostname}`), { code: "ENOTFOUND" }), []);
+        return;
+      }
+
+      callbackSingle(Object.assign(new Error(`No validated addresses available for ${hostname}`), { code: "ENOTFOUND" }), "", 4);
       return;
     }
 
-    callback(null, selectedAddress, getAddressFamily(selectedAddress));
-  };
+    if (options.all === true) {
+      callbackAll(null, eligibleAddresses);
+      return;
+    }
+
+    const [selectedAddress] = eligibleAddresses;
+    callbackSingle(null, selectedAddress.address, selectedAddress.family);
+  }
+
+  return pinnedLookup;
 }
 
 function getAddressFamily(address: string): 4 | 6 {
