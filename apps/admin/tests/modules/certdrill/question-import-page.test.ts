@@ -39,6 +39,93 @@ const exampleJson = readSource("../../../public/question-import-example.json");
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
 
+type QuestionImportExampleDocument = {
+  version: number;
+  questions: Array<{
+    categoryCode: string;
+    stem: string;
+    difficulty: string;
+    answers: Array<{
+      text: string;
+      isCorrect: boolean;
+      explanation: string;
+      citationUrls: string[];
+    }>;
+  }>;
+};
+
+function assertQuestionImportExampleShape(document: unknown): asserts document is QuestionImportExampleDocument {
+  if (typeof document !== "object" || document === null || Array.isArray(document)) {
+    throw new Error("Question import example must be a document object.");
+  }
+
+  const { version, questions } = document as Record<string, unknown>;
+
+  if (typeof version !== "number") {
+    throw new Error("Question import example version must be a number.");
+  }
+
+  if (!Array.isArray(questions)) {
+    throw new Error("Question import example questions must be an array.");
+  }
+
+  questions.forEach((question, questionIndex) => {
+    if (typeof question !== "object" || question === null || Array.isArray(question)) {
+      throw new Error(`Question ${questionIndex + 1} must be an object.`);
+    }
+
+    const { categoryCode, stem, difficulty, answers } = question as Record<string, unknown>;
+
+    if (typeof categoryCode !== "string") {
+      throw new Error(`Question ${questionIndex + 1} categoryCode must be a string.`);
+    }
+
+    if (typeof stem !== "string") {
+      throw new Error(`Question ${questionIndex + 1} stem must be a string.`);
+    }
+
+    if (typeof difficulty !== "string") {
+      throw new Error(`Question ${questionIndex + 1} difficulty must be a string.`);
+    }
+
+    if (!Array.isArray(answers)) {
+      throw new Error(`Question ${questionIndex + 1} answers must be an array.`);
+    }
+
+    answers.forEach((answer, answerIndex) => {
+      if (typeof answer !== "object" || answer === null || Array.isArray(answer)) {
+        throw new Error(`Question ${questionIndex + 1} answer ${answerIndex + 1} must be an object.`);
+      }
+
+      const { text, isCorrect, explanation, citationUrls } = answer as Record<string, unknown>;
+
+      if (typeof text !== "string") {
+        throw new Error(`Question ${questionIndex + 1} answer ${answerIndex + 1} text must be a string.`);
+      }
+
+      if (typeof isCorrect !== "boolean") {
+        throw new Error(`Question ${questionIndex + 1} answer ${answerIndex + 1} isCorrect must be a boolean.`);
+      }
+
+      if (typeof explanation !== "string") {
+        throw new Error(`Question ${questionIndex + 1} answer ${answerIndex + 1} explanation must be a string.`);
+      }
+
+      if (!Array.isArray(citationUrls)) {
+        throw new Error(`Question ${questionIndex + 1} answer ${answerIndex + 1} citationUrls must be an array.`);
+      }
+
+      citationUrls.forEach((citationUrl, citationIndex) => {
+        if (typeof citationUrl !== "string") {
+          throw new Error(
+            `Question ${questionIndex + 1} answer ${answerIndex + 1} citationUrl ${citationIndex + 1} must be a string.`,
+          );
+        }
+      });
+    });
+  });
+}
+
 async function harmlessPreviewAction(): Promise<CertDrillQuestionImportPreviewActionResult> {
   return { status: "error", message: "not used" };
 }
@@ -172,22 +259,17 @@ describe("question import page", () => {
 });
 
 describe("question import example document", () => {
-  const example = JSON.parse(exampleJson) as {
-    version: number;
-    questions: Array<{
-      categoryCode: string;
-      stem: string;
-      difficulty: string;
-      answers: Array<{
-        text: string;
-        isCorrect: boolean;
-        explanation: string;
-        citationUrls: string[];
-      }>;
-    }>;
-  };
+  const example = JSON.parse(exampleJson) as QuestionImportExampleDocument;
+
+  it("rejects answers whose citationUrls are not arrays before URL validation", () => {
+    const mutated = JSON.parse(JSON.stringify(example)) as QuestionImportExampleDocument;
+    mutated.questions[0].answers[0].citationUrls = "https://example.com/not-an-array" as unknown as string[];
+
+    expect(() => assertQuestionImportExampleShape(mutated)).toThrow("citationUrls must be an array.");
+  });
 
   it("matches the canonical version 1 shape with realistic AI-agent examples", () => {
+    assertQuestionImportExampleShape(example);
     expect(example.version).toBe(1);
     expect(example.questions).toHaveLength(3);
     expect(new Set(example.questions.map((question) => question.difficulty))).toEqual(
@@ -208,6 +290,7 @@ describe("question import example document", () => {
   });
 
   it("only includes safe http(s) citation URLs", () => {
+    assertQuestionImportExampleShape(example);
     const citationUrls = example.questions.flatMap((question) =>
       question.answers.flatMap((answer) => answer.citationUrls),
     );
