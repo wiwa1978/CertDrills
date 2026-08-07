@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { blueprintProposalJsonSchema } from "../../../src/modules/certdrill/blueprint-proposal";
+import * as blueprintParserModule from "../../../src/modules/certdrill/blueprint-parser";
 import {
   BlueprintParserError,
   createFoundryBlueprintParser,
@@ -67,9 +68,65 @@ function expectParserError(error: unknown) {
   return error as BlueprintParserError;
 }
 
+function getBuildFoundryResponsesUrl() {
+  const helper = Reflect.get(blueprintParserModule, "buildFoundryResponsesUrl");
+  expect(helper).toBeTypeOf("function");
+  return helper as (projectEndpoint: string) => string;
+}
+
+function expectBuildFoundryResponsesUrlError(projectEndpoint: string) {
+  try {
+    getBuildFoundryResponsesUrl()(projectEndpoint);
+    throw new Error("Expected buildFoundryResponsesUrl to throw.");
+  } catch (error) {
+    return expectParserError(error);
+  }
+}
+
 describe("Foundry blueprint parser", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("builds a Responses API URL from a project endpoint without a trailing slash", () => {
+    expect(getBuildFoundryResponsesUrl()("https://example.services.ai.azure.com/api/projects/certdrills")).toBe(
+      "https://example.services.ai.azure.com/api/projects/certdrills/openai/v1/responses",
+    );
+  });
+
+  it("removes multiple trailing path slashes while preserving the full project path", () => {
+    expect(getBuildFoundryResponsesUrl()("https://example.services.ai.azure.com/api/projects/team-a/certdrills///")).toBe(
+      "https://example.services.ai.azure.com/api/projects/team-a/certdrills/openai/v1/responses",
+    );
+  });
+
+  it("rejects project endpoints that contain query strings", () => {
+    const error = expectBuildFoundryResponsesUrlError(
+      "https://example.services.ai.azure.com/api/projects/certdrills?api-version=2024-05-01-preview",
+    );
+
+    expect(error.code).toBe("BLUEPRINT_PARSER_NOT_CONFIGURED");
+    expect(error.message).toBe(
+      "Blueprint parser is not configured. projectEndpoint must not contain a query string or fragment.",
+    );
+  });
+
+  it("rejects project endpoints that contain fragments", () => {
+    const error = expectBuildFoundryResponsesUrlError(
+      "https://example.services.ai.azure.com/api/projects/certdrills#responses",
+    );
+
+    expect(error.code).toBe("BLUEPRINT_PARSER_NOT_CONFIGURED");
+    expect(error.message).toBe(
+      "Blueprint parser is not configured. projectEndpoint must not contain a query string or fragment.",
+    );
+  });
+
+  it("rejects invalid project endpoint URLs", () => {
+    const error = expectBuildFoundryResponsesUrlError("not a url");
+
+    expect(error.code).toBe("BLUEPRINT_PARSER_NOT_CONFIGURED");
+    expect(error.message).toBe("Blueprint parser is not configured. projectEndpoint must be a valid URL.");
   });
 
   it("throws BLUEPRINT_PARSER_NOT_CONFIGURED when required config is blank", () => {

@@ -63,7 +63,7 @@ const envSchema = z.object({
   FEATURE_CERTDRILL_ENABLED: booleanString(true),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().optional(),
-  AZURE_AI_FOUNDRY_RESPONSES_URL: emptyToUndefined(z.string().url()),
+  AZURE_AI_FOUNDRY_PROJECT_ENDPOINT: emptyToUndefined(z.string().url()),
   AZURE_AI_FOUNDRY_API_KEY: emptyToUndefined(z.string().min(1)),
   AZURE_AI_FOUNDRY_MODEL: emptyToUndefined(z.string().min(1)),
   AZURE_AI_FOUNDRY_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),

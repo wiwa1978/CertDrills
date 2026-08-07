@@ -536,6 +536,10 @@ function readRouteSource(fileName: string) {
   return readFileSync(new URL(`../src/routes/${fileName}`, import.meta.url), "utf8");
 }
 
+function readBootstrapSource() {
+  return readFileSync(new URL("../src/bootstrap.ts", import.meta.url), "utf8");
+}
+
 function extractRouterRoutes(fileName: string, prefix = "") {
   const source = readRouteSource(fileName);
   const routes: RouteSignature[] = [];
@@ -587,6 +591,13 @@ describe("API functional routes", () => {
 
   it("exports the audit service from bootstrap", () => {
     expect(bootstrap.auditService).toBe(mocks.auditService);
+  });
+
+  it("derives the Foundry Responses URL from AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in bootstrap source", () => {
+    const source = readBootstrapSource();
+
+    expect(source).toMatch(/buildFoundryResponsesUrl\(\s*env\.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT\s*\)/s);
+    expect(source).not.toContain("AZURE_AI_FOUNDRY_RESPONSES_URL");
   });
 
   it("injects a not-configured blueprint parser into the CertDrill admin service bootstrap wiring", async () => {
