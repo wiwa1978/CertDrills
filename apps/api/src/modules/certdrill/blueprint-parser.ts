@@ -143,10 +143,12 @@ export function createFoundryBlueprintParser(config: CreateFoundryBlueprintParse
             model,
             input: [
               {
+                type: "message",
                 role: "system",
                 content: [{ type: "input_text", text: SYSTEM_PROMPT }],
               },
               {
+                type: "message",
                 role: "user",
                 content: [{ type: "input_text", text: buildUserPrompt(input) }],
               },

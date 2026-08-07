@@ -227,10 +227,12 @@ describe("Foundry blueprint parser", () => {
 
     expect(body.input).toHaveLength(2);
     expect(body.input[0]).toMatchObject({
+      type: "message",
       role: "system",
       content: [{ type: "input_text", text: expect.any(String) }],
     });
     expect(body.input[1]).toMatchObject({
+      type: "message",
       role: "user",
       content: [{ type: "input_text", text: expect.any(String) }],
     });
