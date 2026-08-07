@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getBlueprintParseRunMock, startBlueprintParseRunMock } = vi.hoisted(() => ({
@@ -6,6 +6,7 @@ const { getBlueprintParseRunMock, startBlueprintParseRunMock } = vi.hoisted(() =
   startBlueprintParseRunMock: vi.fn(),
 }));
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/api/certdrill.server", () => ({
   getCertDrillAdminBlueprintParseRunServer: getBlueprintParseRunMock,
   startCertDrillAdminBlueprintParseRunServer: startBlueprintParseRunMock,
@@ -37,6 +38,21 @@ describe("blueprint parse run routes", () => {
 
     expect(startRouteSource).not.toContain('"use client"');
     expect(detailRouteSource).not.toContain('"use client"');
+  });
+
+  it("extracts shared route responses into a server-only module", () => {
+    const responsesPath = new URL("../../src/app/api/certdrill/blueprint-parse-runs/responses.ts", import.meta.url);
+    const startRouteSource = readFileSync(new URL("../../src/app/api/certdrill/blueprint-parse-runs/route.ts", import.meta.url), "utf8");
+    const detailRouteSource = readFileSync(new URL("../../src/app/api/certdrill/blueprint-parse-runs/[runId]/route.ts", import.meta.url), "utf8");
+
+    expect(existsSync(responsesPath)).toBe(true);
+
+    const responsesSource = readFileSync(responsesPath, "utf8");
+    expect(responsesSource).toContain('import "server-only"');
+    expect(startRouteSource).toContain('from "./responses"');
+    expect(detailRouteSource).toContain('from "../responses"');
+    expect(startRouteSource).not.toContain("Invalid blueprint analysis request.");
+    expect(detailRouteSource).not.toContain("Invalid blueprint analysis request.");
   });
 
   it("starts blueprint parse runs with strict JSON validation and exact delegation", async () => {
@@ -163,6 +179,39 @@ describe("blueprint parse run routes", () => {
       error: { message: "Invalid blueprint analysis request." },
     });
     expect(getBlueprintParseRunMock).not.toHaveBeenCalled();
+  });
+
+  it("propagates trimmed Error messages from detail route failures", async () => {
+    getBlueprintParseRunMock.mockRejectedValueOnce(new Error("  Blueprint parse run missing.  "));
+
+    const response = await GET(
+      new Request(`http://admin/api/certdrill/blueprint-parse-runs/${runId}`),
+      { params: Promise.resolve({ runId }) },
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: { message: "Blueprint parse run missing." },
+    });
+  });
+
+  it("bounds propagated detail route Error messages to 300 characters", async () => {
+    const longMessage = ` ${"B".repeat(320)} `;
+    getBlueprintParseRunMock.mockRejectedValueOnce(new Error(longMessage));
+
+    const response = await GET(
+      new Request(`http://admin/api/certdrill/blueprint-parse-runs/${runId}`),
+      { params: Promise.resolve({ runId }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toEqual({
+      success: false,
+      error: { message: "B".repeat(300) },
+    });
+    expect(payload.error.message).toHaveLength(300);
   });
 
   it("falls back to the generic message for non-Error detail failures", async () => {

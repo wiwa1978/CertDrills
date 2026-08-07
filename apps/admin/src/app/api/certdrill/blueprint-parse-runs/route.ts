@@ -1,30 +1,15 @@
 import { z } from "zod";
 
 import { startCertDrillAdminBlueprintParseRunServer } from "@/lib/api/certdrill.server";
-import { blueprintAnalysisErrorMessage } from "./error-message";
-
-const invalidBlueprintAnalysisRequest = {
-  success: false as const,
-  error: { message: "Invalid blueprint analysis request." },
-};
+import {
+  blueprintAnalysisHelperErrorResponse,
+  blueprintAnalysisInvalidRequestResponse,
+} from "./responses";
 
 const startBlueprintParseRunSchema = z.object({
   certificationId: z.string().uuid(),
   resourceId: z.string().uuid(),
 }).strict();
-
-function invalidRequestResponse() {
-  return Response.json(invalidBlueprintAnalysisRequest, { status: 400 });
-}
-
-function helperErrorResponse(error: unknown) {
-  return Response.json({
-    success: false as const,
-    error: {
-      message: blueprintAnalysisErrorMessage(error),
-    },
-  }, { status: 500 });
-}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -32,12 +17,12 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return invalidRequestResponse();
+    return blueprintAnalysisInvalidRequestResponse();
   }
 
   const parsedBody = startBlueprintParseRunSchema.safeParse(body);
   if (!parsedBody.success) {
-    return invalidRequestResponse();
+    return blueprintAnalysisInvalidRequestResponse();
   }
 
   try {
@@ -48,6 +33,6 @@ export async function POST(request: Request) {
 
     return Response.json({ success: true as const, data }, { status: 201 });
   } catch (error) {
-    return helperErrorResponse(error);
+    return blueprintAnalysisHelperErrorResponse(error);
   }
 }
