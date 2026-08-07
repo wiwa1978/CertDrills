@@ -41,7 +41,12 @@ import { createJobsRunner } from "./modules/jobs/runner";
 import { createWebhookRecoveryService } from "./modules/payments/webhook-recovery";
 import { createAllPurchasedCertificationAccessProvider } from "./modules/certdrill/access";
 import { createCertDrillAdminService } from "./modules/certdrill/admin-service";
-import { BlueprintParserError, createFoundryBlueprintParser, type BlueprintParser } from "./modules/certdrill/blueprint-parser";
+import {
+  BlueprintParserError,
+  buildFoundryResponsesUrl,
+  createFoundryBlueprintParser,
+  type BlueprintParser,
+} from "./modules/certdrill/blueprint-parser";
 import { createCertDrillService } from "./modules/certdrill/service";
 
 const adminAllowlist = new Set(
@@ -194,9 +199,9 @@ const jobsRunner = createJobsRunner({
 });
 
 function createCertDrillBlueprintParser(): BlueprintParser {
-  if (env.AZURE_AI_FOUNDRY_RESPONSES_URL && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
+  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
     return createFoundryBlueprintParser({
-      responsesUrl: env.AZURE_AI_FOUNDRY_RESPONSES_URL,
+      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
       apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
       model: env.AZURE_AI_FOUNDRY_MODEL,
       timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,

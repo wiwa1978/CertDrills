@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const baseEnv = {
-  DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
+  DATABASE_URL: "******localhost:5432/test",
   APP_URL: "http://localhost:3200",
   API_URL: "http://localhost:8877",
   BETTER_AUTH_SECRET: "this-is-a-long-enough-secret",
   JWT_SECRET: "this-is-a-long-enough-jwt-secret",
 };
 
-async function loadEnv(featureFlagValue?: string) {
+async function loadEnv(overrides: Record<string, string> = {}) {
   vi.resetModules();
   vi.unstubAllEnvs();
 
@@ -16,8 +16,8 @@ async function loadEnv(featureFlagValue?: string) {
     vi.stubEnv(key, value);
   }
 
-  if (featureFlagValue !== undefined) {
-    vi.stubEnv("FEATURE_CERTDRILL_ENABLED", featureFlagValue);
+  for (const [key, value] of Object.entries(overrides)) {
+    vi.stubEnv(key, value);
   }
 
   return import("../src/env");
@@ -25,6 +25,7 @@ async function loadEnv(featureFlagValue?: string) {
 
 describe("api env", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.resetModules();
   });
@@ -40,7 +41,28 @@ describe("api env", () => {
     ["false", false],
     ["0", false],
   ])("parses FEATURE_CERTDRILL_ENABLED=%s as %s", async (value, expected) => {
-    const { env } = await loadEnv(value);
+    const { env } = await loadEnv({ FEATURE_CERTDRILL_ENABLED: value });
     expect(env.FEATURE_CERTDRILL_ENABLED).toBe(expected);
+  });
+
+  it("parses AZURE_AI_FOUNDRY_PROJECT_ENDPOINT and strips the legacy responses URL setting", async () => {
+    const { env } = await loadEnv({
+      AZURE_AI_FOUNDRY_PROJECT_ENDPOINT: "https://example.services.ai.azure.com/api/projects/certdrills",
+      AZURE_AI_FOUNDRY_RESPONSES_URL: "https://example.services.ai.azure.com/models/responses?api-version=preview",
+    });
+
+    expect(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT).toBe(
+      "https://example.services.ai.azure.com/api/projects/certdrills",
+    );
+    expect("AZURE_AI_FOUNDRY_RESPONSES_URL" in env).toBe(false);
+  });
+
+  it("rejects an invalid AZURE_AI_FOUNDRY_PROJECT_ENDPOINT", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(loadEnv({
+      AZURE_AI_FOUNDRY_PROJECT_ENDPOINT: "not a url",
+    })).rejects.toThrow("Invalid environment variables");
+    expect(consoleError).toHaveBeenCalledOnce();
   });
 });
