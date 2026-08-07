@@ -16,6 +16,7 @@ import { createCertDrillAdminRouter } from "../src/modules/certdrill/routes";
 const certificationId = "22222222-2222-4222-8222-222222222222";
 const categoryId = "33333333-3333-4333-8333-333333333333";
 const questionId = "44444444-4444-4444-8444-444444444444";
+const otherQuestionId = "45454545-4545-4454-8454-454545454545";
 const examFormId = "55555555-5555-4555-8555-555555555555";
 const resourceId = "66666666-6666-4666-8666-666666666666";
 const feedbackId = "77777777-7777-4777-8777-777777777777";
@@ -51,7 +52,11 @@ const service = {
   processPendingBlueprintParseRuns: vi.fn<CertDrillAdminService["processPendingBlueprintParseRuns"]>(),
   listExamForms: vi.fn<CertDrillAdminService["listExamForms"]>(),
   createExamForm: vi.fn<CertDrillAdminService["createExamForm"]>(),
-  updateExamForm: vi.fn<CertDrillAdminService["updateExamForm"]>(),
+  getExamForm: vi.fn<CertDrillAdminService["getExamForm"]>(),
+  updateExamFormMetadata: vi.fn<CertDrillAdminService["updateExamFormMetadata"]>(),
+  regenerateExamForm: vi.fn<CertDrillAdminService["regenerateExamForm"]>(),
+  replaceExamFormQuestion: vi.fn<CertDrillAdminService["replaceExamFormQuestion"]>(),
+  setExamFormActive: vi.fn<CertDrillAdminService["setExamFormActive"]>(),
   listResources: vi.fn<CertDrillAdminService["listResources"]>(),
   createResource: vi.fn<CertDrillAdminService["createResource"]>(),
   updateResource: vi.fn<CertDrillAdminService["updateResource"]>(),
@@ -264,27 +269,71 @@ describe("CertDrill admin routes", () => {
     expect(service.createQuestion).not.toHaveBeenCalled();
   });
 
-  it("delegates exam form, resource, and mock generation requests", async () => {
+  it("delegates focused exam form requests", async () => {
     service.createExamForm.mockResolvedValueOnce({ id: examFormId });
     service.listExamForms.mockResolvedValueOnce([{ id: examFormId }]);
-    service.updateExamForm.mockResolvedValueOnce({ id: examFormId });
+    service.getExamForm.mockResolvedValueOnce({ id: examFormId });
+    service.updateExamFormMetadata.mockResolvedValueOnce({ id: examFormId });
+    service.regenerateExamForm.mockResolvedValueOnce({ id: examFormId });
+    service.replaceExamFormQuestion.mockResolvedValueOnce({ id: examFormId });
+    service.setExamFormActive.mockResolvedValueOnce({ id: examFormId });
+
+    const createPayload = { certificationId, name: "Form A", durationMinutes: 120, targetQuestionCount: 60 };
+    const regeneratePayload = { targetQuestionCount: 50, expectedAssignmentVersion: 2 };
+    const replacePayload = { currentQuestionId: questionId, replacementQuestionId: otherQuestionId, expectedAssignmentVersion: 2 };
+
+    await createApp().request("/api/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) });
+    await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/exam-forms`);
+    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`);
+    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Form B", durationMinutes: 90 }) });
+    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(regeneratePayload) });
+    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(replacePayload) });
+    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/activation`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ isActive: true }) });
+
+    expect(service.createExamForm).toHaveBeenCalledWith(createPayload);
+    expect(service.listExamForms).toHaveBeenCalledWith(certificationId);
+    expect(service.getExamForm).toHaveBeenCalledWith(examFormId);
+    expect(service.updateExamFormMetadata).toHaveBeenCalledWith(examFormId, { name: "Form B", durationMinutes: 90 });
+    expect(service.regenerateExamForm).toHaveBeenCalledWith(examFormId, regeneratePayload);
+    expect(service.replaceExamFormQuestion).toHaveBeenCalledWith(examFormId, replacePayload);
+    expect(service.setExamFormActive).toHaveBeenCalledWith(examFormId, true);
+  });
+
+  it("rejects invalid exam form payloads without delegation", async () => {
+    const responses = await Promise.all([
+      createApp().request("/api/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ certificationId: "bad", name: "", durationMinutes: 0, targetQuestionCount: -1 }) }),
+      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 2.5, expectedAssignmentVersion: 0 }) }),
+      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ currentQuestionId: "bad", replacementQuestionId: otherQuestionId, expectedAssignmentVersion: 1 }) }),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([400, 400, 400]);
+    expect(service.createExamForm).not.toHaveBeenCalled();
+    expect(service.regenerateExamForm).not.toHaveBeenCalled();
+    expect(service.replaceExamFormQuestion).not.toHaveBeenCalled();
+  });
+
+  it("maps assignment conflicts to 409", async () => {
+    service.regenerateExamForm.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_CONFLICT", "Reload"));
+    const response = await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 60, expectedAssignmentVersion: 2 }) });
+    expect(response.status).toBe(409);
+  });
+
+  it("maps exam form not-found and active-question protection statuses", async () => {
+    service.getExamForm.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND", "Missing"));
+    service.updateQuestion.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", "In use"));
+    const [missing, inUse] = await Promise.all([
+      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`),
+      createApp().request(`/api/admin/certdrill/questions/${questionId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "archived" }) }),
+    ]);
+    expect(missing.status).toBe(404);
+    expect(inUse.status).toBe(409);
+  });
+
+  it("delegates resource and mock generation requests", async () => {
     service.createResource.mockResolvedValueOnce({ id: resourceId });
     service.listResources.mockResolvedValueOnce([{ id: resourceId }]);
     service.updateResource.mockResolvedValueOnce({ id: resourceId });
     service.ingestResource.mockResolvedValueOnce({ id: resourceId, status: "ingested" });
     service.createMockGenerationJob.mockResolvedValueOnce({ job: { id: "job-1" }, generatedQuestions: [] });
-
-    await createApp().request("/api/admin/certdrill/exam-forms", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ certificationId, name: "Form A", questionIds: [questionId] }),
-    });
-    await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/exam-forms`);
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ isActive: false }),
-    });
     await createApp().request("/api/admin/certdrill/resources", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -305,9 +354,6 @@ describe("CertDrill admin routes", () => {
       body: JSON.stringify({ certificationId, categoryId, prompt: "Prompt", topic: "Topic", requestedCount: 1 }),
     });
 
-    expect(service.createExamForm).toHaveBeenCalledWith({ certificationId, name: "Form A", questionIds: [questionId] });
-    expect(service.listExamForms).toHaveBeenCalledWith(certificationId);
-    expect(service.updateExamForm).toHaveBeenCalledWith(examFormId, { isActive: false });
     expect(service.createResource).toHaveBeenCalledWith({ certificationId, url: "https://docs.example.com", title: "Docs", sourceType: "doc", contentMode: "deep_content" });
     expect(service.listResources).toHaveBeenCalledWith(certificationId);
     expect(service.updateResource).toHaveBeenCalledWith(resourceId, { title: "Updated" });

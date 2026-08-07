@@ -6,7 +6,6 @@ import type { CertDrillDifficulty } from "@platform/contracts";
 import {
   createCertDrillAdminCategoryServer,
   createCertDrillAdminCertificationServer,
-  createCertDrillAdminExamFormServer,
   createCertDrillAdminMockGenerationJobServer,
   createCertDrillAdminQuestionServer,
   createCertDrillAdminResourceServer,
@@ -16,12 +15,10 @@ import {
   publishCertDrillAdminQuestionServer,
   updateCertDrillAdminCategoryServer,
   updateCertDrillAdminCertificationServer,
-  updateCertDrillAdminExamFormServer,
   updateCertDrillAdminQuestionFeedbackServer,
   updateCertDrillAdminQuestionServer,
   updateCertDrillAdminResourceServer,
   type CertDrillAdminCertificationUpdateInput,
-  type CertDrillAdminExamFormUpdateInput,
   type CertDrillAdminQuestionOptionInput,
   type CertDrillAdminQuestionUpdateInput,
   type CertDrillAdminResourceInput,
@@ -130,21 +127,6 @@ function uniqueFormValues(values: FormDataEntryValue[]) {
     .filter(Boolean))];
 }
 
-function examFormQuestionIds(formData: FormData) {
-  const manualQuestionIds = csvList(formData, "questionIds");
-  if (manualQuestionIds.length > 0) return uniqueFormValues(manualQuestionIds);
-
-  if (formData.has("questionPickerPresent")) {
-    return uniqueFormValues(formData.getAll("selectedQuestionIds"));
-  }
-
-  return uniqueFormValues(manualQuestionIds);
-}
-
-function submittedExamFormQuestionIds(formData: FormData) {
-  if (!formData.has("questionIds") && !formData.has("questionPickerPresent")) return undefined;
-  return examFormQuestionIds(formData);
-}
 
 function compact<T extends Record<string, unknown>>(payload: T) {
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)) as Partial<T>;
@@ -384,35 +366,6 @@ export async function archiveCertDrillQuestionAction(formData: FormData) {
   const questionId = requiredString(formData, "questionId");
   if (!questionId) return;
   await updateCertDrillAdminQuestionServer(questionId, { status: "archived" });
-  revalidateCertDrillAdminPage();
-}
-
-export async function createCertDrillExamFormAction(formData: FormData) {
-  await createCertDrillAdminExamFormServer({
-    certificationId: requiredString(formData, "certificationId"),
-    name: requiredString(formData, "name"),
-    description: nullableString(formData, "description"),
-    durationMinutes: optionalNumber(formData, "durationMinutes"),
-    questionIds: examFormQuestionIds(formData),
-    sortOrder: optionalNumber(formData, "sortOrder"),
-    isActive: checkboxValue(formData, "isActive"),
-  });
-  revalidateCertDrillAdminPage();
-}
-
-export async function updateCertDrillExamFormAction(formData: FormData) {
-  const examFormId = requiredString(formData, "examFormId");
-  const payload = compact({
-    certificationId: submittedString(formData, "certificationId"),
-    name: submittedString(formData, "name"),
-    description: submittedString(formData, "description"),
-    durationMinutes: submittedNumber(formData, "durationMinutes"),
-    questionIds: submittedExamFormQuestionIds(formData),
-    sortOrder: submittedNumber(formData, "sortOrder"),
-    isActive: submittedBoolean(formData, "isActive"),
-  }) as CertDrillAdminExamFormUpdateInput;
-
-  await updateCertDrillAdminExamFormServer(examFormId, payload);
   revalidateCertDrillAdminPage();
 }
 

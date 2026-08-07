@@ -20,7 +20,7 @@ The repository currently has an unfinished merge with unrelated staged resource-
 
 - `apps/api/src/modules/certdrill/exam-form-assignment.ts`: pure blueprint validation, quota calculation, generation, ancestry lookup, and assignment validation.
 - `apps/api/tests/modules/certdrill/exam-form-assignment.test.ts`: deterministic unit tests for allocation and shortages.
-- `packages/platform-db/drizzle/0026_certdrill_exam_form_assignments.sql`: exam-form metadata migration and legacy backfill.
+- `packages/platform-db/drizzle/0027_certdrill_exam_form_assignments.sql`: exam-form metadata migration and legacy backfill (renumbered from 0026 after integration).
 - `apps/admin/src/modules/certdrill/exam-form-href.ts`: list/editor URL builders.
 - `apps/admin/src/modules/certdrill/exam-form-actions.ts`: focused server actions and structured action state.
 - `apps/admin/src/modules/certdrill/exam-form-create-dialog.tsx`: client dialog with action-state validation.
@@ -223,7 +223,7 @@ git commit -m "feat: add strict exam form assignment planner"
 
 **Files:**
 - Modify: `packages/platform-db/src/schema/certdrill.ts:255-276`
-- Create: `packages/platform-db/drizzle/0026_certdrill_exam_form_assignments.sql`
+- Create: `packages/platform-db/drizzle/0027_certdrill_exam_form_assignments.sql`
 - Modify: `packages/platform-db/drizzle/meta/_journal.json`
 - Create: `apps/api/tests/modules/certdrill/exam-form-schema.test.ts`
 
@@ -284,9 +284,9 @@ check("certdrill_exam_forms_duration_positive", sql`${table.durationMinutes} > 0
 check("certdrill_exam_forms_assignment_version_positive", sql`${table.assignmentVersion} > 0`),
 ```
 
-- [ ] **Step 4: Write migration 0026 and register it in the journal**
+- [ ] **Step 4: Write migration 0027 and register it in the journal**
 
-The repository's CertDrill migrations after the initial generated snapshots are checked-in SQL plus journal entries, so add `0026_certdrill_exam_form_assignments.sql` directly rather than generating a broad snapshot diff. The migration performs a safe legacy backfill before adding `NOT NULL`:
+The repository's CertDrill migrations after the initial generated snapshots are checked-in SQL plus journal entries, so add `0027_certdrill_exam_form_assignments.sql` directly rather than generating a broad snapshot diff. The migration performs a safe legacy backfill before adding `NOT NULL`:
 
 ```sql
 ALTER TABLE "certdrill_exam_forms" ADD COLUMN "target_question_count" integer;
@@ -362,7 +362,7 @@ WHERE COALESCE((
 ), 0) <> cardinality(form."question_ids");
 ```
 
-Append journal entry index 26 with tag `0026_certdrill_exam_form_assignments`, version `7`, `breakpoints: true`, and a current monotonically increasing `when` timestamp. Do not create a partial snapshot file because this repository has not checked in snapshots for migrations 0006-0025.
+Append journal entry index 27 with tag `0027_certdrill_exam_form_assignments`, version `7`, `breakpoints: true`, and a current monotonically increasing `when` timestamp. Do not create a partial snapshot file because this repository has not checked in snapshots for migrations 0006-0026.
 
 - [ ] **Step 5: Verify the test, schema, and package types**
 

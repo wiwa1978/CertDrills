@@ -61,14 +61,14 @@ const categoryUpdateSchema = categoryCreateSchema.partial();
 
 const examFormCreateSchema = z.object({
   certificationId: z.string().uuid(),
-  name: z.string().min(1),
-  description: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  isActive: z.boolean().optional(),
-  durationMinutes: z.number().int().positive().optional(),
-  questionIds: z.array(z.string().uuid()),
+  name: z.string().trim().min(1),
+  durationMinutes: z.number().int().positive(),
+  targetQuestionCount: z.number().int().positive(),
 });
-const examFormUpdateSchema = examFormCreateSchema.partial();
+const examFormMetadataSchema = z.object({ name: z.string().trim().min(1).optional(), durationMinutes: z.number().int().positive().optional() }).refine((value) => Object.keys(value).length > 0, "At least one field is required.");
+const examFormRegenerateSchema = z.object({ targetQuestionCount: z.number().int().positive(), expectedAssignmentVersion: z.number().int().positive() });
+const examFormReplaceSchema = z.object({ currentQuestionId: z.string().uuid(), replacementQuestionId: z.string().uuid(), expectedAssignmentVersion: z.number().int().positive() });
+const examFormActivationSchema = z.object({ isActive: z.boolean() });
 
 const questionFeedbackUpdateSchema = z.object({
   status: z.enum(["reviewed", "resolved"]),
@@ -200,7 +200,7 @@ function certDrillAdminErrorJson(
   code: string,
   message: string,
   details: unknown,
-  status: 400 | 409,
+  status: 400 | 404 | 409,
 ) {
   const requestId = c.get("requestId");
   const response = c.json({
@@ -235,7 +235,12 @@ function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
   }
 
   if (error instanceof CertDrillAdminServiceError) {
-    return certDrillAdminErrorJson(c, error.code, error.message, error.details, 400);
+    const status = error.code === "CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND"
+      ? 404
+      : error.code === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" || error.code === "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE"
+        ? 409
+        : 400;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
   }
 
   throw error;
@@ -601,6 +606,11 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (!certificationId) return validationError(c, "Invalid certification id");
     return withAdminAction(c, () => deps.service.listExamForms(certificationId));
   });
+  router.get("/exam-forms/:id", (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid exam form id");
+    return withAdminAction(c, () => deps.service.getExamForm(id));
+  });
   router.post("/exam-forms", async (c) => {
     const parsedBody = await adminJson(c, examFormCreateSchema);
     if (!parsedBody.success) return parsedValidationError(c, "Invalid exam form payload", parsedBody.error);
@@ -609,9 +619,30 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
   router.patch("/exam-forms/:id", async (c) => {
     const id = adminUuidParam(c);
     if (!id) return validationError(c, "Invalid exam form id");
-    const parsedBody = await adminJson(c, examFormUpdateSchema);
+    const parsedBody = await adminJson(c, examFormMetadataSchema);
     if (!parsedBody.success) return parsedValidationError(c, "Invalid exam form payload", parsedBody.error);
-    return withAdminAction(c, () => deps.service.updateExamForm(id, parsedBody.data));
+    return withAdminAction(c, () => deps.service.updateExamFormMetadata(id, parsedBody.data));
+  });
+  router.post("/exam-forms/:id/regenerate", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid exam form id");
+    const parsedBody = await adminJson(c, examFormRegenerateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid exam form regeneration payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.regenerateExamForm(id, parsedBody.data));
+  });
+  router.post("/exam-forms/:id/questions/replace", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid exam form id");
+    const parsedBody = await adminJson(c, examFormReplaceSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid exam form replacement payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.replaceExamFormQuestion(id, parsedBody.data));
+  });
+  router.patch("/exam-forms/:id/activation", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid exam form id");
+    const parsedBody = await adminJson(c, examFormActivationSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid exam form activation payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.setExamFormActive(id, parsedBody.data.isActive));
   });
 
   router.get("/certifications/:certificationId/resources", (c) => {

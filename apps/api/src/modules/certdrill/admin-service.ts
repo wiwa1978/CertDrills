@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 
 import {
   certdrillAnswerOptions,
@@ -28,6 +28,7 @@ import {
 import { BlueprintParserError, type BlueprintParser } from "./blueprint-parser";
 import { createBlueprintParseService } from "./blueprint-parse-service";
 import { createResourceIngestor, type ResourceIngestor } from "./resource-ingestion";
+import { ExamFormAssignmentError, planExamFormAssignment, topLevelCategoryId, validateExamFormAssignment } from "./exam-form-assignment";
 import { validateCategorySiblingWeights, validateQuestionForPublish } from "./validation";
 
 type CertDrillAdminQuestionIndex = Pick<
@@ -47,6 +48,7 @@ type CertDrillAdminBlueprintParseService = Pick<
 
 type CertDrillAdminServiceDeps = {
   db: any;
+  rng?: () => number;
   questionIndex?: CertDrillAdminQuestionIndex;
   questionImport?: CertDrillAdminQuestionImportService;
   blueprintParse?: CertDrillAdminBlueprintParseService;
@@ -62,7 +64,13 @@ export type CertDrillAdminServiceErrorCode =
   | "CERTDRILL_ADMIN_CROSS_CERT_REFERENCE"
   | "CERTDRILL_ADMIN_CATEGORY_PARENT_CYCLE"
   | "CERTDRILL_ADMIN_QUESTION_NOT_FOUND"
-  | "CERTDRILL_ADMIN_QUESTION_NOT_PUBLISHABLE";
+  | "CERTDRILL_ADMIN_QUESTION_NOT_PUBLISHABLE"
+  | "CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND"
+  | "CERTDRILL_ADMIN_EXAM_FORM_WEIGHTS"
+  | "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY"
+  | "CERTDRILL_ADMIN_EXAM_FORM_INVALID"
+  | "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT"
+  | "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE";
 
 export class CertDrillAdminServiceError extends Error {
   constructor(
@@ -128,15 +136,15 @@ type QuestionInput = {
 
 type QuestionUpdateInput = Partial<Omit<QuestionInput, "certificationId" | "createdBy">>;
 
-type ExamFormInput = {
+type ExamFormCreateInput = {
   certificationId: string;
   name: string;
-  description?: string | null;
-  sortOrder?: number;
-  isActive?: boolean;
-  durationMinutes?: number;
-  questionIds: string[];
+  durationMinutes: number;
+  targetQuestionCount: number;
 };
+type ExamFormMetadataInput = { name?: string; durationMinutes?: number };
+type ExamFormRegenerateInput = { targetQuestionCount: number; expectedAssignmentVersion: number };
+type ExamFormReplaceInput = { currentQuestionId: string; replacementQuestionId: string; expectedAssignmentVersion: number };
 
 type QuestionFeedbackUpdateInput = {
   status: Exclude<CertDrillQuestionFeedbackStatus, "open">;
@@ -405,25 +413,20 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
   }
 
   async function updateQuestion(id: string, input: QuestionUpdateInput) {
-    const current = await deps.db.query.certdrillQuestions.findFirst({
-      where: eq(certdrillQuestions.id, id),
-      with: { options: true },
-    }) as QuestionRow | null;
-    if (!current) {
-      throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_QUESTION_NOT_FOUND", "Question not found");
-    }
-    const effectiveCertificationId = current.certificationId;
-    if (effectiveCertificationId && input.categoryId) {
-      await assertCategoryBelongsToCertification(deps.db, effectiveCertificationId, input.categoryId);
-    }
-    if (effectiveCertificationId) {
-      await assertQuestionReferencesBelongToCertification(effectiveCertificationId, input);
-    }
-    assertPublishableQuestionInput(mergeQuestionForValidation(current, input));
-
-    const { options, ...questionInput } = input;
-
     return withTransaction(async (db) => {
+      const initial = await db.query.certdrillQuestions.findFirst({ where: eq(certdrillQuestions.id, id), with: { options: true } }) as QuestionRow | null;
+      if (!initial) throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_QUESTION_NOT_FOUND", "Question not found");
+      if (initial.certificationId) await lockExamFormCertification(db, initial.certificationId);
+      const current = await db.query.certdrillQuestions.findFirst({ where: eq(certdrillQuestions.id, id), with: { options: true } }) as QuestionRow | null;
+      if (!current) throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_QUESTION_NOT_FOUND", "Question not found");
+      if (current.status === "published" && (input.status === "draft" || input.status === "archived")) {
+        const forms = await db.query.certdrillExamForms.findMany({ where: and(eq(certdrillExamForms.isActive, true), sql`${certdrillExamForms.questionIds} @> ARRAY[${id}::uuid]`), columns: { id: true, name: true } });
+        if (forms.length > 0) throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", `Question is assigned to active exam form${forms.length === 1 ? "" : "s"}: ${forms.map((form: { name: string }) => form.name).join(", ")}. Deactivate or regenerate them first.`, forms);
+      }
+      if (current.certificationId && input.categoryId) await assertCategoryBelongsToCertification(db, current.certificationId, input.categoryId);
+      if (current.certificationId) await assertQuestionReferencesBelongToCertification(current.certificationId, input, db);
+      assertPublishableQuestionInput(mergeQuestionForValidation(current, input));
+      const { options, ...questionInput } = input;
       let row: unknown;
 
       if (Object.keys(questionInput).length > 0) {
@@ -481,18 +484,36 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     return row;
   }
 
-  async function createExamForm(input: ExamFormInput) {
-    await assertQuestionIdsBelongToCertification(input.certificationId, input.questionIds);
-    const [row] = await deps.db.insert(certdrillExamForms).values({
-      certificationId: input.certificationId,
-      name: input.name,
-      description: input.description ?? null,
-      sortOrder: input.sortOrder ?? 0,
-      isActive: input.isActive ?? true,
-      durationMinutes: input.durationMinutes ?? 120,
-      questionIds: input.questionIds,
-    }).returning();
-    return row;
+  async function createExamForm(input: ExamFormCreateInput) {
+    const metadata = validateExamFormMetadata(input);
+    return withTransaction(async (db) => {
+      await lockExamFormCertification(db, input.certificationId);
+      const [categories, questions, existingForms] = await Promise.all([
+        loadAssignmentCategories(db, input.certificationId),
+        loadPublishedQuestions(db, input.certificationId),
+        db.query.certdrillExamForms.findMany({ where: eq(certdrillExamForms.certificationId, input.certificationId) }),
+      ]);
+      const plan = planAssignment({ categories, questions, targetQuestionCount: input.targetQuestionCount });
+      const sortOrder = existingForms.reduce((maximum: number, form: { sortOrder?: number }) => Math.max(maximum, Number(form.sortOrder ?? 0)), 0) + 1;
+      const [row] = await db.insert(certdrillExamForms).values({
+        certificationId: input.certificationId,
+        name: metadata.name,
+        description: null,
+        sortOrder,
+        isActive: false,
+        durationMinutes: metadata.durationMinutes,
+        targetQuestionCount: input.targetQuestionCount,
+        questionIds: plan.questionIds,
+        allocationSnapshot: plan.allocations,
+        assignmentVersion: 1,
+        generatedAt: new Date(),
+      }).returning();
+      return row;
+    });
+  }
+
+  async function getExamForm(id: string) {
+    return loadExamForm(deps.db, id);
   }
 
   async function listExamForms(certificationId: string) {
@@ -502,20 +523,106 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     });
   }
 
-  async function updateExamForm(id: string, input: Partial<ExamFormInput>) {
-    if (input.questionIds || input.certificationId) {
-      const current = await deps.db.query.certdrillExamForms.findFirst({ where: eq(certdrillExamForms.id, id) });
-      const certificationId = input.certificationId ?? current?.certificationId;
-      const questionIds = input.questionIds ?? current?.questionIds;
-      if (certificationId && Array.isArray(questionIds)) {
-        await assertQuestionIdsBelongToCertification(certificationId, questionIds);
-      }
-    }
+  async function updateExamFormMetadata(id: string, input: ExamFormMetadataInput) {
     const [row] = await deps.db.update(certdrillExamForms).set({
-      ...input,
+      ...validateExamFormMetadata(input),
       updatedAt: new Date(),
     }).where(eq(certdrillExamForms.id, id)).returning();
+    if (!row) throw examFormNotFound();
     return row;
+  }
+
+  async function regenerateExamForm(id: string, input: ExamFormRegenerateInput) {
+    return withTransaction(async (db) => {
+      const form = await loadExamForm(db, id);
+      await lockExamFormCertification(db, form.certificationId);
+      const currentForm = await loadExamForm(db, id);
+      if (currentForm.assignmentVersion !== input.expectedAssignmentVersion) throw examFormConflict();
+      const [categories, questions] = await Promise.all([loadAssignmentCategories(db, currentForm.certificationId), loadPublishedQuestions(db, currentForm.certificationId)]);
+      const plan = planAssignment({ categories, questions, targetQuestionCount: input.targetQuestionCount });
+      const [updated] = await db.update(certdrillExamForms).set({
+        questionIds: plan.questionIds,
+        targetQuestionCount: input.targetQuestionCount,
+        allocationSnapshot: plan.allocations,
+        assignmentVersion: input.expectedAssignmentVersion + 1,
+        generatedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(eq(certdrillExamForms.id, id), eq(certdrillExamForms.assignmentVersion, input.expectedAssignmentVersion))).returning();
+      if (!updated) throw examFormConflict();
+      return updated;
+    });
+  }
+
+  async function replaceExamFormQuestion(id: string, input: ExamFormReplaceInput) {
+    return withTransaction(async (db) => {
+    const initial = await loadExamForm(db, id);
+    await lockExamFormCertification(db, initial.certificationId);
+    const form = await loadExamForm(db, id);
+    if (form.assignmentVersion !== input.expectedAssignmentVersion) throw examFormConflict();
+    const currentIndex = form.questionIds.indexOf(input.currentQuestionId);
+    if (currentIndex < 0) throw invalidExamForm("The current question is not assigned to this form.");
+    if (form.questionIds.includes(input.replacementQuestionId)) throw invalidExamForm("The replacement question is already assigned to this form.");
+    const [categories, questions] = await Promise.all([loadAssignmentCategories(db, form.certificationId), loadPublishedQuestions(db, form.certificationId)]);
+    const current = questions.find((question: QuestionRow) => question.id === input.currentQuestionId);
+    const replacement = questions.find((question: QuestionRow) => question.id === input.replacementQuestionId);
+    if (!current || !replacement) throw invalidExamForm("Both questions must be published and belong to this certification.");
+    const currentRoot = topLevelCategoryId(current.categoryId!, categories);
+    const replacementRoot = topLevelCategoryId(replacement.categoryId!, categories);
+    if (!currentRoot || !replacementRoot || currentRoot !== replacementRoot) throw invalidExamForm("The replacement question must belong to the same non-archived top-level category.");
+    const questionIds = [...form.questionIds];
+    questionIds[currentIndex] = input.replacementQuestionId;
+    const [updated] = await db.update(certdrillExamForms).set({ questionIds, assignmentVersion: input.expectedAssignmentVersion + 1, updatedAt: new Date() })
+      .where(and(eq(certdrillExamForms.id, id), eq(certdrillExamForms.assignmentVersion, input.expectedAssignmentVersion))).returning();
+    if (!updated) throw examFormConflict();
+    return updated;
+    });
+  }
+
+  async function setExamFormActive(id: string, isActive: boolean) {
+    return withTransaction(async (db) => {
+    const initial = await loadExamForm(db, id);
+    await lockExamFormCertification(db, initial.certificationId);
+    const form = await loadExamForm(db, id);
+    if (isActive) {
+      const [categories, questions] = await Promise.all([loadAssignmentCategories(db, form.certificationId), loadPublishedQuestions(db, form.certificationId)]);
+      try {
+        validateExamFormAssignment({ categories, questions, targetQuestionCount: form.targetQuestionCount, questionIds: form.questionIds, allocationSnapshot: form.allocationSnapshot });
+      } catch (error) {
+        if (error instanceof ExamFormAssignmentError) throw invalidExamForm(error.message, error.details);
+        throw error;
+      }
+    }
+    const [updated] = await db.update(certdrillExamForms).set({ isActive, updatedAt: new Date() }).where(eq(certdrillExamForms.id, id)).returning();
+    if (!updated) throw examFormNotFound();
+    return updated;
+    });
+  }
+
+  async function lockExamFormCertification(db: any, certificationId: string) {
+    await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${certificationId}, 913846227))`);
+  }
+
+  async function loadAssignmentCategories(db: any, certificationId: string) {
+    return db.query.certdrillExamCategories.findMany({ where: and(eq(certdrillExamCategories.certificationId, certificationId), isNull(certdrillExamCategories.archivedAt)), orderBy: [asc(certdrillExamCategories.sortOrder), asc(certdrillExamCategories.id)] });
+  }
+
+  async function loadPublishedQuestions(db: any, certificationId: string) {
+    return db.query.certdrillQuestions.findMany({ where: and(eq(certdrillQuestions.certificationId, certificationId), eq(certdrillQuestions.status, "published")) });
+  }
+
+  async function loadExamForm(db: any, id: string) {
+    const form = await db.query.certdrillExamForms.findFirst({ where: eq(certdrillExamForms.id, id) });
+    if (!form) throw examFormNotFound();
+    return form;
+  }
+
+  function planAssignment(input: { categories: any[]; questions: any[]; targetQuestionCount: number }) {
+    try {
+      return planExamFormAssignment({ ...input, rng: deps.rng });
+    } catch (error) {
+      if (error instanceof ExamFormAssignmentError) throw new CertDrillAdminServiceError(error.code, error.message, error.details);
+      throw error;
+    }
   }
 
   async function createResource(input: ResourceInput) {
@@ -737,9 +844,9 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     }
   }
 
-  async function assertQuestionReferencesBelongToCertification(certificationId: string, input: Pick<QuestionInput, "sourceResourceId" | "generationJobId">) {
+  async function assertQuestionReferencesBelongToCertification(certificationId: string, input: Pick<QuestionInput, "sourceResourceId" | "generationJobId">, db = deps.db) {
     if (input.sourceResourceId) {
-      const resource = await deps.db.query.certdrillLearnResources.findFirst({
+      const resource = await db.query.certdrillLearnResources.findFirst({
         where: and(eq(certdrillLearnResources.id, input.sourceResourceId), eq(certdrillLearnResources.certificationId, certificationId)),
       }) as ResourceRow | null;
       if (!resource) {
@@ -748,7 +855,7 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     }
 
     if (input.generationJobId) {
-      const generationJob = await deps.db.query.certdrillQuestionGenerationJobs.findFirst({
+      const generationJob = await db.query.certdrillQuestionGenerationJobs.findFirst({
         where: and(eq(certdrillQuestionGenerationJobs.id, input.generationJobId), eq(certdrillQuestionGenerationJobs.certificationId, certificationId)),
       }) as GenerationJobRow | null;
       if (!generationJob) {
@@ -779,8 +886,12 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     listBlueprintParseRuns,
     processPendingBlueprintParseRuns,
     createExamForm,
+    getExamForm,
     listExamForms,
-    updateExamForm,
+    updateExamFormMetadata,
+    regenerateExamForm,
+    replaceExamFormQuestion,
+    setExamFormActive,
     createResource,
     listResources,
     updateResource,
@@ -863,6 +974,32 @@ function assertValidSiblingWeights(items: CategoryWeightRow[]) {
   if (!validation.valid) {
     throw new CertDrillAdminServiceError("CERTDRILL_ADMIN_INVALID_CATEGORY_WEIGHTS", validation.message);
   }
+}
+
+function validateExamFormMetadata(input: ExamFormMetadataInput | ExamFormCreateInput) {
+  const values: ExamFormMetadataInput = {};
+  if ("name" in input && input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw invalidExamForm("Exam form name is required.");
+    values.name = name;
+  }
+  if ("durationMinutes" in input && input.durationMinutes !== undefined) {
+    if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) throw invalidExamForm("Duration must be a positive integer.");
+    values.durationMinutes = input.durationMinutes;
+  }
+  return values as { name: string; durationMinutes: number };
+}
+
+function examFormNotFound() {
+  return new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND", "Exam form not found.");
+}
+
+function examFormConflict() {
+  return new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_CONFLICT", "The form changed since the editor loaded; reload before retrying.");
+}
+
+function invalidExamForm(message: string, details?: unknown) {
+  return new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_INVALID", message, details);
 }
 
 function toQuestionValues(input: QuestionInput) {

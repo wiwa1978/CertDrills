@@ -111,6 +111,7 @@ describe("CertDrill demo seeder", () => {
       isActive: true,
       durationMinutes: 120,
       questionIds: ["AWS-SAA-C03-cert-question-1", "AWS-SAA-C03-cert-question-2"],
+      allocationSnapshot: [expect.objectContaining({ categoryName: "Design Secure Architectures", weightPct: "100.00", assignedCount: 2 })],
     });
   });
 

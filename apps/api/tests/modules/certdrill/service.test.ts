@@ -113,6 +113,7 @@ describe("CertDrill service", () => {
               sortOrder: 1,
               isActive: true,
               durationMinutes: 120,
+              targetQuestionCount: 2,
               questionIds: [ids.question1, ids.question2],
             },
           ]),
@@ -143,6 +144,7 @@ describe("CertDrill service", () => {
             sortOrder: 1,
             isActive: true,
             durationMinutes: 120,
+            targetQuestionCount: 2,
             questionIds: [ids.question1, ids.question2],
           },
           {
@@ -152,6 +154,7 @@ describe("CertDrill service", () => {
             sortOrder: 2,
             isActive: false,
             durationMinutes: 120,
+            targetQuestionCount: 1,
             questionIds: [ids.question1],
           },
         ],
@@ -247,10 +250,10 @@ describe("CertDrill service", () => {
       query: {
         certdrillExamForms: {
           findMany: vi.fn().mockResolvedValue([
-            { id: ids.examForm, certificationId: ids.cert, name: "Exam Form C", description: null, sortOrder: 30, isActive: true, durationMinutes: 120, questionIds: [ids.question1] },
-            { id: ids.secondAttempt, certificationId: ids.cert, name: "Exam Form A", description: null, sortOrder: 10, isActive: true, durationMinutes: 120, questionIds: [ids.question1] },
-            { id: ids.question1, certificationId: ids.cert, name: "Exam Form D", description: null, sortOrder: 40, isActive: true, durationMinutes: 120, questionIds: [ids.question1] },
-            { id: ids.question2, certificationId: ids.cert, name: "Exam Form B", description: null, sortOrder: 20, isActive: true, durationMinutes: 120, questionIds: [ids.question1] },
+            { id: ids.examForm, certificationId: ids.cert, name: "Exam Form C", description: null, sortOrder: 30, isActive: true, durationMinutes: 120, targetQuestionCount: 1, questionIds: [ids.question1] },
+            { id: ids.secondAttempt, certificationId: ids.cert, name: "Exam Form A", description: null, sortOrder: 10, isActive: true, durationMinutes: 120, targetQuestionCount: 1, questionIds: [ids.question1] },
+            { id: ids.question1, certificationId: ids.cert, name: "Exam Form D", description: null, sortOrder: 40, isActive: true, durationMinutes: 120, targetQuestionCount: 1, questionIds: [ids.question1] },
+            { id: ids.question2, certificationId: ids.cert, name: "Exam Form B", description: null, sortOrder: 20, isActive: true, durationMinutes: 120, targetQuestionCount: 1, questionIds: [ids.question1] },
           ]),
         },
       },

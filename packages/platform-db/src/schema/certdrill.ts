@@ -39,6 +39,13 @@ export type CertDrillBlueprintConfidence = "high" | "medium" | "low";
 export type CertDrillJobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type CertDrillReviewQueueReason = "incorrect" | "low_confidence" | "incorrect_low_confidence";
 export type CertDrillReviewQueueStatus = "active" | "completed" | "dismissed";
+export type CertDrillExamFormAllocation = {
+  categoryId: string;
+  categoryName: string;
+  weightPct: string;
+  allocatedCount: number;
+  assignedCount: number;
+};
 
 export const certdrillVendors = pgTable(
   "certdrill_vendors",
@@ -297,7 +304,14 @@ export const certdrillExamForms = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     durationMinutes: integer("duration_minutes").default(120).notNull(),
+    targetQuestionCount: integer("target_question_count").notNull(),
     questionIds: uuid("question_ids").array().notNull(),
+    assignmentVersion: integer("assignment_version").default(1).notNull(),
+    allocationSnapshot: jsonb("allocation_snapshot")
+      .$type<CertDrillExamFormAllocation[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt,
     updatedAt,
   },
@@ -305,6 +319,9 @@ export const certdrillExamForms = pgTable(
     index("certdrill_exam_forms_certification_id_idx").on(table.certificationId),
     index("certdrill_exam_forms_active_idx").on(table.isActive),
     uniqueIndex("certdrill_exam_forms_cert_sort_idx").on(table.certificationId, table.sortOrder),
+    check("certdrill_exam_forms_target_question_count_positive", sql`${table.targetQuestionCount} > 0`),
+    check("certdrill_exam_forms_duration_minutes_positive", sql`${table.durationMinutes} > 0`),
+    check("certdrill_exam_forms_assignment_version_positive", sql`${table.assignmentVersion} > 0`),
   ],
 );
 
