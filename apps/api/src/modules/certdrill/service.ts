@@ -1091,7 +1091,7 @@ function toExamFormListItem(form: Record<string, unknown>) {
     sortOrder: Number(form.sortOrder),
     isActive: Boolean(form.isActive),
     durationMinutes: Number(form.durationMinutes),
-    questionCount: Array.isArray(form.questionIds) ? form.questionIds.length : 0,
+    questionCount: Number(form.targetQuestionCount),
   };
 }
 

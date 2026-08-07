@@ -35,6 +35,12 @@ describe("CertDrill mode copy", () => {
     expect(source).not.toContain("`Exam Form ${form.name}`");
   });
 
+  it("renders only active exam forms with API-provided count and duration", () => {
+    expect(source).toContain("(certification.examForms ?? []).filter((form) => form.isActive)");
+    expect(source).toContain("{form.questionCount} questions");
+    expect(source).toContain("{form.durationMinutes} minutes");
+  });
+
   it("uses exam form names when attempts include them", () => {
     expect(runnerSource).toContain("examFormName");
     expect(resultsSource).toContain("examFormName");

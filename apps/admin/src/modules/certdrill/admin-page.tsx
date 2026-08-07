@@ -36,7 +36,6 @@ import {
   archiveCertDrillCertificationAction,
   archiveCertDrillCategoryAction,
   archiveCertDrillQuestionAction,
-  createCertDrillExamFormAction,
   createCertDrillMockGenerationAction,
   createCertDrillQuestionAction,
   createCertDrillResourceAction,
@@ -45,7 +44,6 @@ import {
   updateCertDrillQuestionFeedbackAction,
   updateCertDrillCategoryAction,
   updateCertDrillCertificationAction,
-  updateCertDrillExamFormAction,
   updateCertDrillQuestionAction,
   updateCertDrillResourceAction,
 } from "./admin-actions";
@@ -55,6 +53,8 @@ import { compactQuestionId } from "./question-id";
 import { QuestionActionsMenu } from "./question-actions-menu";
 import { QuestionFilterBar } from "./question-filter-bar";
 import { QuestionForm } from "./question-form";
+import { ExamFormCreateDialog } from "./exam-form-create-dialog";
+import { ExamFormList } from "./exam-form-list";
 import {
   buildQuestionPageQuery,
   buildQuestionSortQuery,
@@ -66,7 +66,6 @@ type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
   selectedCertificationId?: string;
   selectedCategoryId?: string;
-  selectedExamFormId?: string;
   selectedResourceId?: string;
   questionSearch?: string;
   questionStatus?: string;
@@ -209,7 +208,6 @@ export async function CertDrillAdminPage({
   certifications,
   selectedCertificationId: requestedCertificationId,
   selectedCategoryId: requestedCategoryId,
-  selectedExamFormId: requestedExamFormId,
   selectedResourceId: requestedResourceId,
   questionSearch,
   questionStatus,
@@ -250,9 +248,6 @@ export async function CertDrillAdminPage({
   const selectedCategory = requestedCategoryId && requestedCategoryId !== "new"
     ? categories.find((category) => category.id === requestedCategoryId)
     : undefined;
-  const selectedExamForm = requestedExamFormId && requestedExamFormId !== "new"
-    ? examForms.find((examForm) => examForm.id === requestedExamFormId)
-    : undefined;
   const selectedResource = requestedResourceId && requestedResourceId !== "new"
     ? resources.find((resource) => resource.id === requestedResourceId)
     : undefined;
@@ -280,7 +275,6 @@ export async function CertDrillAdminPage({
   } = paginateQuestions(filteredQuestions, questionPage);
   const currentQuestionTableQuery = questionTableQuery ?? {
     categoryId: requestedCategoryId,
-    examFormId: requestedExamFormId,
     resourceId: requestedResourceId,
     questionSearch,
     questionStatus,
@@ -480,41 +474,12 @@ export async function CertDrillAdminPage({
         <TabsContent value="exam-forms" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Create or update exam form</CardTitle>
-              <CardDescription>{selectedCertification ? `Create an exam form for ${selectedCertification.code} or patch the selected form.` : "Select an existing certification before managing exam forms."}</CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><CardTitle>Exam Forms</CardTitle><CardDescription>{selectedCertification ? `Generated simulation forms for ${selectedCertification.code}.` : "Select an existing certification before managing exam forms."}</CardDescription></div>
+                {selectedCertificationId ? <ExamFormCreateDialog certificationId={selectedCertificationId} /> : null}
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <SelectionLinks
-                newLabel="New exam form"
-                newHref={selectedCertificationHref({ ...certificationQuery, examFormId: "new" })}
-                disabled={!selectedCertificationId}
-              >
-                {examForms.map((examForm) => (
-                  <Button key={examForm.id} asChild variant={examForm.id === selectedExamForm?.id ? "default" : "outline"} size="sm">
-                    <Link href={selectedCertificationHref({ ...certificationQuery, examFormId: examForm.id })}>{examForm.name}</Link>
-                  </Button>
-                ))}
-              </SelectionLinks>
-              {selectedCertificationId ? (
-                <ExamFormForm
-                  action={selectedExamForm ? updateCertDrillExamFormAction : createCertDrillExamFormAction}
-                  submitLabel={selectedExamForm ? "Update exam form" : "Create exam form"}
-                  categories={categories}
-                  questions={questions}
-                  selectedCertificationId={selectedCertificationId}
-                  selectedExamForm={selectedExamForm}
-                  idPrefix="exam-form"
-                />
-              ) : <EmptyState>Select or create a certification first.</EmptyState>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Exam Forms</CardTitle>
-              <CardDescription>Available simulation forms for the selected certification.</CardDescription>
-            </CardHeader>
-            <CardContent>{examForms.length > 0 ? <ExamFormTable examForms={examForms} /> : <EmptyState>No exam forms yet.</EmptyState>}</CardContent>
+            <CardContent>{selectedCertificationId && examForms.length > 0 ? <ExamFormList certificationId={selectedCertificationId} examForms={examForms} /> : <EmptyState>No exam forms yet.</EmptyState>}</CardContent>
           </Card>
         </TabsContent>
 
@@ -851,166 +816,6 @@ function CategoryFormFields({
       <TextField id={`${idPrefix}-weight-pct`} name="weightPct" label="Weight percent" placeholder="25" defaultValue={optionalStringDefault(selectedCategory?.weightPct)} helperText="Weights must be numeric, use at most 2 decimals, and sibling totals cannot exceed 100." />
       <TextField id={`${idPrefix}-drill-question-count`} name="drillQuestionCount" label="Category Drill override" type="number" min="1" placeholder="Leave empty to use the certification default." defaultValue={optionalNumberDefault(selectedCategory?.drillQuestionCount)} helperText="Must be 1 or greater when set." />
       <TextField id={`${idPrefix}-sort-order`} name="sortOrder" label="Sort order" type="number" defaultValue={optionalNumberDefault(selectedCategory?.sortOrder) ?? "0"} />
-    </div>
-  );
-}
-
-function ExamFormForm({
-  action,
-  submitLabel,
-  categories,
-  questions,
-  selectedCertificationId,
-  selectedExamForm,
-  idPrefix,
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  submitLabel: string;
-  categories: CertDrillAdminCategory[];
-  questions: CertDrillAdminQuestion[];
-  selectedCertificationId: string;
-  selectedExamForm?: CertDrillAdminExamForm;
-  idPrefix: string;
-}) {
-  const selectedQuestionIds = new Set(selectedExamForm?.questionIds ?? []);
-  const categoryDistribution = buildCategoryDistribution(questions, categories, selectedQuestionIds);
-
-  return (
-    <form action={action} className="space-y-4">
-      <input type="hidden" name="certificationId" value={selectedCertificationId} />
-      {selectedExamForm ? <input type="hidden" name="examFormId" value={selectedExamForm.id} /> : null}
-      <ExamFormFields selectedExamForm={selectedExamForm} idPrefix={idPrefix} />
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <QuestionPickerTable questions={questions} categories={categories} selectedQuestionIds={selectedQuestionIds} />
-        <CategoryDistributionSummary distribution={categoryDistribution} selectedCount={selectedQuestionIds.size} hasSelectedExamForm={Boolean(selectedExamForm)} />
-      </div>
-      <Button type="submit">{submitLabel}</Button>
-    </form>
-  );
-}
-
-function ExamFormFields({ selectedExamForm, idPrefix }: { selectedExamForm?: CertDrillAdminExamForm; idPrefix: string }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <TextField id={`${idPrefix}-name`} name="name" label="Form name" required placeholder="Practice Exam A" defaultValue={selectedExamForm?.name} helperText="Form name is required." />
-      <TextField id={`${idPrefix}-duration-minutes`} name="durationMinutes" label="Duration minutes" type="number" min="1" defaultValue={optionalNumberDefault(selectedExamForm?.durationMinutes) ?? "120"} helperText="Must be 1 or greater." />
-      <TextField id={`${idPrefix}-sort-order`} name="sortOrder" label="Sort order" type="number" defaultValue={optionalNumberDefault(selectedExamForm?.sortOrder) ?? "0"} />
-      <TextareaField id={`${idPrefix}-question-ids`} name="questionIds" label="Manual question ID fallback" placeholder="Optional: paste IDs instead of using picker" defaultValue={undefined} helperText="At least one question is required for an exam form." />
-      <TextareaField id={`${idPrefix}-description`} name="description" label="Description" placeholder="Optional form notes" defaultValue={selectedExamForm?.description ?? undefined} />
-      {selectedExamForm ? <BooleanSelect id={`${idPrefix}-is-active`} name="isActive" label="Active" defaultValue={String(Boolean(selectedExamForm.isActive))} /> : <CheckboxField id={`${idPrefix}-is-active`} name="isActive" label="Active" defaultChecked />}
-    </div>
-  );
-}
-
-type CategoryDistributionItem = {
-  key: string;
-  label: string;
-  count: number;
-};
-
-function buildCategoryDistribution(
-  questions: CertDrillAdminQuestion[],
-  categories: CertDrillAdminCategory[],
-  questionIds: Iterable<string>,
-): CategoryDistributionItem[] {
-  const categoryLabels = new Map(categories.map((category) => [category.id, `${category.code} - ${category.name}`]));
-  const questionsById = new Map(questions.map((question) => [question.id, question]));
-  const distribution = new Map<string, CategoryDistributionItem>();
-
-  for (const questionId of questionIds) {
-    const question = questionsById.get(questionId);
-    const key = question?.categoryId ?? "unknown";
-    const label = question?.categoryId ? (categoryLabels.get(question.categoryId) ?? question.categoryId) : "Unknown category";
-    const item = distribution.get(key) ?? { key, label, count: 0 };
-    item.count += 1;
-    distribution.set(key, item);
-  }
-
-  return [...distribution.values()].sort((first, second) => first.label.localeCompare(second.label));
-}
-
-function QuestionPickerTable({
-  questions,
-  categories,
-  selectedQuestionIds,
-}: {
-  questions: CertDrillAdminQuestion[];
-  categories: CertDrillAdminCategory[];
-  selectedQuestionIds: Set<string>;
-}) {
-  const categoryLabels = new Map(categories.map((category) => [category.id, `${category.code} - ${category.name}`]));
-
-  return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <div>
-        <div className="text-sm font-semibold">Question picker</div>
-        <p className="text-sm text-muted-foreground">Select questions to add to this form. Duplicate question IDs are removed before saving.</p>
-      </div>
-      <input type="hidden" name="questionPickerPresent" value="1" />
-      {questions.length > 0 ? (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Select</TableHead>
-                <TableHead>Question</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Difficulty</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {questions.map((question) => (
-                <TableRow key={question.id}>
-                  <TableCell>
-                    <input
-                      id={`exam-form-picker-${question.id}`}
-                      type="checkbox"
-                      name="selectedQuestionIds"
-                      value={question.id}
-                      defaultChecked={selectedQuestionIds.has(question.id)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <label htmlFor={`exam-form-picker-${question.id}`} className="block max-w-xl cursor-pointer whitespace-normal">
-                      <span className="block font-mono text-xs text-muted-foreground">{question.id}</span>
-                      {question.stem}
-                    </label>
-                  </TableCell>
-                  <TableCell>{categoryLabels.get(question.categoryId) ?? question.categoryId}</TableCell>
-                  <TableCell><Badge variant="outline">{question.status ?? "draft"}</Badge></TableCell>
-                  <TableCell>{question.difficulty ?? "medium"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : <EmptyState>No questions yet.</EmptyState>}
-    </div>
-  );
-}
-
-function CategoryDistributionSummary({ distribution, selectedCount, hasSelectedExamForm }: { distribution: CategoryDistributionItem[]; selectedCount: number; hasSelectedExamForm: boolean }) {
-  return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <div>
-        <div className="text-sm font-semibold">Current form distribution</div>
-        <p className="text-sm text-muted-foreground">
-          {hasSelectedExamForm ? `${selectedCount.toLocaleString()} saved form questions.` : "Select questions to build a distribution after saving."}
-        </p>
-      </div>
-      <div>
-        <div className="text-sm font-semibold">Category distribution</div>
-        {distribution.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {distribution.map((item) => (
-              <Badge key={item.key} variant="secondary">
-                {item.label}: {item.count.toLocaleString()}
-              </Badge>
-            ))}
-          </div>
-        ) : <p className="mt-2 text-sm text-muted-foreground">No saved question distribution yet.</p>}
-      </div>
     </div>
   );
 }
@@ -1483,33 +1288,6 @@ function QuestionTable({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function ExamFormTable({ examForms }: { examForms: CertDrillAdminExamForm[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>ID</TableHead>
-          <TableHead>Name</TableHead>
-          <TableHead>Active</TableHead>
-          <TableHead className="text-right">Duration</TableHead>
-          <TableHead className="text-right">Question IDs</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {examForms.map((examForm) => (
-          <TableRow key={examForm.id}>
-            <TableCell className="font-mono text-xs">{examForm.id}</TableCell>
-            <TableCell className="font-medium">{examForm.name}</TableCell>
-            <TableCell>{examForm.isActive ? "Yes" : "No"}</TableCell>
-            <TableCell className="text-right">{(examForm.durationMinutes ?? 120).toLocaleString()} min</TableCell>
-            <TableCell className="text-right">{examForm.questionIds.length.toLocaleString()}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   );
 }
 

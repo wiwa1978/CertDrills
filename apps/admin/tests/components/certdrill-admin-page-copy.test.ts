@@ -95,7 +95,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Pencil");
     expect(source).toContain("Create or update question");
     expect(source).toContain("Publish");
-    expect(source).toContain("Create or update exam form");
+    expect(source).toContain("ExamFormCreateDialog");
     expect(source).toContain("Create or update resource");
     expect(source).toContain("Mock generation");
     expect(source).toContain("Draft questions");
@@ -293,7 +293,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("New certification");
     expect(source).toContain("Create category");
     expect(source).toContain("Create question");
-    expect(source).toContain("New exam form");
+    expect(source).toContain("ExamFormList");
     expect(source).toContain("New resource");
   });
 
@@ -390,35 +390,16 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("URLs must start with http:// or https://.");
     expect(source).toContain("Must be between 0 and 100.");
     expect(source).toContain("Must be 1 or greater.");
-    expect(source).toContain("At least one question is required for an exam form.");
     expect(source).toContain("TextField id={`${idPrefix}-code`} name=\"code\" label=\"Code\" required");
     expect(source).toContain("VendorField id={`${idPrefix}-vendor`} vendors={vendors} selectedCertification={selectedCertification} required");
     expect(source).toContain("helperText");
   });
 
-  it("shows exam form question picker and duplicate prevention copy", () => {
-    expect(source).toContain("Question picker");
-    expect(source).toContain("Current form distribution");
-    expect(source).toContain("Category distribution");
-    expect(source).toContain("Select questions to build a distribution after saving.");
-    expect(source).toContain("Duplicate question IDs are removed before saving.");
-    expect(source).toContain("Optional: paste IDs instead of using picker");
-    expect(source).toContain("QuestionPickerTable");
-    expect(source).toContain('type="hidden" name="questionPickerPresent" value="1"');
-    expect(source).toContain('name="selectedQuestionIds"');
-    expect(source).toContain("defaultChecked={selectedQuestionIds.has(question.id)}");
-    expect(source).toContain("buildCategoryDistribution");
-    expect(source).toContain("selectedExamForm?.questionIds");
-    expect(source).toContain("defaultValue={undefined}");
-    expect(source).not.toContain('label="Question IDs" placeholder="Comma-separated question IDs" defaultValue={csvDefault(selectedExamForm?.questionIds)}');
-    expect(actionsSource).toContain("examFormQuestionIds");
-    expect(actionsSource).toContain('const manualQuestionIds = csvList(formData, "questionIds");');
-    expect(actionsSource).toContain("if (manualQuestionIds.length > 0) return uniqueFormValues(manualQuestionIds);");
-    expect(actionsSource).toContain('formData.has("questionPickerPresent")');
-    expect(actionsSource).toContain("selectedQuestionIds");
-    expect(actionsSource).toContain('return uniqueFormValues(formData.getAll("selectedQuestionIds"));');
-    expect(actionsSource).toContain("return uniqueFormValues(manualQuestionIds);");
-    expect(actionsSource).toContain("new Set");
+  it("uses the simplified exam form list instead of an inline picker", () => {
+    expect(source).toContain("<ExamFormCreateDialog");
+    expect(source).toContain("<ExamFormList");
+    expect(source).not.toContain("QuestionPickerTable");
+    expect(source).not.toContain("Manual question ID fallback");
   });
 
   it("scopes child management data to the selected certification query", () => {
@@ -429,11 +410,11 @@ describe("CertDrill admin page copy", () => {
     expect(routeSource).toContain("CertDrillAdminOverviewPage");
     expect(detailRouteSource).toContain("CertDrillAdminPage");
     expect(detailRouteSource).toContain("categoryId");
-    expect(detailRouteSource).toContain("examFormId");
+    expect(detailRouteSource).not.toContain("examFormId");
     expect(detailRouteSource).toContain("resourceId");
     expect(source).toContain("selectedCertificationId");
     expect(source).toContain("selectedCategoryId");
-    expect(source).toContain("selectedExamFormId");
+    expect(source).not.toContain("selectedExamFormId");
     expect(source).toContain("selectedResourceId");
     expect(source).toContain("certdrillAdminDetailHref");
     expect(source).toContain("/admin/certdrill/${certificationId}");
@@ -444,7 +425,6 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("certificationId:");
     expect(source).toContain('type="hidden" name="certificationId" value={selectedCertificationId ?? ""}');
     expect(source).toContain("questionCategoryId: category.id");
-    expect(source).toContain("examFormId:");
     expect(source).toContain("resourceId:");
     expect(source).toContain("Manage CertDrill content for the selected certification.");
   });
@@ -453,17 +433,14 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('type="hidden" name="certificationId"');
     expect(source).toContain('type="hidden" name="categoryId"');
     expect(questionFormSource).toContain('type="hidden" name="questionId"');
-    expect(source).toContain('type="hidden" name="examFormId"');
     expect(source).toContain('type="hidden" name="resourceId"');
     expect(source).toContain("selectedCertification={selectedAdminCertification}");
     expect(source).toContain("selectedCategory={selectedCategory}");
     expect(source).toContain("selectedQuestion={selectedQuestion}");
-    expect(source).toContain("selectedExamForm={selectedExamForm}");
     expect(source).toContain("selectedResource={selectedResource}");
     expect(source).toContain("defaultValue={selectedCertification?.code}");
     expect(source).toContain("defaultValue={selectedCategory?.code}");
     expect(questionFormSource).toContain('useState(() => selectedQuestion?.stem ?? "")');
-    expect(source).toContain("defaultValue={selectedExamForm?.name}");
     expect(source).toContain("defaultValue={selectedResource?.title}");
   });
 
@@ -471,7 +448,6 @@ describe("CertDrill admin page copy", () => {
     expect(actionsSource).toContain("submittedString");
     expect(actionsSource).toContain("submittedNumber");
     expect(actionsSource).toContain("submittedBoolean");
-    expect(actionsSource).toContain("submittedCsvList");
     expect(actionsSource).toContain("submittedResourceSourceTypeValue");
     expect(actionsSource).toContain("submittedQuestionOptions");
   });

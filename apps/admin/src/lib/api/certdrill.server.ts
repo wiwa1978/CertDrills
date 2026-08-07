@@ -133,18 +133,37 @@ export type CertDrillAdminQuestionIndexResult = {
   total: number;
 };
 
-export type CertDrillAdminExamFormInput = {
-  certificationId: string;
-  name: string;
-  description?: Nullable<string>;
-  sortOrder?: number;
-  isActive?: boolean;
-  durationMinutes?: number;
-  questionIds: string[];
+export type CertDrillAdminExamFormAllocation = {
+  categoryId: string;
+  categoryName: string;
+  weightPct: string;
+  allocatedCount: number;
+  assignedCount: number;
 };
 
-export type CertDrillAdminExamFormUpdateInput = Partial<CertDrillAdminExamFormInput>;
-export type CertDrillAdminExamForm = CertDrillAdminExamFormInput & { id: string };
+export type CertDrillAdminExamFormCreateInput = {
+  certificationId: string;
+  name: string;
+  durationMinutes: number;
+  targetQuestionCount: number;
+};
+export type CertDrillAdminExamFormMetadataInput = { name?: string; durationMinutes?: number };
+export type CertDrillAdminExamFormRegenerateInput = { targetQuestionCount: number; expectedAssignmentVersion: number };
+export type CertDrillAdminExamFormReplaceInput = { currentQuestionId: string; replacementQuestionId: string; expectedAssignmentVersion: number };
+export type CertDrillAdminExamForm = {
+  id: string;
+  certificationId: string;
+  name: string;
+  description: Nullable<string>;
+  sortOrder: number;
+  isActive: boolean;
+  durationMinutes: number;
+  targetQuestionCount: number;
+  questionIds: string[];
+  assignmentVersion: number;
+  allocationSnapshot: CertDrillAdminExamFormAllocation[];
+  generatedAt: string;
+};
 
 export type CertDrillAdminResourceInput = {
   certificationId: string;
@@ -359,15 +378,31 @@ export async function listCertDrillAdminExamFormsServer(certificationId: string)
   return certdrillAdminRequest<CertDrillAdminExamForm[]>(`/certifications/${certificationId}/exam-forms`);
 }
 
-export async function createCertDrillAdminExamFormServer(payload: CertDrillAdminExamFormInput): Promise<CertDrillAdminExamForm> {
+export async function getCertDrillAdminExamFormServer(examFormId: string): Promise<CertDrillAdminExamForm> {
+  return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}`);
+}
+
+export async function createCertDrillAdminExamFormServer(payload: CertDrillAdminExamFormCreateInput): Promise<CertDrillAdminExamForm> {
   return certdrillAdminRequest<CertDrillAdminExamForm>("/exam-forms", jsonRequestInit("POST", payload));
 }
 
-export async function updateCertDrillAdminExamFormServer(
+export async function updateCertDrillAdminExamFormMetadataServer(
   examFormId: string,
-  payload: CertDrillAdminExamFormUpdateInput,
+  payload: CertDrillAdminExamFormMetadataInput,
 ): Promise<CertDrillAdminExamForm> {
   return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}`, jsonRequestInit("PATCH", payload));
+}
+
+export async function regenerateCertDrillAdminExamFormServer(examFormId: string, payload: CertDrillAdminExamFormRegenerateInput): Promise<CertDrillAdminExamForm> {
+  return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}/regenerate`, jsonRequestInit("POST", payload));
+}
+
+export async function replaceCertDrillAdminExamFormQuestionServer(examFormId: string, payload: CertDrillAdminExamFormReplaceInput): Promise<CertDrillAdminExamForm> {
+  return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}/questions/replace`, jsonRequestInit("POST", payload));
+}
+
+export async function setCertDrillAdminExamFormActiveServer(examFormId: string, isActive: boolean): Promise<CertDrillAdminExamForm> {
+  return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}/activation`, jsonRequestInit("PATCH", { isActive }));
 }
 
 export async function listCertDrillAdminResourcesServer(certificationId: string): Promise<CertDrillAdminResource[]> {

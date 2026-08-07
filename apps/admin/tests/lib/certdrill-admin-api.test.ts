@@ -272,31 +272,29 @@ describe("CertDrill admin API helpers", () => {
     expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/questions");
   });
 
-  it("lists, creates, and updates admin exam forms", async () => {
-    const createPayload = {
-      certificationId: "cert-1",
-      name: "Practice Exam A",
-      description: "First form",
-      sortOrder: 1,
-      isActive: true,
-      durationMinutes: 120,
-      questionIds: ["question-1"],
-    };
-    const updatePayload = { name: "Practice Exam B", questionIds: ["question-2"] };
+  it("uses focused admin exam form endpoints", async () => {
+    const createPayload = { certificationId: "cert-1", name: "Practice Exam A", durationMinutes: 120, targetQuestionCount: 60 };
+    const updatePayload = { name: "Practice Exam B", durationMinutes: 90 };
+    const regeneratePayload = { targetQuestionCount: 50, expectedAssignmentVersion: 2 };
+    const replacePayload = { currentQuestionId: "question-1", replacementQuestionId: "question-2", expectedAssignmentVersion: 2 };
 
     await expectHelperCall(
       "listCertDrillAdminExamFormsServer",
       ["cert-1"],
       "/api/admin/certdrill/certifications/cert-1/exam-forms",
     );
+    await expectHelperCall("getCertDrillAdminExamFormServer", ["form-1"], "/api/admin/certdrill/exam-forms/form-1");
     await expectHelperCall("createCertDrillAdminExamFormServer", [createPayload], "/api/admin/certdrill/exam-forms", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminExamFormServer", ["form-1", updatePayload], "/api/admin/certdrill/exam-forms/form-1", {
+    await expectHelperCall("updateCertDrillAdminExamFormMetadataServer", ["form-1", updatePayload], "/api/admin/certdrill/exam-forms/form-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
+    await expectHelperCall("regenerateCertDrillAdminExamFormServer", ["form-1", regeneratePayload], "/api/admin/certdrill/exam-forms/form-1/regenerate", { method: "POST", body: JSON.stringify(regeneratePayload) });
+    await expectHelperCall("replaceCertDrillAdminExamFormQuestionServer", ["form-1", replacePayload], "/api/admin/certdrill/exam-forms/form-1/questions/replace", { method: "POST", body: JSON.stringify(replacePayload) });
+    await expectHelperCall("setCertDrillAdminExamFormActiveServer", ["form-1", false], "/api/admin/certdrill/exam-forms/form-1/activation", { method: "PATCH", body: JSON.stringify({ isActive: false }) });
   });
 
   it("lists, creates, and updates admin resources", async () => {

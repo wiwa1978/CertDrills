@@ -181,6 +181,7 @@ export async function seedCertDrillDemoData(db: SeedDb) {
         questionIds,
         new Set(existingForms.map((form) => form.sortOrder)),
         effectiveExamSimulationQuestionCount,
+        categoryId,
       );
 
       skippedCertifications += 1;
@@ -209,7 +210,7 @@ export async function seedCertDrillDemoData(db: SeedDb) {
 
     const categoryId = await insertDemoCategory(db, certificationId, demo);
     const questionIds = await insertDemoQuestions(db, certificationId, categoryId, demo);
-    await insertMissingExamForms(db, certificationId, demo.code, questionIds, new Set(), demo.category.questions.length);
+    await insertMissingExamForms(db, certificationId, demo.code, questionIds, new Set(), demo.category.questions.length, categoryId);
 
     createdCertifications += 1;
   }
@@ -324,12 +325,13 @@ async function insertMissingExamForms(
   questionIds: string[],
   existingSortOrders: Set<number>,
   questionCountDefault: number,
+  categoryId: string,
 ) {
   if (questionIds.length === 0) return;
 
   for (const form of buildExamForms(certificationCode, questionIds, questionCountDefault)) {
     if (existingSortOrders.has(form.sortOrder)) continue;
-    await insertExamForm(db, certificationId, form);
+    await insertExamForm(db, certificationId, categoryId, form);
   }
 }
 
@@ -353,10 +355,22 @@ function buildExamForms(certificationCode: string, questionIds: string[], questi
 async function insertExamForm(
   db: SeedDb,
   certificationId: string,
+  categoryId: string,
   form: ReturnType<typeof buildExamForms>[number],
 ) {
+  const targetQuestionCount = form.questionIds.length;
   await db.insert(certdrillExamForms).values({
     certificationId,
     ...form,
+    targetQuestionCount,
+    assignmentVersion: 1,
+    allocationSnapshot: [{
+      categoryId,
+      categoryName: "Demo Domain",
+      weightPct: "100.00",
+      allocatedCount: targetQuestionCount,
+      assignedCount: targetQuestionCount,
+    }],
+    generatedAt: new Date(),
   }).returning({ id: certdrillExamForms.id });
 }

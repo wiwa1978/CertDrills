@@ -20,6 +20,8 @@ const ids = {
   otherQuestion: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   otherResource: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
   otherGenerationJob: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  replacementQuestion: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  otherExamForm: "ffffffff-ffff-4fff-8fff-ffffffffffff",
 };
 
 describe("CertDrill admin service", () => {
@@ -375,51 +377,95 @@ describe("CertDrill admin service", () => {
     expect(updates.find((entry) => entry.table === "certdrill_exam_categories")?.values).toMatchObject({ parentCategoryId: ids.targetParentCategory });
   });
 
-  it("creates, lists, and updates exam forms", async () => {
+  it("creates an inactive generated form at the next sort order", async () => {
     const { db, inserts, updates } = createAdminDb({
-      questions: [{ id: ids.question, certificationId: ids.cert }],
-      examForms: [{ id: ids.examForm, certificationId: ids.cert, name: "Form A", questionIds: [ids.question], durationMinutes: 120, isActive: true, sortOrder: 1 }],
+      categories: weightedCategories,
+      questions: publishedQuestions,
+      examForms: [{ id: ids.otherExamForm, certificationId: ids.cert, sortOrder: 2 }],
       returningByTable: { certdrill_exam_forms: [{ id: ids.examForm, name: "Form A" }] },
     });
-    const service = createCertDrillAdminService({ db });
+    const service = createCertDrillAdminService({ db, rng: () => 0.5 });
 
-    await expect(service.createExamForm({ certificationId: ids.cert, name: "Form A", description: null, sortOrder: 1, isActive: true, durationMinutes: 120, questionIds: [ids.question] })).resolves.toEqual({ id: ids.examForm, name: "Form A" });
-    await expect(service.listExamForms(ids.cert)).resolves.toEqual([{ id: ids.examForm, certificationId: ids.cert, name: "Form A", questionIds: [ids.question], durationMinutes: 120, isActive: true, sortOrder: 1 }]);
-    await expect(service.updateExamForm(ids.examForm, { isActive: false })).resolves.toEqual({ id: ids.examForm, name: "Form A" });
+    await service.createExamForm({ certificationId: ids.cert, name: "Form A", durationMinutes: 120, targetQuestionCount: 2 });
 
-    expect(inserts.find((entry) => entry.table === "certdrill_exam_forms")?.values).toMatchObject({ name: "Form A", questionIds: [ids.question] });
-    expect(updates.find((entry) => entry.table === "certdrill_exam_forms")?.values).toMatchObject({ isActive: false });
+    expect(inserts.find((entry) => entry.table === "certdrill_exam_forms")?.values).toMatchObject({ name: "Form A", isActive: false, sortOrder: 3, targetQuestionCount: 2, assignmentVersion: 1, questionIds: expect.any(Array), allocationSnapshot: expect.any(Array) });
+    expect(updates).toEqual([]);
   });
 
-  it("rejects exam forms with question ids outside the certification", async () => {
-    const { db, inserts } = createAdminDb({
-      questions: [{ id: ids.question, certificationId: ids.cert }],
-    });
-    const service = createCertDrillAdminService({ db });
+  it("does not insert a form when capacity is insufficient", async () => {
+    const { db, inserts } = createAdminDb({ categories: weightedCategories, questions: publishedQuestions.slice(0, 1) });
+    const service = createCertDrillAdminService({ db, rng: () => 0.5 });
 
-    await expect(service.createExamForm({ certificationId: ids.cert, name: "Form A", questionIds: [ids.question, ids.otherQuestion] })).rejects.toMatchObject({
-      code: "CERTDRILL_ADMIN_CROSS_CERT_REFERENCE",
-      message: "Exam form question IDs must belong to the certification",
-    });
+    await expect(service.createExamForm({ certificationId: ids.cert, name: "Form A", durationMinutes: 120, targetQuestionCount: 2 })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_CAPACITY" });
 
     expect(inserts).toEqual([]);
   });
 
-  it("rejects exam form certification changes when existing question ids belong to another certification", async () => {
+  it("updates metadata without mutating assignment fields", async () => {
+    const form = generatedExamForm();
     const { db, updates } = createAdminDb({
-      questions: [{ id: ids.question, certificationId: ids.cert }],
-      examForms: [{ id: ids.examForm, certificationId: ids.cert, name: "Form A", questionIds: [ids.question], durationMinutes: 120, isActive: true, sortOrder: 1 }],
-      queryRowsByTable: {
-        certdrill_questions: [],
-      },
+      examForms: [form],
+      returningByTable: { certdrill_exam_forms: [{ ...form, name: "Form B", durationMinutes: 90 }] },
     });
     const service = createCertDrillAdminService({ db });
 
-    await expect(service.updateExamForm(ids.examForm, { certificationId: ids.otherCert })).rejects.toMatchObject({
-      code: "CERTDRILL_ADMIN_CROSS_CERT_REFERENCE",
-      message: "Exam form question IDs must belong to the certification",
-    });
+    await service.updateExamFormMetadata(ids.examForm, { name: " Form B ", durationMinutes: 90 });
 
+    expect(updates.at(-1)?.values).toMatchObject({ name: "Form B", durationMinutes: 90 });
+    expect(updates.at(-1)?.values).not.toHaveProperty("questionIds");
+    expect(updates.at(-1)?.values).not.toHaveProperty("assignmentVersion");
+  });
+
+  it("regenerates atomically and rejects stale assignment versions", async () => {
+    const form = generatedExamForm({ assignmentVersion: 2 });
+    const successful = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [form] });
+    const service = createCertDrillAdminService({ db: successful.db, rng: () => 0.5 });
+
+    await service.regenerateExamForm(ids.examForm, { targetQuestionCount: 2, expectedAssignmentVersion: 2 });
+
+    expect(successful.transactions).toHaveLength(1);
+    expect(successful.updates.at(-1)?.values).toMatchObject({ targetQuestionCount: 2, assignmentVersion: 3, questionIds: expect.any(Array), allocationSnapshot: expect.any(Array), generatedAt: expect.any(Date) });
+
+    const stale = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [form], returningByTable: { certdrill_exam_forms: [] } });
+    await expect(createCertDrillAdminService({ db: stale.db }).regenerateExamForm(ids.examForm, { targetQuestionCount: 2, expectedAssignmentVersion: 1 })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" });
+  });
+
+  it("replaces one question in place within the same top-level category", async () => {
+    const form = generatedExamForm({ questionIds: [ids.question, ids.otherQuestion], assignmentVersion: 4 });
+    const questions = [...publishedQuestions, { id: ids.replacementQuestion, certificationId: ids.cert, categoryId: ids.category, status: "published" }];
+    const { db, updates } = createAdminDb({ categories: weightedCategories, questions, examForms: [form] });
+
+    await createCertDrillAdminService({ db }).replaceExamFormQuestion(ids.examForm, { currentQuestionId: ids.question, replacementQuestionId: ids.replacementQuestion, expectedAssignmentVersion: 4 });
+
+    expect(updates.at(-1)?.values).toMatchObject({ questionIds: [ids.replacementQuestion, ids.otherQuestion], assignmentVersion: 5 });
+  });
+
+  it("rejects cross-category and already-assigned replacements", async () => {
+    const form = generatedExamForm();
+    const { db, updates } = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [form] });
+    const service = createCertDrillAdminService({ db });
+
+    await expect(service.replaceExamFormQuestion(ids.examForm, { currentQuestionId: ids.question, replacementQuestionId: ids.otherQuestion, expectedAssignmentVersion: 1 })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_INVALID" });
+    expect(updates).toEqual([]);
+  });
+
+  it("activates only a complete current assignment and always permits deactivation", async () => {
+    const stale = generatedExamForm({ allocationSnapshot: [] });
+    const staleDb = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [stale] });
+    await expect(createCertDrillAdminService({ db: staleDb.db }).setExamFormActive(ids.examForm, true)).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_INVALID" });
+
+    const valid = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [generatedExamForm()] });
+    await createCertDrillAdminService({ db: valid.db }).setExamFormActive(ids.examForm, true);
+    expect(valid.updates.at(-1)?.values).toMatchObject({ isActive: true });
+
+    const invalid = createAdminDb({ examForms: [stale] });
+    await createCertDrillAdminService({ db: invalid.db }).setExamFormActive(ids.examForm, false);
+    expect(invalid.updates.at(-1)?.values).toMatchObject({ isActive: false });
+  });
+
+  it.each(["draft", "archived"] as const)("blocks changing an active-form question to %s", async (status) => {
+    const { db, updates } = createAdminDb({ questionById: createQuestion({ status: "published" }), activeExamFormsContainingQuestion: [{ id: ids.examForm, name: "Form A" }] });
+    await expect(createCertDrillAdminService({ db }).updateQuestion(ids.question, { status })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", details: [{ id: ids.examForm, name: "Form A" }] });
     expect(updates).toEqual([]);
   });
 
@@ -805,6 +851,7 @@ function createAdminDb(input: {
   questionFeedback?: unknown[];
   queryRowsByTable?: Record<string, unknown[]>;
   returningByTable?: Record<string, unknown[]>;
+  activeExamFormsContainingQuestion?: unknown[];
 }) {
   const inserts: InsertEntry[] = [];
   const updates: UpdateEntry[] = [];
@@ -820,7 +867,7 @@ function createAdminDb(input: {
       certdrillCertifications: { findMany: findMany("certdrill_certifications", input.certifications), findFirst: vi.fn().mockResolvedValue(input.certifications?.[0] ?? null) },
       certdrillExamCategories: { findMany: categoryFindMany, findFirst: vi.fn().mockResolvedValue(input.categoryById ?? null) },
       certdrillQuestions: { findMany: findMany("certdrill_questions", input.questions ?? (input.questionById ? [input.questionById] : [])), findFirst: vi.fn().mockResolvedValue(input.questionById ?? null) },
-      certdrillExamForms: { findMany: findMany("certdrill_exam_forms", input.examForms), findFirst: vi.fn().mockResolvedValue(input.examForms?.[0] ?? null) },
+      certdrillExamForms: { findMany: input.activeExamFormsContainingQuestion ? vi.fn().mockResolvedValue(input.activeExamFormsContainingQuestion) : findMany("certdrill_exam_forms", input.examForms), findFirst: vi.fn().mockResolvedValue(input.examForms?.[0] ?? null) },
       certdrillLearnResources: { findMany: findMany("certdrill_learn_resources", input.resources), findFirst: vi.fn().mockResolvedValue(input.resources?.[0] ?? null) },
       certdrillQuestionGenerationJobs: { findMany: findMany("certdrill_question_generation_jobs", input.generationJobs), findFirst: vi.fn().mockResolvedValue(input.generationJobs?.[0] ?? null) },
       certdrillQuestionFeedback: { findMany: findMany("certdrill_question_feedback", input.questionFeedback), findFirst: vi.fn().mockResolvedValue(input.questionFeedback?.[0] ?? null) },
@@ -865,6 +912,37 @@ function createAdminDb(input: {
   };
 
   return { db, inserts, updates, deletes, transactions };
+}
+
+const weightedCategories = [
+  { id: ids.category, certificationId: ids.cert, name: "Domain A", parentCategoryId: null, weightPct: "50.00", sortOrder: 1, archivedAt: null },
+  { id: ids.siblingCategory, certificationId: ids.cert, name: "Domain B", parentCategoryId: null, weightPct: "50.00", sortOrder: 2, archivedAt: null },
+];
+
+const publishedQuestions = [
+  { id: ids.question, certificationId: ids.cert, categoryId: ids.category, status: "published" as const },
+  { id: ids.otherQuestion, certificationId: ids.cert, categoryId: ids.siblingCategory, status: "published" as const },
+];
+
+function generatedExamForm(overrides: Record<string, unknown> = {}) {
+  return {
+    id: ids.examForm,
+    certificationId: ids.cert,
+    name: "Form A",
+    description: null,
+    sortOrder: 1,
+    isActive: false,
+    durationMinutes: 120,
+    targetQuestionCount: 2,
+    questionIds: [ids.question, ids.otherQuestion],
+    assignmentVersion: 1,
+    allocationSnapshot: [
+      { categoryId: ids.category, categoryName: "Domain A", weightPct: "50.00", allocatedCount: 1, assignedCount: 1 },
+      { categoryId: ids.siblingCategory, categoryName: "Domain B", weightPct: "50.00", allocatedCount: 1, assignedCount: 1 },
+    ],
+    generatedAt: new Date(),
+    ...overrides,
+  };
 }
 
 function questionInput() {
