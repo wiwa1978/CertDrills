@@ -19,6 +19,15 @@ describe("CertDrill exam form admin", () => {
     expect(list).toContain("Deactivate");
   });
 
+  it("shows application validation instead of native browser popups", () => {
+    expect(dialog).toContain("noValidate");
+    expect(dialog).toContain("Exam form could not be created.");
+    expect(dialog).toContain("Please correct the following:");
+    expect(dialog).toContain('role="alert"');
+    expect(dialog).toContain("aria-invalid={Boolean(error) || undefined}");
+    expect(dialog).toContain("aria-describedby={error ? `${id}-error` : undefined}");
+  });
+
   it("provides the versioned dedicated editor workflow", () => {
     expect(route).toContain("CertDrillExamFormEditorPage");
     expect(editor).toContain("Back to Exam Forms");
