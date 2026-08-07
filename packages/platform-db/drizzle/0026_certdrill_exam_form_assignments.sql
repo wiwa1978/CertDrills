@@ -62,7 +62,13 @@ WITH RECURSIVE "category_ancestry" AS (
     "weighted".*,
     cardinality("form"."question_ids") - sum("weighted"."floor_count") OVER (PARTITION BY "weighted"."form_id") AS "remaining_count",
     row_number() OVER (PARTITION BY "weighted"."form_id" ORDER BY "weighted"."remainder" DESC, "weighted"."sort_order", "weighted"."root_category_id") AS "remainder_rank",
-    sum("weighted"."weight_basis_points") OVER (PARTITION BY "weighted"."form_id") AS "total_weight_basis_points"
+    sum("weighted"."weight_basis_points") OVER (PARTITION BY "weighted"."form_id") AS "total_weight_basis_points",
+    bool_and(
+      "weighted"."weight_pct" IS NOT NULL
+      AND "weighted"."weight_pct" > 0
+      AND "weighted"."weight_pct" <= 100
+      AND "weighted"."weight_pct" * 100 = round("weighted"."weight_pct" * 100)
+    ) OVER (PARTITION BY "weighted"."form_id") AS "all_weights_valid"
   FROM "weighted_roots" "weighted"
   INNER JOIN "certdrill_exam_forms" "form" ON "form"."id" = "weighted"."form_id"
 ),
@@ -74,6 +80,7 @@ WITH RECURSIVE "category_ancestry" AS (
     "ranked"."weight_pct",
     "ranked"."sort_order",
     "ranked"."total_weight_basis_points",
+    "ranked"."all_weights_valid",
     ("ranked"."floor_count" + CASE WHEN "ranked"."remainder_rank" <= "ranked"."remaining_count" THEN 1 ELSE 0 END)::integer AS "allocated_count"
   FROM "ranked_roots" "ranked"
 ),
@@ -94,7 +101,8 @@ WITH RECURSIVE "category_ancestry" AS (
   LEFT JOIN "allocation_counts" "counts"
     ON "counts"."form_id" = "expected"."form_id"
     AND "counts"."root_category_id" = "expected"."root_category_id"
-  WHERE "expected"."total_weight_basis_points" = 10000
+  WHERE "expected"."all_weights_valid"
+    AND "expected"."total_weight_basis_points" = 10000
   GROUP BY "expected"."form_id"
 )
 UPDATE "certdrill_exam_forms" "form"
