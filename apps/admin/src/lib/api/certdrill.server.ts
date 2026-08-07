@@ -183,6 +183,44 @@ export type CertDrillAdminResource = CertDrillAdminResourceInput & {
   ingestError?: Nullable<string>;
 };
 
+export type CertDrillBlueprintEvidence = {
+  excerpt: string;
+  location: Nullable<string>;
+};
+
+export type CertDrillBlueprintCategoryProposal = {
+  code: string;
+  name: string;
+  parentCode: Nullable<string>;
+  weightPct: Nullable<number>;
+  sortOrder: number;
+  evidence: CertDrillBlueprintEvidence[];
+};
+
+export type CertDrillBlueprintProposal = {
+  confidence: "high" | "medium" | "low";
+  warnings: string[];
+  categories: CertDrillBlueprintCategoryProposal[];
+};
+
+export type CertDrillBlueprintParseRun = {
+  id: string;
+  certificationId: string;
+  resourceId: string;
+  status: "pending" | "running" | "completed" | "failed";
+  provider: string;
+  model: string;
+  contentChecksum: string;
+  proposalJson: Nullable<CertDrillBlueprintProposal>;
+  confidence: Nullable<CertDrillBlueprintProposal["confidence"]>;
+  warningsJson: string[];
+  errorMessage: Nullable<string>;
+  startedAt: Nullable<string>;
+  completedAt: Nullable<string>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CertDrillAdminMockGenerationInput = {
   certificationId: string;
   categoryId: string;
@@ -216,6 +254,10 @@ export type CertDrillAdminQuestionFeedbackUpdateInput = {
 
 type CertDrillAdminQuestionIndexApiItem = Omit<CertDrillAdminQuestionIndexItem, "options"> & {
   answerOptions: CertDrillAdminQuestionIndexOption[];
+};
+
+type CertDrillBlueprintParseRunApi = CertDrillBlueprintParseRun & {
+  rawOutput?: Nullable<string>;
 };
 
 type CertDrillAdminQuestionIndexApiResult = {
@@ -254,6 +296,10 @@ function appendSearchParam(params: URLSearchParams, name: string, value: string 
   if (!normalizedValue) return;
 
   params.append(name, normalizedValue);
+}
+
+function toCertDrillBlueprintParseRun({ rawOutput: _ignoredRawOutput, ...run }: CertDrillBlueprintParseRunApi): CertDrillBlueprintParseRun {
+  return run;
 }
 
 export async function getCertDrillCertificationsServer() {
@@ -409,6 +455,11 @@ export async function listCertDrillAdminResourcesServer(certificationId: string)
   return certdrillAdminRequest<CertDrillAdminResource[]>(`/certifications/${certificationId}/resources`);
 }
 
+export async function listCertDrillAdminBlueprintParseRunsServer(certificationId: string): Promise<CertDrillBlueprintParseRun[]> {
+  const result = await certdrillAdminRequest<CertDrillBlueprintParseRunApi[]>(`/certifications/${certificationId}/blueprint-parse-runs`);
+  return result.map(toCertDrillBlueprintParseRun);
+}
+
 export async function createCertDrillAdminResourceServer(payload: CertDrillAdminResourceInput): Promise<CertDrillAdminResource> {
   return certdrillAdminRequest<CertDrillAdminResource>("/resources", jsonRequestInit("POST", payload));
 }
@@ -422,6 +473,22 @@ export async function updateCertDrillAdminResourceServer(
 
 export async function ingestCertDrillAdminResourceServer(resourceId: string): Promise<CertDrillAdminResource> {
   return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));
+}
+
+export async function startCertDrillAdminBlueprintParseRunServer(
+  certificationId: string,
+  resourceId: string,
+): Promise<CertDrillBlueprintParseRun> {
+  const result = await certdrillAdminRequest<CertDrillBlueprintParseRunApi>(
+    `/certifications/${certificationId}/blueprint-parse-runs`,
+    jsonRequestInit("POST", { resourceId }),
+  );
+  return toCertDrillBlueprintParseRun(result);
+}
+
+export async function getCertDrillAdminBlueprintParseRunServer(runId: string): Promise<CertDrillBlueprintParseRun> {
+  const result = await certdrillAdminRequest<CertDrillBlueprintParseRunApi>(`/blueprint-parse-runs/${runId}`);
+  return toCertDrillBlueprintParseRun(result);
 }
 
 export async function createCertDrillAdminMockGenerationJobServer(

@@ -129,6 +129,30 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("resource.ingestError");
   });
 
+  it("loads the newest blueprint parse run for each resource without changing ingestion wiring", () => {
+    expect(source).toContain('import { BlueprintAnalysisControl } from "@/modules/certdrill/blueprint-analysis-control";');
+    expect(source).toContain("listCertDrillAdminBlueprintParseRunsServer");
+    expect(source).toContain("type CertDrillBlueprintParseRun,");
+    expect(source).toContain("let blueprintParseRuns: CertDrillBlueprintParseRun[] = [];");
+    expect(source).toContain("listCertDrillAdminBlueprintParseRunsServer(selectedCertificationId)");
+    expect(source).toContain("const newestBlueprintRuns = newestBlueprintRunByResource(blueprintParseRuns);");
+    expect(source).toContain("<ResourceTable certificationId={selectedCertificationId} resources={resources} newestBlueprintRuns={newestBlueprintRuns} />");
+    expect(source).toContain("function newestBlueprintRunByResource(runs: CertDrillBlueprintParseRun[])");
+    expect(source).toContain("function ResourceTable({");
+    expect(source).toContain("certificationId,");
+    expect(source).toContain("newestBlueprintRuns,");
+    expect(source).toContain("newestBlueprintRuns: Map<string, CertDrillBlueprintParseRun>;");
+    expect(source).toContain('<div className="flex flex-wrap items-center gap-2">');
+    expect(source).toContain("<form action={ingestCertDrillResourceAction}>");
+    expect(source).toContain('type="hidden" name="resourceId" value={resource.id}');
+    expect(source).toContain('aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}');
+    expect(source).toContain('{resource.status === "ingested" ? "Refresh" : "Ingest"}');
+    expect(source).toContain("<BlueprintAnalysisControl");
+    expect(source).toContain("certificationId={certificationId}");
+    expect(source).toContain("resource={resource}");
+    expect(source).toContain("initialRun={newestBlueprintRuns.get(resource.id)}");
+  });
+
   it("keeps the selected certification archive form wired to the destructive action", () => {
     expect(certificationArchiveFormSource).toContain(
       "<form action={archiveCertDrillCertificationAction}>",

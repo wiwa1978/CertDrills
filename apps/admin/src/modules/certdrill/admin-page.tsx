@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  listCertDrillAdminBlueprintParseRunsServer,
   listCertDrillAdminCategoriesServer,
   listCertDrillAdminCertificationsServer,
   listCertDrillAdminExamFormsServer,
@@ -29,7 +30,9 @@ import {
   type CertDrillAdminQuestion,
   type CertDrillAdminResource,
   type CertDrillAdminVendor,
+  type CertDrillBlueprintParseRun,
 } from "@/lib/api/certdrill.server";
+import { BlueprintAnalysisControl } from "@/modules/certdrill/blueprint-analysis-control";
 import {
   createCertDrillCategoryAction,
   createCertDrillCertificationAction,
@@ -235,13 +238,15 @@ export async function CertDrillAdminPage({
   let questions: CertDrillAdminQuestion[] = [];
   let examForms: CertDrillAdminExamForm[] = [];
   let resources: CertDrillAdminResource[] = [];
+  let blueprintParseRuns: CertDrillBlueprintParseRun[] = [];
 
   if (selectedCertificationId) {
-    [categories, questions, examForms, resources] = await Promise.all([
+    [categories, questions, examForms, resources, blueprintParseRuns] = await Promise.all([
       listCertDrillAdminCategoriesServer(selectedCertificationId),
       listCertDrillAdminQuestionsServer(selectedCertificationId),
       listCertDrillAdminExamFormsServer(selectedCertificationId),
       listCertDrillAdminResourcesServer(selectedCertificationId),
+      listCertDrillAdminBlueprintParseRunsServer(selectedCertificationId),
     ]);
   }
 
@@ -296,6 +301,7 @@ export async function CertDrillAdminPage({
     ? selectedCertificationHref(buildQuestionPageQuery(currentQuestionTableQuery, currentQuestionPage + 1))
     : undefined;
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
+  const newestBlueprintRuns = newestBlueprintRunByResource(blueprintParseRuns);
   const defaultTab = selectedTab === "categories"
     || selectedTab === "questions"
     || selectedTab === "exam-forms"
@@ -519,7 +525,7 @@ export async function CertDrillAdminPage({
               <CardTitle>Resources</CardTitle>
               <CardDescription>Resource list for URL/title/content mode placeholders.</CardDescription>
             </CardHeader>
-            <CardContent>{resources.length > 0 ? <ResourceTable resources={resources} /> : <EmptyState>No resources yet.</EmptyState>}</CardContent>
+            <CardContent>{selectedCertificationId && resources.length > 0 ? <ResourceTable certificationId={selectedCertificationId} resources={resources} newestBlueprintRuns={newestBlueprintRuns} /> : <EmptyState>No resources yet.</EmptyState>}</CardContent>
           </Card>
         </TabsContent>
 
@@ -574,6 +580,36 @@ export async function CertDrillAdminPage({
       </Tabs>
     </div>
   );
+}
+
+function newestBlueprintRunByResource(runs: CertDrillBlueprintParseRun[]) {
+  const newestRuns = new Map<string, CertDrillBlueprintParseRun>();
+
+  for (const run of runs) {
+    const currentNewestRun = newestRuns.get(run.resourceId);
+
+    if (!currentNewestRun || isNewerBlueprintRun(run, currentNewestRun)) {
+      newestRuns.set(run.resourceId, run);
+    }
+  }
+
+  return newestRuns;
+}
+
+function isNewerBlueprintRun(candidate: CertDrillBlueprintParseRun, current: CertDrillBlueprintParseRun) {
+  const createdAtComparison = candidate.createdAt.localeCompare(current.createdAt);
+
+  if (createdAtComparison !== 0) {
+    return createdAtComparison > 0;
+  }
+
+  const updatedAtComparison = candidate.updatedAt.localeCompare(current.updatedAt);
+
+  if (updatedAtComparison !== 0) {
+    return updatedAtComparison > 0;
+  }
+
+  return candidate.id.localeCompare(current.id) > 0;
 }
 
 function buildCertificationOptions(
@@ -1291,7 +1327,15 @@ function QuestionTable({
   );
 }
 
-function ResourceTable({ resources }: { resources: CertDrillAdminResource[] }) {
+function ResourceTable({
+  certificationId,
+  resources,
+  newestBlueprintRuns,
+}: {
+  certificationId: string;
+  resources: CertDrillAdminResource[];
+  newestBlueprintRuns: Map<string, CertDrillBlueprintParseRun>;
+}) {
   return (
     <Table>
       <TableHeader>
@@ -1319,17 +1363,24 @@ function ResourceTable({ resources }: { resources: CertDrillAdminResource[] }) {
               </div>
             </TableCell>
             <TableCell>
-              <form action={ingestCertDrillResourceAction}>
-                <input type="hidden" name="resourceId" value={resource.id} />
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="outline"
-                  aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}
-                >
-                  {resource.status === "ingested" ? "Refresh" : "Ingest"}
-                </Button>
-              </form>
+              <div className="flex flex-wrap items-center gap-2">
+                <form action={ingestCertDrillResourceAction}>
+                  <input type="hidden" name="resourceId" value={resource.id} />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}
+                  >
+                    {resource.status === "ingested" ? "Refresh" : "Ingest"}
+                  </Button>
+                </form>
+                <BlueprintAnalysisControl
+                  certificationId={certificationId}
+                  resource={resource}
+                  initialRun={newestBlueprintRuns.get(resource.id)}
+                />
+              </div>
             </TableCell>
           </TableRow>
         ))}
