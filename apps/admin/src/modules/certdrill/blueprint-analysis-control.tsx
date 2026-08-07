@@ -299,10 +299,14 @@ export function BlueprintAnalysisControl({
     setRun(initialRun ?? null);
   }, [initialRun]);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    dialogGenerationRef.current += 1;
-    pollerRef.current?.stop();
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      dialogGenerationRef.current += 1;
+      pollerRef.current?.stop();
+    };
   }, []);
 
   useEffect(() => {

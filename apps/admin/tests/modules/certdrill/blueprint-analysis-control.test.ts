@@ -104,6 +104,14 @@ describe("Blueprint analysis control", () => {
     expect(controlSource).toContain("pendingStartRequestIdRef.current !== null");
   });
 
+  it("resets mountedRef in a StrictMode-safe lifecycle effect", () => {
+    const controlSource = readSourceIfPresent(controlPath);
+
+    expect(controlSource).toMatch(
+      /useEffect\(\(\) => {\s*mountedRef\.current = true;\s*return \(\) => {\s*mountedRef\.current = false;\s*dialogGenerationRef\.current \+= 1;\s*pollerRef\.current\?\.stop\(\);\s*};\s*}, \[\]\);/,
+    );
+  });
+
   it("renders completed analysis details as a read-only ordered proposal", async () => {
     const controlModule = await loadControlModule();
     expect(controlModule).not.toBeNull();
