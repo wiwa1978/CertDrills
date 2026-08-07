@@ -426,6 +426,11 @@ describe("CertDrill admin page copy", () => {
     expect(source).not.toContain("Manual question ID fallback");
   });
 
+  it("keeps the Radix component tree stable between server render and hydration", () => {
+    expect(source).not.toContain('import { ClientOnly } from "@/components/client-only";');
+    expect(source).not.toContain("<ClientOnly");
+  });
+
   it("scopes child management data to the selected certification query", () => {
     expect(routeSource).toContain("CertDrillAdminOverviewPage");
     expect(routeSource).not.toContain("searchParams");

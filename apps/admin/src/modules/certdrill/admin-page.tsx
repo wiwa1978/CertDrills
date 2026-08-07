@@ -7,7 +7,6 @@ import { Link as LocalizedLink } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClientOnly } from "@/components/client-only";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,8 +121,7 @@ export async function CertDrillAdminOverviewPage({ certifications }: { certifica
               <CardTitle>Certifications</CardTitle>
               <CardDescription>Open a certification to manage all related CertDrill content.</CardDescription>
             </div>
-            <ClientOnly fallback={<Button disabled>New certification</Button>}>
-              <Dialog>
+            <Dialog>
                 <DialogTrigger asChild>
                   <Button>New certification</Button>
                 </DialogTrigger>
@@ -134,8 +132,7 @@ export async function CertDrillAdminOverviewPage({ certifications }: { certifica
                   </DialogHeader>
                   <CertificationForm action={createCertDrillCertificationAction} submitLabel="Create certification" idPrefix="overview-create-cert" vendors={vendors} />
                 </DialogContent>
-              </Dialog>
-            </ClientOnly>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent>
@@ -326,8 +323,7 @@ export async function CertDrillAdminPage({
             <Link href={certdrillAdminOverviewHref()}>Back to certifications</Link>
           </Button>
           {selectedAdminCertification ? (
-            <ClientOnly fallback={<Button size="sm" disabled>Update</Button>}>
-              <Dialog>
+            <Dialog>
                 <DialogTrigger asChild>
                   <Button size="sm">Update</Button>
                 </DialogTrigger>
@@ -344,8 +340,7 @@ export async function CertDrillAdminPage({
                     vendors={vendors}
                   />
                 </DialogContent>
-              </Dialog>
-            </ClientOnly>
+            </Dialog>
           ) : null}
           {selectedAdminCertification ? (
             <form action={archiveCertDrillCertificationAction}>
@@ -357,8 +352,7 @@ export async function CertDrillAdminPage({
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <ClientOnly fallback={<Card><CardHeader className="pb-2"><CardDescription>Selected certification</CardDescription><CardTitle className="text-3xl">{selectedCertification?.code ?? "-"}</CardTitle></CardHeader></Card>}>
-          <Dialog>
+        <Dialog>
             <DialogTrigger asChild>
               <button type="button" className="rounded-xl text-left transition hover:ring-2 hover:ring-ring focus:outline-none focus:ring-2 focus:ring-ring">
                 <Card className="h-full">
@@ -385,8 +379,7 @@ export async function CertDrillAdminPage({
                 />
               ) : <EmptyState>Certification not found.</EmptyState>}
             </DialogContent>
-          </Dialog>
-        </ClientOnly>
+        </Dialog>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Published questions</CardDescription>
