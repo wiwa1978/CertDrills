@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type {
   CertDrillAdminResource,
   CertDrillBlueprintCategoryProposal,
@@ -103,7 +104,8 @@ export function BlueprintAnalysisDetails({
   onRetryStatusCheck,
   retryStatusCheckDisabled = false,
 }: BlueprintAnalysisDetailsProps) {
-  const categories = run?.proposalJson?.categories ?? [];
+  const isCompletedRun = run?.status === "completed";
+  const categories = isCompletedRun ? run.proposalJson?.categories ?? [] : [];
   const categoryDepths = blueprintCategoryDepths(categories);
   const warnings = run ? warningMessages(run) : [];
 
@@ -150,10 +152,14 @@ export function BlueprintAnalysisDetails({
               <dt className="text-sm font-medium">Model</dt>
               <dd className="text-sm text-muted-foreground">{run.model}</dd>
             </div>
-            <div className="space-y-1">
-              <dt className="text-sm font-medium">Confidence</dt>
-              <dd className="text-sm text-muted-foreground">{confidenceLabel(run)}</dd>
-            </div>
+            {isCompletedRun ? (
+              <div className="space-y-1">
+                <dt className="text-sm font-medium">Confidence</dt>
+                <dd className="text-sm text-muted-foreground">
+                  <Badge variant="secondary">{confidenceLabel(run)}</Badge>
+                </dd>
+              </div>
+            ) : null}
             <div className="space-y-1">
               <dt className="text-sm font-medium">Created</dt>
               <dd className="text-sm text-muted-foreground"><time dateTime={run.createdAt}>{run.createdAt}</time></dd>
@@ -197,39 +203,43 @@ export function BlueprintAnalysisDetails({
           {run.status === "completed" && run.proposalJson ? (
             <div className="space-y-4">
               <h3 className="text-sm font-medium">Proposed categories</h3>
-              <ol className="space-y-4">
-                {categories.map((category, index) => (
-                  <li key={`${category.code}-${index}`} className="space-y-2 rounded-md border p-4">
-                    <div className="space-y-1" style={{ paddingLeft: categoryDepth(categoryDepths, category) * 16 }}>
-                      <p className="font-medium">{category.name}</p>
-                      <p className="text-sm text-muted-foreground">{category.code}</p>
-                    </div>
-                    <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                      <div>
-                        <dt className="font-medium">Parent</dt>
-                        <dd className="text-muted-foreground">{category.parentCode ?? "Top level"}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium">Weight</dt>
-                        <dd className="text-muted-foreground">
-                          {category.weightPct === null ? "Not provided" : `${category.weightPct}%`}
-                        </dd>
-                      </div>
-                    </dl>
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Evidence</h4>
-                      <ul className="space-y-2">
-                        {category.evidence.map((evidence, evidenceIndex) => (
-                          <li key={`${category.code}-evidence-${evidenceIndex}`} className="rounded-md bg-muted/40 p-3 text-sm">
-                            <p>{evidence.excerpt}</p>
-                            <p className="text-muted-foreground">{evidence.location ?? "Location not provided."}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <Table aria-label="Completed blueprint proposal categories" className="min-w-[720px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">Code</TableHead>
+                    <TableHead scope="col">Name</TableHead>
+                    <TableHead scope="col">Parent</TableHead>
+                    <TableHead scope="col">Weight</TableHead>
+                    <TableHead scope="col">Evidence</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {categories.map((category, index) => (
+                    <TableRow key={`${category.code}-${index}`}>
+                      <TableCell>{category.code}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1" style={{ paddingLeft: categoryDepth(categoryDepths, category) * 16 }}>
+                          <p className="font-medium">{category.name}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{category.parentCode ?? "Top level"}</TableCell>
+                      <TableCell>
+                        {category.weightPct === null ? "Not provided" : `${category.weightPct}%`}
+                      </TableCell>
+                      <TableCell>
+                        <ul className="space-y-2">
+                          {category.evidence.map((evidence, evidenceIndex) => (
+                            <li key={`${category.code}-evidence-${evidenceIndex}`} className="rounded-md bg-muted/40 p-3 text-sm">
+                              <p>{evidence.excerpt}</p>
+                              <p className="text-muted-foreground">{evidence.location ?? "Location not provided."}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : null}
         </>

@@ -115,20 +115,30 @@ describe("Blueprint analysis control", () => {
         warnings: ["Keep the inherited weight under review."],
         categories: [
           createCategory({
-            code: "A",
-            name: "Top level domain",
+            code: "B",
+            name: "Second domain",
             parentCode: null,
-            weightPct: 60,
-            sortOrder: 0,
-            evidence: [{ excerpt: "Top-level evidence", location: "Overview section" }],
+            weightPct: 40,
+            sortOrder: 1,
+            evidence: [
+              { excerpt: "Second-domain evidence", location: "Appendix B" },
+            ],
           }),
           createCategory({
             code: "A.1",
             name: "Nested skill",
             parentCode: "A",
             weightPct: null,
-            sortOrder: 1,
+            sortOrder: 2,
             evidence: [{ excerpt: "Nested evidence", location: null }],
+          }),
+          createCategory({
+            code: "A",
+            name: "Top level domain",
+            parentCode: null,
+            weightPct: 60,
+            sortOrder: 0,
+            evidence: [{ excerpt: "Top-level evidence", location: "Overview section" }],
           }),
         ],
       },
@@ -155,10 +165,28 @@ describe("Blueprint analysis control", () => {
     expect(markup).toContain("2026-08-07T10:00:00.000Z");
     expect(markup).toContain("2026-08-07T10:01:00.000Z");
     expect(markup).toContain("2026-08-07T10:02:00.000Z");
-    expect(markup).toContain("Medium");
+    expect(markup).toContain('<dt class="text-sm font-medium">Confidence</dt>');
+    expect(markup).toContain('<dd class="text-sm text-muted-foreground"><span data-slot="badge"');
+    expect(markup).toContain(">Medium</span></dd>");
     expect(markup).toContain("Keep the inherited weight under review.");
+    expect(markup).toContain("<table");
+    expect(markup).toContain('scope="col">Code</th>');
+    expect(markup).toContain('scope="col">Name</th>');
+    expect(markup).toContain('scope="col">Parent</th>');
+    expect(markup).toContain('scope="col">Weight</th>');
+    expect(markup).toContain('scope="col">Evidence</th>');
+    expect(markup.indexOf('scope="col">Code</th>')).toBeLessThan(markup.indexOf('scope="col">Name</th>'));
+    expect(markup.indexOf('scope="col">Name</th>')).toBeLessThan(markup.indexOf('scope="col">Parent</th>'));
+    expect(markup.indexOf('scope="col">Parent</th>')).toBeLessThan(markup.indexOf('scope="col">Weight</th>'));
+    expect(markup.indexOf('scope="col">Weight</th>')).toBeLessThan(markup.indexOf('scope="col">Evidence</th>'));
+    expect(markup).toContain(">B</td>");
+    expect(markup).toContain(">A.1</td>");
+    expect(markup).toContain(">A</td>");
+    expect(markup).toContain("Second domain");
     expect(markup).toContain("Top level");
     expect(markup).toContain("Not provided");
+    expect(markup).toContain("Second-domain evidence");
+    expect(markup).toContain("Appendix B");
     expect(markup).toContain("Top-level evidence");
     expect(markup).toContain("Overview section");
     expect(markup).toContain("Nested evidence");
@@ -168,9 +196,47 @@ describe("Blueprint analysis control", () => {
     expect(markup).toContain("Analyze again");
     expect(markup).toContain("Retry status check");
     expect(markup).toContain("style=\"padding-left:16px\"");
-    expect(markup.indexOf("Top level domain")).toBeLessThan(markup.indexOf("Nested skill"));
+    expect(markup.indexOf(">B</td>")).toBeLessThan(markup.indexOf(">A.1</td>"));
+    expect(markup.indexOf(">A.1</td>")).toBeLessThan(markup.indexOf(">A</td>"));
     expect(markup).not.toContain(">Save<");
     expect(markup).not.toContain(">Import<");
+  });
+
+  it("omits confidence details for non-completed runs", async () => {
+    const controlModule = await loadControlModule();
+    expect(controlModule).not.toBeNull();
+
+    const { BlueprintAnalysisDetails } = controlModule!;
+    const markup = renderToStaticMarkup(createElement(BlueprintAnalysisDetails, {
+      resource: createResource(),
+      run: createRun({
+        status: "running",
+        proposalJson: {
+          confidence: "medium",
+          warnings: ["Still processing"],
+          categories: [
+            createCategory({
+              code: "A",
+              name: "Should stay hidden",
+              evidence: [{ excerpt: "Hidden evidence", location: "Section 1" }],
+            }),
+          ],
+        },
+        confidence: "medium",
+        warningsJson: ["Still processing"],
+        completedAt: null,
+      }),
+      requestState: "idle",
+      requestError: null,
+      pollError: null,
+      pollTimedOut: false,
+    }));
+
+    expect(markup).toContain("Analyzing");
+    expect(markup).not.toContain(">Confidence<");
+    expect(markup).not.toContain(">Medium<");
+    expect(markup).not.toContain("Proposed categories");
+    expect(markup).not.toContain("Should stay hidden");
   });
 
   it("renders resource-titled actions and the exact eligibility reason", async () => {
