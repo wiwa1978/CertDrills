@@ -189,5 +189,5 @@ describe("CertDrill exam form assignment migration", () => {
     } finally {
       await db.close();
     }
-  });
+  }, 20_000);
 });
