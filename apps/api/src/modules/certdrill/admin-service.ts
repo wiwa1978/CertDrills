@@ -25,6 +25,8 @@ import {
   type QuestionImportConfirmInput,
   type QuestionImportPreviewInput,
 } from "./question-import-service";
+import { BlueprintParserError, type BlueprintParser } from "./blueprint-parser";
+import { createBlueprintParseService } from "./blueprint-parse-service";
 import { createResourceIngestor, type ResourceIngestor } from "./resource-ingestion";
 import { validateCategorySiblingWeights, validateQuestionForPublish } from "./validation";
 
@@ -38,11 +40,19 @@ type CertDrillAdminQuestionImportService = Pick<
   "preview" | "confirm"
 >;
 
+type CertDrillAdminBlueprintParseService = Pick<
+  ReturnType<typeof createBlueprintParseService>,
+  "start" | "get" | "list" | "processPending"
+>;
+
 type CertDrillAdminServiceDeps = {
   db: any;
   questionIndex?: CertDrillAdminQuestionIndex;
   questionImport?: CertDrillAdminQuestionImportService;
+  blueprintParse?: CertDrillAdminBlueprintParseService;
+  blueprintParser?: BlueprintParser;
   resourceIngestor?: ResourceIngestor;
+  now?: () => Date;
 };
 
 export type CertDrillAdminServiceErrorCode =
@@ -192,6 +202,11 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     repository: createDrizzleAdminQuestionIndexRepository({ db: deps.db }),
   });
   const questionImport = deps.questionImport ?? createQuestionImportService({ db: deps.db });
+  const blueprintParse = deps.blueprintParse ?? createBlueprintParseService({
+    db: deps.db,
+    parser: deps.blueprintParser ?? createNotConfiguredBlueprintParser(),
+    now: deps.now,
+  });
 
   async function previewQuestionImport(input: QuestionImportPreviewInput) {
     return questionImport.preview(input);
@@ -200,7 +215,23 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
   async function importQuestions(input: QuestionImportConfirmInput) {
     return questionImport.confirm(input);
   }
-  const resourceIngestor = deps.resourceIngestor ?? createResourceIngestor();
+
+  async function startBlueprintParseRun(input: { certificationId: string; resourceId: string }) {
+    return blueprintParse.start(input);
+  }
+
+  async function getBlueprintParseRun(id: string) {
+    return blueprintParse.get(id);
+  }
+
+  async function listBlueprintParseRuns(certificationId: string) {
+    return blueprintParse.list(certificationId);
+  }
+
+  async function processPendingBlueprintParseRuns(limit?: number) {
+    return blueprintParse.processPending(limit);
+  }
+  const resourceIngestor = deps.resourceIngestor ?? createResourceIngestor({ now: deps.now });
 
   async function createCertification(input: CertificationInput) {
     const vendor = await resolveVendor(input.vendorId, input.vendor);
@@ -743,6 +774,10 @@ export function createCertDrillAdminService(deps: CertDrillAdminServiceDeps) {
     publishQuestion,
     previewQuestionImport,
     importQuestions,
+    startBlueprintParseRun,
+    getBlueprintParseRun,
+    listBlueprintParseRuns,
+    processPendingBlueprintParseRuns,
     createExamForm,
     listExamForms,
     updateExamForm,
@@ -768,6 +803,19 @@ function toQuestionFeedback(row: QuestionFeedbackRow) {
     status: String(row.status),
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
+  };
+}
+
+function createNotConfiguredBlueprintParser(): BlueprintParser {
+  return {
+    provider: "not-configured",
+    model: "not-configured",
+    async parse() {
+      throw new BlueprintParserError(
+        "BLUEPRINT_PARSER_NOT_CONFIGURED",
+        "Blueprint parser is not configured.",
+      );
+    },
   };
 }
 

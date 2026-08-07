@@ -64,6 +64,70 @@ const mocks = vi.hoisted(() => {
     getDashboard: vi.fn(),
   };
 
+  const certdrillAdminService = {
+    listCertifications: vi.fn(),
+    listVendors: vi.fn(),
+    createCertification: vi.fn(),
+    updateCertification: vi.fn(),
+    archiveCertification: vi.fn(),
+    listCategories: vi.fn(),
+    createCategory: vi.fn(),
+    updateCategory: vi.fn(),
+    archiveCategory: vi.fn(),
+    listQuestionIndex: vi.fn(),
+    listQuestions: vi.fn(),
+    createQuestion: vi.fn(),
+    updateQuestion: vi.fn(),
+    publishQuestion: vi.fn(),
+    previewQuestionImport: vi.fn(),
+    importQuestions: vi.fn(),
+    startBlueprintParseRun: vi.fn(),
+    getBlueprintParseRun: vi.fn(),
+    listBlueprintParseRuns: vi.fn(),
+    processPendingBlueprintParseRuns: vi.fn(),
+    listExamForms: vi.fn(),
+    createExamForm: vi.fn(),
+    updateExamForm: vi.fn(),
+    createResource: vi.fn(),
+    listResources: vi.fn(),
+    updateResource: vi.fn(),
+    ingestResource: vi.fn(),
+    createMockGenerationJob: vi.fn(),
+    listQuestionFeedbackForAdmin: vi.fn(),
+    updateQuestionFeedback: vi.fn(),
+  };
+  const certdrillService = {
+    listCertifications: vi.fn(),
+    listMyCertifications: vi.fn(),
+    getReadinessSummary: vi.fn(),
+    listDueReviewQueue: vi.fn(),
+    listCategories: vi.fn(),
+    createAttempt: vi.fn(),
+    getAttemptForResume: vi.fn(),
+    answerQuestion: vi.fn(),
+    createQuestionFeedback: vi.fn(),
+    submitAttempt: vi.fn(),
+    reviewAttempt: vi.fn(),
+    listAttempts: vi.fn(),
+  };
+  const jobsRunner = {
+    ensureRegistered: vi.fn(),
+    runDue: vi.fn(),
+  };
+  const state = {
+    certdrillAdminServiceDeps: null as unknown,
+    jobsRunnerDeps: null as unknown,
+  };
+  const createCertDrillAdminService = vi.fn((deps) => {
+    state.certdrillAdminServiceDeps = deps;
+    return certdrillAdminService;
+  });
+  const createCertDrillService = vi.fn(() => certdrillService);
+  const createJobsRunner = vi.fn((deps) => {
+    state.jobsRunnerDeps = deps;
+    return jobsRunner;
+  });
+
   const notificationsService = {
     listForUser: vi.fn(),
     unreadCount: vi.fn(),
@@ -185,6 +249,12 @@ const mocks = vi.hoisted(() => {
     subscriptionService,
     adminService,
     adminCreditsDashboardService,
+    certdrillAdminService,
+    certdrillService,
+    jobsRunner,
+    createCertDrillAdminService,
+    createCertDrillService,
+    createJobsRunner,
     notificationsService,
     discountsService,
     vouchersService,
@@ -192,6 +262,7 @@ const mocks = vi.hoisted(() => {
     adminAuthApi,
     dodoCustomerPortal,
     db,
+    state,
     env: {
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
       APP_URL: "http://localhost:3200",
@@ -241,6 +312,14 @@ vi.mock("../src/modules/admin/service", () => ({
   createAdminService: () => mocks.adminService,
 }));
 
+vi.mock("../src/modules/certdrill/admin-service", () => ({
+  createCertDrillAdminService: mocks.createCertDrillAdminService,
+}));
+
+vi.mock("../src/modules/certdrill/service", () => ({
+  createCertDrillService: mocks.createCertDrillService,
+}));
+
 vi.mock("../src/modules/billing/credits-dashboard-service", () => ({
   createAdminCreditsDashboardService: () => mocks.adminCreditsDashboardService,
 }));
@@ -255,6 +334,10 @@ vi.mock("../src/modules/discounts/service", () => ({
 
 vi.mock("../src/modules/vouchers/service", () => ({
   createVouchersService: () => mocks.vouchersService,
+}));
+
+vi.mock("../src/modules/jobs/runner", () => ({
+  createJobsRunner: mocks.createJobsRunner,
 }));
 
 vi.mock("../src/modules/audit/service", () => ({
@@ -504,6 +587,56 @@ describe("API functional routes", () => {
 
   it("exports the audit service from bootstrap", () => {
     expect(bootstrap.auditService).toBe(mocks.auditService);
+  });
+
+  it("injects a not-configured blueprint parser into the CertDrill admin service bootstrap wiring", async () => {
+    const deps = mocks.state.certdrillAdminServiceDeps as {
+      blueprintParser?: {
+        provider: string;
+        model: string;
+        parse: (input: unknown) => Promise<unknown>;
+      };
+    } | null;
+    expect(deps).toBeTruthy();
+    expect(deps?.blueprintParser).toBeTruthy();
+    const parser = deps!.blueprintParser!;
+
+    expect(parser).toMatchObject({
+      provider: "not-configured",
+      model: "not-configured",
+    });
+    await expect(parser.parse({})).rejects.toMatchObject({
+      code: "BLUEPRINT_PARSER_NOT_CONFIGURED",
+      message: "Blueprint parser is not configured.",
+    });
+  });
+
+  it("registers the CertDrill blueprint parser job without removing existing jobs", async () => {
+    const deps = mocks.state.jobsRunnerDeps as {
+      jobs: Array<{
+        name: string;
+        intervalSeconds: number;
+        handler: () => Promise<unknown>;
+      }>;
+    } | null;
+    expect(deps).toBeTruthy();
+    const jobNames = deps!.jobs.map((job) => job.name);
+    const certdrillJob = deps!.jobs.find((job) => job.name === "certdrill-blueprint-parser");
+    const processResult = { checked: 5, completed: 4, failed: 1 };
+    mocks.certdrillAdminService.processPendingBlueprintParseRuns.mockResolvedValueOnce(processResult);
+
+    expect(jobNames).toEqual(expect.arrayContaining([
+      "billing-reconciliation",
+      "webhook-recovery",
+      "expire-user-data-exports",
+      "process-pending-emails",
+      "certdrill-blueprint-parser",
+    ]));
+    expect(jobNames).toHaveLength(5);
+    expect(certdrillJob).toBeTruthy();
+    expect(certdrillJob?.intervalSeconds).toBe(30);
+    await expect(certdrillJob!.handler()).resolves.toEqual(processResult);
+    expect(mocks.certdrillAdminService.processPendingBlueprintParseRuns).toHaveBeenCalledWith(5);
   });
 
   // Verifies the health endpoint always reports service readiness.

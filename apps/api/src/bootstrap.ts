@@ -41,6 +41,7 @@ import { createJobsRunner } from "./modules/jobs/runner";
 import { createWebhookRecoveryService } from "./modules/payments/webhook-recovery";
 import { createAllPurchasedCertificationAccessProvider } from "./modules/certdrill/access";
 import { createCertDrillAdminService } from "./modules/certdrill/admin-service";
+import { BlueprintParserError, createFoundryBlueprintParser, type BlueprintParser } from "./modules/certdrill/blueprint-parser";
 import { createCertDrillService } from "./modules/certdrill/service";
 
 const adminAllowlist = new Set(
@@ -158,7 +159,8 @@ const vouchersService = createVouchersService({
 const paymentWebhookEventStore = createPaymentWebhookEventStore({ db });
 const webhookRecoveryService = createWebhookRecoveryService({ db });
 const certdrillAccessProvider = createAllPurchasedCertificationAccessProvider();
-const certdrillAdminService = createCertDrillAdminService({ db });
+const certdrillBlueprintParser = createCertDrillBlueprintParser();
+const certdrillAdminService = createCertDrillAdminService({ db, blueprintParser: certdrillBlueprintParser });
 const certdrillService = createCertDrillService({ db, accessProvider: certdrillAccessProvider });
 const jobsRunner = createJobsRunner({
   db,
@@ -183,8 +185,35 @@ const jobsRunner = createJobsRunner({
       intervalSeconds: 60,
       handler: () => emailQueue.processPending(),
     },
+    {
+      name: "certdrill-blueprint-parser",
+      intervalSeconds: 30,
+      handler: () => certdrillAdminService.processPendingBlueprintParseRuns(5),
+    },
   ],
 });
+
+function createCertDrillBlueprintParser(): BlueprintParser {
+  if (env.AZURE_AI_FOUNDRY_RESPONSES_URL && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
+    return createFoundryBlueprintParser({
+      responsesUrl: env.AZURE_AI_FOUNDRY_RESPONSES_URL,
+      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
+      model: env.AZURE_AI_FOUNDRY_MODEL,
+      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
+    });
+  }
+
+  return {
+    provider: "not-configured",
+    model: "not-configured",
+    async parse() {
+      throw new BlueprintParserError(
+        "BLUEPRINT_PARSER_NOT_CONFIGURED",
+        "Blueprint parser is not configured.",
+      );
+    },
+  };
+}
 
 const authModule = createAuthModule({
   betterAuthOptions: {
