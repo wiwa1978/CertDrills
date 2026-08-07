@@ -66,6 +66,30 @@ const SYSTEM_PROMPT = [
   "Return only the requested schema with no prose, markdown, or code fences.",
 ].join(" ");
 
+export function buildFoundryResponsesUrl(projectEndpoint: string) {
+  let url: URL;
+  try {
+    url = new URL(projectEndpoint.trim());
+  } catch (error) {
+    throw new BlueprintParserError(
+      "BLUEPRINT_PARSER_NOT_CONFIGURED",
+      "Blueprint parser is not configured. projectEndpoint must be a valid URL.",
+      { cause: error },
+    );
+  }
+
+  if (url.search || url.hash) {
+    throw new BlueprintParserError(
+      "BLUEPRINT_PARSER_NOT_CONFIGURED",
+      "Blueprint parser is not configured. projectEndpoint must not contain a query string or fragment.",
+    );
+  }
+
+  const projectPath = url.pathname.replace(/\/+$/, "");
+  url.pathname = `${projectPath}/openai/v1/responses`;
+  return url.toString();
+}
+
 export function createFoundryBlueprintParser(config: CreateFoundryBlueprintParserConfig): BlueprintParser {
   const responsesUrl = requireConfiguredValue(config.responsesUrl);
   const apiKey = requireConfiguredValue(config.apiKey);
