@@ -36,8 +36,7 @@ describe("CertDrill exam form schema", () => {
     );
 
     expect(deactivationUpdates).toHaveLength(1);
-    expect(migrationSql).toMatch(
-      /WHERE cardinality\(form\."question_ids"\) = 0\s+OR COALESCE\(\(SELECT sum\(\(allocation ->> 'assignedCount'\)::integer\) FROM jsonb_array_elements\(form\."allocation_snapshot"\) allocation\), 0\) <> cardinality\(form\."question_ids"\)/,
-    );
+    expect(migrationSql).toContain('cardinality(form."question_ids") <> (SELECT count(DISTINCT "question_id")');
+    expect(migrationSql).toContain("(allocation ->> 'assignedCount')::integer <> (allocation ->> 'allocatedCount')::integer");
   });
 });

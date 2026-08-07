@@ -29,5 +29,7 @@ describe("CertDrill exam form admin", () => {
     expect(editor).toContain("Replace");
     expect(editor).toContain("expectedAssignmentVersion");
     expect(editor).toContain("window.confirm");
+    expect(editor).toContain("No eligible replacement is available.");
+    expect(editor).toContain("current.archivedAt");
   });
 });

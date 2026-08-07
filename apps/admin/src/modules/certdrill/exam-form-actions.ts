@@ -1,6 +1,5 @@
 "use server";
 
-import { ApiRequestError } from "@platform/frontend-shared";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -13,12 +12,7 @@ import {
 } from "@/lib/api/certdrill.server";
 
 import { examFormEditorHref, examFormListHref } from "./exam-form-href";
-
-export type ExamFormActionState = {
-  status: "idle" | "error" | "success";
-  formError?: string;
-  fieldErrors: Partial<Record<"name" | "durationMinutes" | "targetQuestionCount", string[]>>;
-};
+import { examFormActionError, type ExamFormActionState } from "./exam-form-action-error";
 
 export const initialExamFormActionState: ExamFormActionState = { status: "idle", fieldErrors: {} };
 
@@ -30,13 +24,6 @@ function value(formData: FormData, name: string) {
 function positiveInteger(formData: FormData, name: "durationMinutes" | "targetQuestionCount") {
   const parsed = Number(value(formData, name));
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function actionError(error: unknown): ExamFormActionState {
-  if (error instanceof ApiRequestError && error.errorCode === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT") {
-    return { status: "error", fieldErrors: {}, formError: "This assignment changed after the page loaded. Reload and try again." };
-  }
-  return { status: "error", fieldErrors: {}, formError: error instanceof Error ? error.message.replace(/^API error \(\d+\):\s*/, "") : "Exam form could not be saved." };
 }
 
 function revalidateExamForm(certificationId: string, examFormId?: string) {
@@ -54,14 +41,14 @@ export async function createCertDrillExamFormAction(_state: ExamFormActionState,
   if (!durationMinutes) fieldErrors.durationMinutes = ["Enter a positive whole number."];
   if (!targetQuestionCount) fieldErrors.targetQuestionCount = ["Enter a positive whole number."];
   if (Object.keys(fieldErrors).length) return { status: "error", fieldErrors };
+  let created;
   try {
-    const created = await createCertDrillAdminExamFormServer({ certificationId, name, durationMinutes: durationMinutes!, targetQuestionCount: targetQuestionCount! });
+    created = await createCertDrillAdminExamFormServer({ certificationId, name, durationMinutes: durationMinutes!, targetQuestionCount: targetQuestionCount! });
     revalidateExamForm(certificationId, created.id);
-    redirect(examFormEditorHref(certificationId, created.id));
   } catch (error) {
-    if (error && typeof error === "object" && "digest" in error) throw error;
-    return actionError(error);
+    return examFormActionError(error);
   }
+  redirect(examFormEditorHref(certificationId, created.id));
 }
 
 export async function updateCertDrillExamFormMetadataAction(_state: ExamFormActionState, formData: FormData): Promise<ExamFormActionState> {
@@ -74,7 +61,7 @@ export async function updateCertDrillExamFormMetadataAction(_state: ExamFormActi
     await updateCertDrillAdminExamFormMetadataServer(examFormId, { name, durationMinutes });
     revalidateExamForm(certificationId, examFormId);
     return { status: "success", fieldErrors: {} };
-  } catch (error) { return actionError(error); }
+  } catch (error) { return examFormActionError(error); }
 }
 
 export async function regenerateCertDrillExamFormAction(_state: ExamFormActionState, formData: FormData): Promise<ExamFormActionState> {
@@ -86,7 +73,7 @@ export async function regenerateCertDrillExamFormAction(_state: ExamFormActionSt
     await regenerateCertDrillAdminExamFormServer(examFormId, { targetQuestionCount, expectedAssignmentVersion: Number(value(formData, "expectedAssignmentVersion")) });
     revalidateExamForm(certificationId, examFormId);
     return { status: "success", fieldErrors: {} };
-  } catch (error) { return actionError(error); }
+  } catch (error) { return examFormActionError(error); }
 }
 
 export async function replaceCertDrillExamFormQuestionAction(_state: ExamFormActionState, formData: FormData): Promise<ExamFormActionState> {
@@ -96,7 +83,7 @@ export async function replaceCertDrillExamFormQuestionAction(_state: ExamFormAct
     await replaceCertDrillAdminExamFormQuestionServer(examFormId, { currentQuestionId: value(formData, "currentQuestionId"), replacementQuestionId: value(formData, "replacementQuestionId"), expectedAssignmentVersion: Number(value(formData, "expectedAssignmentVersion")) });
     revalidateExamForm(certificationId, examFormId);
     return { status: "success", fieldErrors: {} };
-  } catch (error) { return actionError(error); }
+  } catch (error) { return examFormActionError(error); }
 }
 
 export async function setCertDrillExamFormActiveAction(_state: ExamFormActionState, formData: FormData): Promise<ExamFormActionState> {
@@ -106,7 +93,7 @@ export async function setCertDrillExamFormActiveAction(_state: ExamFormActionSta
     await setCertDrillAdminExamFormActiveServer(examFormId, value(formData, "isActive") === "true");
     revalidateExamForm(certificationId, examFormId);
     return { status: "success", fieldErrors: {} };
-  } catch (error) { return actionError(error); }
+  } catch (error) { return examFormActionError(error); }
 }
 
 export async function deactivateCertDrillExamFormAction(formData: FormData) {

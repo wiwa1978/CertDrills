@@ -182,6 +182,8 @@ export async function seedCertDrillDemoData(db: SeedDb) {
         new Set(existingForms.map((form) => form.sortOrder)),
         effectiveExamSimulationQuestionCount,
         categoryId,
+        demo.category.name,
+        false,
       );
 
       skippedCertifications += 1;
@@ -210,7 +212,7 @@ export async function seedCertDrillDemoData(db: SeedDb) {
 
     const categoryId = await insertDemoCategory(db, certificationId, demo);
     const questionIds = await insertDemoQuestions(db, certificationId, categoryId, demo);
-    await insertMissingExamForms(db, certificationId, demo.code, questionIds, new Set(), demo.category.questions.length, categoryId);
+    await insertMissingExamForms(db, certificationId, demo.code, questionIds, new Set(), demo.category.questions.length, categoryId, demo.category.name, true);
 
     createdCertifications += 1;
   }
@@ -230,7 +232,9 @@ async function ensureDemoCategory(db: SeedDb, certificationId: string, demo: Dem
     ),
   });
 
-  if (existingCategory?.id) return existingCategory.id;
+  if (existingCategory?.id) {
+    return existingCategory.id;
+  }
   return insertDemoCategory(db, certificationId, demo);
 }
 
@@ -240,7 +244,7 @@ async function insertDemoCategory(db: SeedDb, certificationId: string, demo: Dem
     parentCategoryId: null,
     code: demo.category.code,
     name: demo.category.name,
-    weightPct: demo.category.weightPct,
+    weightPct: "100.00",
     sortOrder: 1,
   }).returning({ id: certdrillExamCategories.id });
 
@@ -326,12 +330,14 @@ async function insertMissingExamForms(
   existingSortOrders: Set<number>,
   questionCountDefault: number,
   categoryId: string,
+  categoryName: string,
+  isActive: boolean,
 ) {
   if (questionIds.length === 0) return;
 
   for (const form of buildExamForms(certificationCode, questionIds, questionCountDefault)) {
     if (existingSortOrders.has(form.sortOrder)) continue;
-    await insertExamForm(db, certificationId, categoryId, form);
+    await insertExamForm(db, certificationId, categoryId, categoryName, isActive, form);
   }
 }
 
@@ -356,17 +362,20 @@ async function insertExamForm(
   db: SeedDb,
   certificationId: string,
   categoryId: string,
+  categoryName: string,
+  isActive: boolean,
   form: ReturnType<typeof buildExamForms>[number],
 ) {
   const targetQuestionCount = form.questionIds.length;
   await db.insert(certdrillExamForms).values({
     certificationId,
     ...form,
+    isActive,
     targetQuestionCount,
     assignmentVersion: 1,
     allocationSnapshot: [{
       categoryId,
-      categoryName: "Demo Domain",
+      categoryName,
       weightPct: "100.00",
       allocatedCount: targetQuestionCount,
       assignedCount: targetQuestionCount,

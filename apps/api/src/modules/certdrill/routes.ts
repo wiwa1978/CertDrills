@@ -195,7 +195,7 @@ function certDrillAdminErrorJson(
   code: string,
   message: string,
   details: unknown,
-  status: 400 | 409,
+  status: 400 | 404 | 409,
 ) {
   const requestId = c.get("requestId");
   const response = c.json({
@@ -222,7 +222,12 @@ function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
   }
 
   if (error instanceof CertDrillAdminServiceError) {
-    return certDrillAdminErrorJson(c, error.code, error.message, error.details, error.code === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" ? 409 : 400);
+    const status = error.code === "CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND"
+      ? 404
+      : error.code === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" || error.code === "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE"
+        ? 409
+        : 400;
+    return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
   }
 
   throw error;

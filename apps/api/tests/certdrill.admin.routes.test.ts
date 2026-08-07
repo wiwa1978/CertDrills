@@ -302,6 +302,17 @@ describe("CertDrill admin routes", () => {
     expect(response.status).toBe(409);
   });
 
+  it("maps exam form not-found and active-question protection statuses", async () => {
+    service.getExamForm.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND", "Missing"));
+    service.updateQuestion.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", "In use"));
+    const [missing, inUse] = await Promise.all([
+      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`),
+      createApp().request(`/api/admin/certdrill/questions/${questionId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "archived" }) }),
+    ]);
+    expect(missing.status).toBe(404);
+    expect(inUse.status).toBe(409);
+  });
+
   it("delegates resource and mock generation requests", async () => {
     service.createResource.mockResolvedValueOnce({ id: resourceId });
     service.listResources.mockResolvedValueOnce([{ id: resourceId }]);

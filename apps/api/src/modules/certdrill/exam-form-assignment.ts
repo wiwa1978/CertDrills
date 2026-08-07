@@ -327,9 +327,7 @@ function validateSnapshot(snapshot: ExamFormAllocationSnapshotItem[], allocation
       throw invalidSnapshot(`Exam form allocation snapshot is missing category ${allocation.category.id}.`);
     }
     if (
-      item.categoryName !== allocation.category.name
-      || item.weightPct !== formatWeight(allocation.weightBasisPoints)
-      || item.allocatedCount !== allocation.allocatedCount
+      item.allocatedCount !== allocation.allocatedCount
       || item.assignedCount !== allocation.allocatedCount
     ) {
       throw invalidSnapshot(`Exam form allocation snapshot does not match category ${allocation.category.id}.`);

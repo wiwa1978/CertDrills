@@ -46,7 +46,7 @@ export type CertDrillAdminCategoryInput = {
 };
 
 export type CertDrillAdminCategoryUpdateInput = Partial<CertDrillAdminCategoryInput>;
-export type CertDrillAdminCategory = CertDrillAdminCategoryInput & { id: string };
+export type CertDrillAdminCategory = CertDrillAdminCategoryInput & { id: string; archivedAt?: Nullable<string> };
 
 export type CertDrillAdminMediaAssetInput = {
   url: string;

@@ -1,4 +1,5 @@
 import { getTableName, type Table } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
 import { createCertDrillAdminService } from "../../../src/modules/certdrill/admin-service";
@@ -390,6 +391,9 @@ describe("CertDrill admin service", () => {
 
     expect(inserts.find((entry) => entry.table === "certdrill_exam_forms")?.values).toMatchObject({ name: "Form A", isActive: false, sortOrder: 3, targetQuestionCount: 2, assignmentVersion: 1, questionIds: expect.any(Array), allocationSnapshot: expect.any(Array) });
     expect(updates).toEqual([]);
+    expect(db.execute).toHaveBeenCalledTimes(1);
+    expect(new PgDialect().sqlToQuery(db.execute.mock.calls[0]![0]).sql).toContain("913846227");
+    expect(db.execute.mock.invocationCallOrder[0]).toBeLessThan(db.query.certdrillExamForms.findMany.mock.invocationCallOrder[0]!);
   });
 
   it("does not insert a form when capacity is insufficient", async () => {
@@ -424,6 +428,7 @@ describe("CertDrill admin service", () => {
     await service.regenerateExamForm(ids.examForm, { targetQuestionCount: 2, expectedAssignmentVersion: 2 });
 
     expect(successful.transactions).toHaveLength(1);
+    expect(successful.db.execute).toHaveBeenCalledTimes(1);
     expect(successful.updates.at(-1)?.values).toMatchObject({ targetQuestionCount: 2, assignmentVersion: 3, questionIds: expect.any(Array), allocationSnapshot: expect.any(Array), generatedAt: expect.any(Date) });
 
     const stale = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [form], returningByTable: { certdrill_exam_forms: [] } });
@@ -438,6 +443,8 @@ describe("CertDrill admin service", () => {
     await createCertDrillAdminService({ db }).replaceExamFormQuestion(ids.examForm, { currentQuestionId: ids.question, replacementQuestionId: ids.replacementQuestion, expectedAssignmentVersion: 4 });
 
     expect(updates.at(-1)?.values).toMatchObject({ questionIds: [ids.replacementQuestion, ids.otherQuestion], assignmentVersion: 5 });
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(db.execute).toHaveBeenCalledTimes(1);
   });
 
   it("rejects cross-category and already-assigned replacements", async () => {
@@ -449,6 +456,23 @@ describe("CertDrill admin service", () => {
     expect(updates).toEqual([]);
   });
 
+  it("rejects replacements when both questions have unresolved category ancestry", async () => {
+    const unknownCategory = "12121212-1212-4212-8212-121212121212";
+    const form = generatedExamForm({ questionIds: [ids.question, ids.otherQuestion] });
+    const questions = [
+      { id: ids.question, certificationId: ids.cert, categoryId: unknownCategory, status: "published" },
+      { id: ids.replacementQuestion, certificationId: ids.cert, categoryId: unknownCategory, status: "published" },
+    ];
+    const { db, updates } = createAdminDb({ categories: weightedCategories, questions, examForms: [form] });
+
+    await expect(createCertDrillAdminService({ db }).replaceExamFormQuestion(ids.examForm, {
+      currentQuestionId: ids.question,
+      replacementQuestionId: ids.replacementQuestion,
+      expectedAssignmentVersion: 1,
+    })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_INVALID" });
+    expect(updates).toEqual([]);
+  });
+
   it("activates only a complete current assignment and always permits deactivation", async () => {
     const stale = generatedExamForm({ allocationSnapshot: [] });
     const staleDb = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [stale] });
@@ -457,6 +481,8 @@ describe("CertDrill admin service", () => {
     const valid = createAdminDb({ categories: weightedCategories, questions: publishedQuestions, examForms: [generatedExamForm()] });
     await createCertDrillAdminService({ db: valid.db }).setExamFormActive(ids.examForm, true);
     expect(valid.updates.at(-1)?.values).toMatchObject({ isActive: true });
+    expect(valid.db.transaction).toHaveBeenCalledTimes(1);
+    expect(valid.db.execute).toHaveBeenCalledTimes(1);
 
     const invalid = createAdminDb({ examForms: [stale] });
     await createCertDrillAdminService({ db: invalid.db }).setExamFormActive(ids.examForm, false);
@@ -467,6 +493,8 @@ describe("CertDrill admin service", () => {
     const { db, updates } = createAdminDb({ questionById: createQuestion({ status: "published" }), activeExamFormsContainingQuestion: [{ id: ids.examForm, name: "Form A" }] });
     await expect(createCertDrillAdminService({ db }).updateQuestion(ids.question, { status })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", details: [{ id: ids.examForm, name: "Form A" }] });
     expect(updates).toEqual([]);
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(db.execute).toHaveBeenCalledTimes(1);
   });
 
   it("creates, lists, and updates resource placeholders", async () => {
@@ -909,6 +937,7 @@ function createAdminDb(input: {
       transactions.push(true);
       return callback(db);
     }),
+    execute: vi.fn().mockResolvedValue([]),
   };
 
   return { db, inserts, updates, deletes, transactions };

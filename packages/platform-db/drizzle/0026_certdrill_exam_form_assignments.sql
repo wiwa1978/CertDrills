@@ -14,6 +14,7 @@ WITH RECURSIVE "category_ancestry" AS (
     "category"."id" AS "root_category_id"
   FROM "certdrill_exam_categories" "category"
   WHERE "category"."parent_category_id" IS NULL
+    AND "category"."archived_at" IS NULL
 
   UNION ALL
 
@@ -23,6 +24,7 @@ WITH RECURSIVE "category_ancestry" AS (
   FROM "certdrill_exam_categories" "child"
   INNER JOIN "category_ancestry" "ancestry"
     ON "child"."parent_category_id" = "ancestry"."category_id"
+  WHERE "child"."archived_at" IS NULL
 ),
 "allocation_counts" AS (
   SELECT
@@ -34,27 +36,66 @@ WITH RECURSIVE "category_ancestry" AS (
   INNER JOIN "certdrill_questions" "question"
     ON "question"."id" = "assignment"."question_id"
     AND "question"."certification_id" = "form"."certification_id"
+    AND "question"."status" = 'published'
   INNER JOIN "category_ancestry" "ancestry"
     ON "ancestry"."category_id" = "question"."category_id"
   GROUP BY "form"."id", "ancestry"."root_category_id"
 ),
+"weighted_roots" AS (
+  SELECT
+    "form"."id" AS "form_id",
+    "root"."id" AS "root_category_id",
+    "root"."name" AS "category_name",
+    "root"."weight_pct",
+    "root"."sort_order",
+    round("root"."weight_pct" * 100)::integer AS "weight_basis_points",
+    (cardinality("form"."question_ids") * round("root"."weight_pct" * 100)::integer) / 10000 AS "floor_count",
+    (cardinality("form"."question_ids") * round("root"."weight_pct" * 100)::integer) % 10000 AS "remainder"
+  FROM "certdrill_exam_forms" "form"
+  INNER JOIN "certdrill_exam_categories" "root"
+    ON "root"."certification_id" = "form"."certification_id"
+    AND "root"."parent_category_id" IS NULL
+    AND "root"."archived_at" IS NULL
+),
+"ranked_roots" AS (
+  SELECT
+    "weighted".*,
+    cardinality("form"."question_ids") - sum("weighted"."floor_count") OVER (PARTITION BY "weighted"."form_id") AS "remaining_count",
+    row_number() OVER (PARTITION BY "weighted"."form_id" ORDER BY "weighted"."remainder" DESC, "weighted"."sort_order", "weighted"."root_category_id") AS "remainder_rank",
+    sum("weighted"."weight_basis_points") OVER (PARTITION BY "weighted"."form_id") AS "total_weight_basis_points"
+  FROM "weighted_roots" "weighted"
+  INNER JOIN "certdrill_exam_forms" "form" ON "form"."id" = "weighted"."form_id"
+),
+"expected_allocations" AS (
+  SELECT
+    "ranked"."form_id",
+    "ranked"."root_category_id",
+    "ranked"."category_name",
+    "ranked"."weight_pct",
+    "ranked"."sort_order",
+    "ranked"."total_weight_basis_points",
+    ("ranked"."floor_count" + CASE WHEN "ranked"."remainder_rank" <= "ranked"."remaining_count" THEN 1 ELSE 0 END)::integer AS "allocated_count"
+  FROM "ranked_roots" "ranked"
+),
 "allocation_snapshots" AS (
   SELECT
-    "counts"."form_id",
+    "expected"."form_id",
     jsonb_agg(
       jsonb_build_object(
-        'categoryId', "root"."id",
-        'categoryName', "root"."name",
-        'weightPct', to_char(COALESCE("root"."weight_pct", 0.00), 'FM999990.00'),
-        'allocatedCount', "counts"."assigned_count",
-        'assignedCount', "counts"."assigned_count"
+        'categoryId', "expected"."root_category_id",
+        'categoryName', "expected"."category_name",
+        'weightPct', to_char("expected"."weight_pct", 'FM999990.00'),
+        'allocatedCount', "expected"."allocated_count",
+        'assignedCount', COALESCE("counts"."assigned_count", 0)
       )
-      ORDER BY "root"."sort_order", "root"."id"
+      ORDER BY "expected"."sort_order", "expected"."root_category_id"
     ) AS "allocation_snapshot"
-  FROM "allocation_counts" "counts"
-  INNER JOIN "certdrill_exam_categories" "root"
-    ON "root"."id" = "counts"."root_category_id"
-  GROUP BY "counts"."form_id"
+  FROM "expected_allocations" "expected"
+  LEFT JOIN "allocation_counts" "counts"
+    ON "counts"."form_id" = "expected"."form_id"
+    AND "counts"."root_category_id" = "expected"."root_category_id"
+  WHERE "expected"."total_weight_basis_points" = 10000
+  GROUP BY "expected"."form_id"
 )
 UPDATE "certdrill_exam_forms" "form"
 SET "allocation_snapshot" = "snapshot"."allocation_snapshot"
@@ -63,7 +104,13 @@ WHERE "snapshot"."form_id" = "form"."id";
 
 UPDATE "certdrill_exam_forms" form SET "is_active" = false
 WHERE cardinality(form."question_ids") = 0
-   OR COALESCE((SELECT sum((allocation ->> 'assignedCount')::integer) FROM jsonb_array_elements(form."allocation_snapshot") allocation), 0) <> cardinality(form."question_ids");
+   OR cardinality(form."question_ids") <> (SELECT count(DISTINCT "question_id") FROM unnest(form."question_ids") AS assigned("question_id"))
+   OR COALESCE((SELECT sum((allocation ->> 'assignedCount')::integer) FROM jsonb_array_elements(form."allocation_snapshot") allocation), 0) <> cardinality(form."question_ids")
+   OR EXISTS (
+     SELECT 1
+     FROM jsonb_array_elements(form."allocation_snapshot") allocation
+     WHERE (allocation ->> 'assignedCount')::integer <> (allocation ->> 'allocatedCount')::integer
+   );
 
 ALTER TABLE "certdrill_exam_forms" ALTER COLUMN "target_question_count" SET NOT NULL;
 ALTER TABLE "certdrill_exam_forms" ALTER COLUMN "generated_at" SET NOT NULL;

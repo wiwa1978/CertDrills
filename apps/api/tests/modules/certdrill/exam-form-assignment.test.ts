@@ -356,8 +356,25 @@ describe("validateExamFormAssignment", () => {
     })).not.toThrow();
   });
 
+  it("accepts renamed categories and changed weights when integer quotas stay equal", () => {
+    const plan = planExamFormAssignment({ categories, questions, targetQuestionCount: 2, rng: () => 0.999 });
+    const currentCategories = categories.map((item) => {
+      if (item.id === "a") return { ...item, name: "Renamed Alpha", weightPct: "51.00" };
+      if (item.id === "b") return { ...item, name: "Renamed Beta", weightPct: "49.00" };
+      return item;
+    });
+
+    expect(() => validateExamFormAssignment({
+      categories: currentCategories,
+      questions,
+      targetQuestionCount: 2,
+      questionIds: plan.questionIds,
+      allocationSnapshot: plan.allocations,
+    })).not.toThrow();
+  });
+
   it("rejects a stale quota after weights change", () => {
-    const plan = planExamFormAssignment({ categories, questions, targetQuestionCount: 3, rng: () => 0.999 });
+    const plan = planExamFormAssignment({ categories, questions, targetQuestionCount: 4, rng: () => 0.999 });
     const changedCategories = categories.map((item) => {
       if (item.id === "a") return { ...item, weightPct: "66.67" };
       if (item.id === "b") return { ...item, weightPct: "33.33" };
@@ -368,7 +385,7 @@ describe("validateExamFormAssignment", () => {
       () => validateExamFormAssignment({
         categories: changedCategories,
         questions,
-        targetQuestionCount: 3,
+        targetQuestionCount: 4,
         questionIds: plan.questionIds,
         allocationSnapshot: plan.allocations,
       }),
