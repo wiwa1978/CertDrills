@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 import { getCertDrillAdminBlueprintParseRunServer } from "@/lib/api/certdrill.server";
+import { blueprintAnalysisErrorMessage } from "../error-message";
 
 const invalidBlueprintAnalysisRequest = {
   success: false as const,
   error: { message: "Invalid blueprint analysis request." },
 };
-const blueprintAnalysisRequestFailedMessage = "Blueprint analysis request failed.";
 
 const blueprintParseRunIdSchema = z.string().uuid();
 
@@ -18,7 +18,7 @@ function helperErrorResponse(error: unknown) {
   return Response.json({
     success: false as const,
     error: {
-      message: error instanceof Error ? blueprintAnalysisRequestFailedMessage : blueprintAnalysisRequestFailedMessage,
+      message: blueprintAnalysisErrorMessage(error),
     },
   }, { status: 500 });
 }

@@ -87,8 +87,43 @@ describe("blueprint parse run routes", () => {
     expect(startBlueprintParseRunMock).not.toHaveBeenCalled();
   });
 
-  it("maps thrown Error instances to a safe 500 envelope", async () => {
-    startBlueprintParseRunMock.mockRejectedValueOnce(new Error("Blueprint queue unavailable."));
+  it("propagates trimmed Error messages from start route failures", async () => {
+    startBlueprintParseRunMock.mockRejectedValueOnce(new Error("  Blueprint queue unavailable.  "));
+
+    const response = await POST(new Request("http://admin/api/certdrill/blueprint-parse-runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ certificationId, resourceId }),
+    }));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: { message: "Blueprint queue unavailable." },
+    });
+  });
+
+  it("bounds propagated start route Error messages to 300 characters", async () => {
+    const longMessage = ` ${"A".repeat(320)} `;
+    startBlueprintParseRunMock.mockRejectedValueOnce(new Error(longMessage));
+
+    const response = await POST(new Request("http://admin/api/certdrill/blueprint-parse-runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ certificationId, resourceId }),
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toEqual({
+      success: false,
+      error: { message: "A".repeat(300) },
+    });
+    expect(payload.error.message).toHaveLength(300);
+  });
+
+  it("falls back to the generic message for empty Error messages", async () => {
+    startBlueprintParseRunMock.mockRejectedValueOnce(new Error("   "));
 
     const response = await POST(new Request("http://admin/api/certdrill/blueprint-parse-runs", {
       method: "POST",
@@ -130,7 +165,7 @@ describe("blueprint parse run routes", () => {
     expect(getBlueprintParseRunMock).not.toHaveBeenCalled();
   });
 
-  it("does not leak arbitrary helper error objects from detail lookups", async () => {
+  it("falls back to the generic message for non-Error detail failures", async () => {
     getBlueprintParseRunMock.mockRejectedValueOnce({
       message: "Hidden internals",
       stack: "secret stack",
