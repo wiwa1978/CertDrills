@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link as LocalizedLink } from "@/i18n/navigation";
 import type { CertDrillAdminCategory, CertDrillAdminCertification, CertDrillAdminExamForm, CertDrillAdminQuestion } from "@/lib/api/certdrill.server";
-import { initialExamFormActionState, regenerateCertDrillExamFormAction, replaceCertDrillExamFormQuestionAction, setCertDrillExamFormActiveAction, updateCertDrillExamFormMetadataAction } from "./exam-form-actions";
+import { initialExamFormActionState } from "./exam-form-action-error";
+import { regenerateCertDrillExamFormAction, replaceCertDrillExamFormQuestionAction, setCertDrillExamFormActiveAction, updateCertDrillExamFormMetadataAction } from "./exam-form-actions";
 import { examFormListHref } from "./exam-form-href";
 
 export function ExamFormEditor({ certification, categories, questions, examForm }: { certification: CertDrillAdminCertification; categories: CertDrillAdminCategory[]; questions: CertDrillAdminQuestion[]; examForm: CertDrillAdminExamForm }) {

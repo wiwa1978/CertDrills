@@ -6,6 +6,8 @@ export type ExamFormActionState = {
   fieldErrors: Partial<Record<"name" | "durationMinutes" | "targetQuestionCount", string[]>>;
 };
 
+export const initialExamFormActionState: ExamFormActionState = { status: "idle", fieldErrors: {} };
+
 type CapacityShortage = {
   categoryName: string;
   requiredCount: number;

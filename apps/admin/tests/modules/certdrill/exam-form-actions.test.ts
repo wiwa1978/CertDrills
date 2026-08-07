@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createExamForm, revalidatePath, redirect } = vi.hoisted(() => ({
@@ -17,8 +18,13 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect }));
 
 import { ApiRequestError } from "@platform/frontend-shared";
-import { createCertDrillExamFormAction, initialExamFormActionState } from "@/modules/certdrill/exam-form-actions";
-import { examFormActionError } from "@/modules/certdrill/exam-form-action-error";
+import { createCertDrillExamFormAction } from "@/modules/certdrill/exam-form-actions";
+import { examFormActionError, initialExamFormActionState } from "@/modules/certdrill/exam-form-action-error";
+
+const serverActionSource = readFileSync(
+  new URL("../../../src/modules/certdrill/exam-form-actions.ts", import.meta.url),
+  "utf8",
+);
 
 function formData() {
   const data = new FormData();
@@ -31,6 +37,11 @@ function formData() {
 
 describe("exam form actions", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("exports only async functions from the use-server module", () => {
+    expect(serverActionSource).not.toMatch(/export\s+const\s+/);
+    expect(serverActionSource).not.toContain("initialExamFormActionState");
+  });
 
   it("returns API failures with a digest as action state instead of rethrowing", async () => {
     createExamForm.mockRejectedValueOnce(new ApiRequestError({

@@ -14,8 +14,6 @@ import {
 import { examFormEditorHref, examFormListHref } from "./exam-form-href";
 import { examFormActionError, type ExamFormActionState } from "./exam-form-action-error";
 
-export const initialExamFormActionState: ExamFormActionState = { status: "idle", fieldErrors: {} };
-
 function value(formData: FormData, name: string) {
   const entry = formData.get(name);
   return typeof entry === "string" ? entry.trim() : "";

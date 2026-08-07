@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createCertDrillExamFormAction, initialExamFormActionState } from "./exam-form-actions";
+import { initialExamFormActionState } from "./exam-form-action-error";
+import { createCertDrillExamFormAction } from "./exam-form-actions";
 
 export function ExamFormCreateDialog({ certificationId }: { certificationId: string }) {
   const [open, setOpen] = useState(false);
