@@ -325,6 +325,78 @@ describe("CertDrill admin API helpers", () => {
     });
   });
 
+  it("lists, starts, and reads blueprint parse runs without exposing raw output", async () => {
+    const proposal = {
+      confidence: "high" as const,
+      warnings: ["Keep vendor phrasing."],
+      categories: [
+        {
+          code: "1.0",
+          name: "Identity",
+          parentCode: null,
+          weightPct: 40,
+          sortOrder: 1,
+          evidence: [
+            {
+              excerpt: "Manage identities and governance.",
+              location: "Section 1",
+            },
+          ],
+        },
+      ],
+    };
+    const apiRun = {
+      id: "run-1",
+      certificationId: "cert-1",
+      resourceId: "resource-1",
+      status: "completed" as const,
+      provider: "openai",
+      model: "gpt-5.5",
+      contentChecksum: "checksum-1",
+      proposalJson: proposal,
+      rawOutput: "{\"confidence\":\"high\"}",
+      confidence: "high" as const,
+      warningsJson: ["Keep vendor phrasing."],
+      errorMessage: null,
+      startedAt: "2026-08-07T09:00:00.000Z",
+      completedAt: "2026-08-07T09:01:00.000Z",
+      createdAt: "2026-08-07T08:59:00.000Z",
+      updatedAt: "2026-08-07T09:01:00.000Z",
+    };
+    const expectedRun = {
+      id: "run-1",
+      certificationId: "cert-1",
+      resourceId: "resource-1",
+      status: "completed" as const,
+      provider: "openai",
+      model: "gpt-5.5",
+      contentChecksum: "checksum-1",
+      proposalJson: proposal,
+      confidence: "high" as const,
+      warningsJson: ["Keep vendor phrasing."],
+      errorMessage: null,
+      startedAt: "2026-08-07T09:00:00.000Z",
+      completedAt: "2026-08-07T09:01:00.000Z",
+      createdAt: "2026-08-07T08:59:00.000Z",
+      updatedAt: "2026-08-07T09:01:00.000Z",
+    };
+
+    serverApiRequestMock.mockResolvedValueOnce({ success: true, data: [apiRun] });
+    await expect(certdrillApi.listCertDrillAdminBlueprintParseRunsServer("cert-1")).resolves.toEqual([expectedRun]);
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/blueprint-parse-runs");
+
+    serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
+    await expect(certdrillApi.startCertDrillAdminBlueprintParseRunServer("cert-1", "resource-1")).resolves.toEqual(expectedRun);
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/blueprint-parse-runs", {
+      method: "POST",
+      body: JSON.stringify({ resourceId: "resource-1" }),
+    });
+
+    serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
+    await expect(certdrillApi.getCertDrillAdminBlueprintParseRunServer("run-1")).resolves.toEqual(expectedRun);
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/blueprint-parse-runs/run-1");
+  });
+
   it("creates mock generation jobs", async () => {
     const payload = {
       certificationId: "cert-1",
