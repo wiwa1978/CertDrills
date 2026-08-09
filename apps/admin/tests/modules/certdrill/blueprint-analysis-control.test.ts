@@ -10,6 +10,11 @@ import type {
   CertDrillBlueprintParseRun,
 } from "@/lib/api/certdrill.server";
 
+type BlueprintCategoryWithOptionalRange = CertDrillBlueprintCategoryProposal & {
+  weightMinPct?: number | null;
+  weightMaxPct?: number | null;
+};
+
 const controlPath = new URL("../../../src/modules/certdrill/blueprint-analysis-control.tsx", import.meta.url);
 const clientPath = new URL("../../../src/modules/certdrill/blueprint-analysis-client.ts", import.meta.url);
 
@@ -58,8 +63,8 @@ function createRun(overrides: Partial<CertDrillBlueprintParseRun> = {}): CertDri
 }
 
 function createCategory(
-  overrides: Partial<CertDrillBlueprintCategoryProposal> = {},
-): CertDrillBlueprintCategoryProposal {
+  overrides: Partial<BlueprintCategoryWithOptionalRange> = {},
+): BlueprintCategoryWithOptionalRange {
   return {
     code: "A",
     name: "Category",
@@ -126,7 +131,9 @@ describe("Blueprint analysis control", () => {
             code: "B",
             name: "Second domain",
             parentCode: null,
-            weightPct: 40,
+            weightPct: null,
+            weightMinPct: 20,
+            weightMaxPct: 25,
             sortOrder: 1,
             evidence: [
               { excerpt: "Second-domain evidence", location: "Appendix B" },
@@ -136,7 +143,9 @@ describe("Blueprint analysis control", () => {
             code: "A.1",
             name: "Nested skill",
             parentCode: "A",
-            weightPct: null,
+            weightPct: 20,
+            weightMinPct: 20,
+            weightMaxPct: 20,
             sortOrder: 2,
             evidence: [{ excerpt: "Nested evidence", location: null }],
           }),
@@ -144,9 +153,19 @@ describe("Blueprint analysis control", () => {
             code: "A",
             name: "Top level domain",
             parentCode: null,
-            weightPct: 60,
+            weightPct: 15,
             sortOrder: 0,
             evidence: [{ excerpt: "Top-level evidence", location: "Overview section" }],
+          }),
+          createCategory({
+            code: "C",
+            name: "Unspecified domain",
+            parentCode: null,
+            weightPct: null,
+            weightMinPct: null,
+            weightMaxPct: null,
+            sortOrder: 3,
+            evidence: [{ excerpt: "Missing weight evidence", location: "Appendix C" }],
           }),
         ],
       },
@@ -190,8 +209,12 @@ describe("Blueprint analysis control", () => {
     expect(markup).toContain(">B</td>");
     expect(markup).toContain(">A.1</td>");
     expect(markup).toContain(">A</td>");
+    expect(markup).toContain(">C</td>");
     expect(markup).toContain("Second domain");
     expect(markup).toContain("Top level");
+    expect(markup).toContain("20–25%");
+    expect(markup).toContain(">20%</td>");
+    expect(markup).toContain(">15%</td>");
     expect(markup).toContain("Not provided");
     expect(markup).toContain("Second-domain evidence");
     expect(markup).toContain("Appendix B");
@@ -206,8 +229,42 @@ describe("Blueprint analysis control", () => {
     expect(markup).toContain("style=\"padding-left:16px\"");
     expect(markup.indexOf(">B</td>")).toBeLessThan(markup.indexOf(">A.1</td>"));
     expect(markup.indexOf(">A.1</td>")).toBeLessThan(markup.indexOf(">A</td>"));
+    expect(markup.indexOf(">A</td>")).toBeLessThan(markup.indexOf(">C</td>"));
     expect(markup).not.toContain(">Save<");
     expect(markup).not.toContain(">Import<");
+  });
+
+  it("formats blueprint weights for range, exact, legacy exact, and missing values", async () => {
+    const controlModule = await loadControlModule();
+    expect(controlModule).not.toBeNull();
+
+    const formatBlueprintWeight = (controlModule! as Record<string, unknown>).formatBlueprintWeight;
+    expect(typeof formatBlueprintWeight).toBe("function");
+
+    const formatter = formatBlueprintWeight as (category: {
+      weightPct: number | null;
+      weightMinPct?: number | null;
+      weightMaxPct?: number | null;
+    }) => string;
+
+    expect(formatter({
+      weightPct: null,
+      weightMinPct: 20,
+      weightMaxPct: 25,
+    })).toBe("20–25%");
+    expect(formatter({
+      weightPct: 20,
+      weightMinPct: 20,
+      weightMaxPct: 20,
+    })).toBe("20%");
+    expect(formatter({
+      weightPct: 15,
+    })).toBe("15%");
+    expect(formatter({
+      weightPct: null,
+      weightMinPct: null,
+      weightMaxPct: null,
+    })).toBe("Not provided");
   });
 
   it("omits confidence details for non-completed runs", async () => {

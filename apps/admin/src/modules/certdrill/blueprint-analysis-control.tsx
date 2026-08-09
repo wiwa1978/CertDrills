@@ -92,6 +92,20 @@ function categoryDepth(categoriesByCode: Map<string, number>, category: CertDril
   return categoriesByCode.get(category.code.trim().toUpperCase()) ?? 0;
 }
 
+export function formatBlueprintWeight(
+  category: Pick<CertDrillBlueprintCategoryProposal, "weightPct" | "weightMinPct" | "weightMaxPct">,
+) {
+  const { weightPct, weightMinPct, weightMaxPct } = category;
+
+  if (weightMinPct != null && weightMaxPct != null) {
+    return weightMinPct === weightMaxPct
+      ? `${weightMinPct}%`
+      : `${weightMinPct}–${weightMaxPct}%`;
+  }
+
+  return weightPct == null ? "Not provided" : `${weightPct}%`;
+}
+
 export function BlueprintAnalysisDetails({
   resource,
   run,
@@ -223,9 +237,7 @@ export function BlueprintAnalysisDetails({
                         </div>
                       </TableCell>
                       <TableCell>{category.parentCode ?? "Top level"}</TableCell>
-                      <TableCell>
-                        {category.weightPct === null ? "Not provided" : `${category.weightPct}%`}
-                      </TableCell>
+                      <TableCell>{formatBlueprintWeight(category)}</TableCell>
                       <TableCell>
                         <ul className="space-y-2">
                           {category.evidence.map((evidence, evidenceIndex) => (

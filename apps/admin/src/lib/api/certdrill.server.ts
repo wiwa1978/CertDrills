@@ -193,6 +193,8 @@ export type CertDrillBlueprintCategoryProposal = {
   name: string;
   parentCode: Nullable<string>;
   weightPct: Nullable<number>;
+  weightMinPct?: Nullable<number>;
+  weightMaxPct?: Nullable<number>;
   sortOrder: number;
   evidence: CertDrillBlueprintEvidence[];
 };
