@@ -376,6 +376,30 @@ describe("CertDrill blueprint proposal validation", () => {
     ]);
   });
 
+  it("requires weighted heading evidence to match whole normalized titles", () => {
+    const error = expectValidationError(createProposal({
+      categories: [
+        createCategory({
+          name: "AI",
+          evidence: [{ excerpt: "Maintain compliance (20%)", location: null }],
+        }),
+      ],
+    }));
+
+    expect(issueMessages(error)).toEqual([
+      "categories.0.evidence: Evidence must include the weighted category title and percentage.",
+    ]);
+
+    expect(validateBlueprintProposal(createProposal({
+      categories: [
+        createCategory({
+          name: "AI",
+          evidence: [{ excerpt: "AI (20%)", location: null }],
+        }),
+      ],
+    })).categories[0]?.evidence).toEqual([{ excerpt: "AI (20%)", location: null }]);
+  });
+
   it("appends a deterministic warning when top-level exact weights do not total 100", () => {
     const result = validateBlueprintProposal(createProposal({
       categories: [

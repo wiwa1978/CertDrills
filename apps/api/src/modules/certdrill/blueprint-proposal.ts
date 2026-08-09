@@ -53,10 +53,20 @@ function normalizeEvidenceText(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}%]+/gu, " ").trim();
 }
 
+function hasNormalizedWholeTitleMatch(excerpt: string, name: string) {
+  return ` ${excerpt} `.includes(` ${name} `);
+}
+
 function hasWeightedHeadingEvidence(category: BlueprintProposal["categories"][number]) {
   const normalizedName = normalizeEvidenceText(category.name);
 
-  return category.evidence.some((item) => item.excerpt.includes("%") && normalizeEvidenceText(item.excerpt).includes(normalizedName));
+  return category.evidence.some((item) => {
+    if (!item.excerpt.includes("%")) {
+      return false;
+    }
+
+    return hasNormalizedWholeTitleMatch(normalizeEvidenceText(item.excerpt), normalizedName);
+  });
 }
 
 function formatWeight(weightPct: number) {
@@ -105,15 +115,15 @@ export function validateBlueprintProposal(value: unknown): BlueprintProposal {
     parentCode: normalizeCode(category.parentCode),
   }));
   const issues: z.ZodIssue[] = [];
-  const indexByCode = new Map<string, number>();
+  const normalizedCodes = new Set<string>();
 
   categories.forEach((category, index) => {
-    if (indexByCode.has(category.code)) {
+    if (normalizedCodes.has(category.code)) {
       issues.push(buildCustomIssue(["categories", index, "code"], "Category code must be unique after normalization."));
       return;
     }
 
-    indexByCode.set(category.code, index);
+    normalizedCodes.add(category.code);
   });
 
   categories.forEach((category, index) => {
