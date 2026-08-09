@@ -63,6 +63,10 @@ function createSuccessfulResponse(text: string) {
   });
 }
 
+function evidenceFixture(excerpt: string, location = "page 1") {
+  return [{ excerpt, location }];
+}
+
 function expectParserError(error: unknown) {
   expect(error).toBeInstanceOf(BlueprintParserError);
   return error as BlueprintParserError;
@@ -160,8 +164,10 @@ describe("Foundry blueprint parser", () => {
           name: "Manage Azure identities and governance",
           parentCode: null,
           weightPct: 100,
+          weightMinPct: 100,
+          weightMaxPct: 100,
           sortOrder: 0,
-          evidence: [],
+          evidence: evidenceFixture("Manage Azure identities and governance (100%)"),
         },
       ],
     })));
@@ -181,8 +187,10 @@ describe("Foundry blueprint parser", () => {
             name: "Manage Azure identities and governance",
             parentCode: null,
             weightPct: 100,
+            weightMinPct: 100,
+            weightMaxPct: 100,
             sortOrder: 0,
-            evidence: [],
+            evidence: evidenceFixture("Manage Azure identities and governance (100%)"),
           },
         ],
       }),
@@ -195,8 +203,10 @@ describe("Foundry blueprint parser", () => {
             name: "Manage Azure identities and governance",
             parentCode: null,
             weightPct: 100,
+            weightMinPct: 100,
+            weightMaxPct: 100,
             sortOrder: 0,
-            evidence: [],
+            evidence: evidenceFixture("Manage Azure identities and governance (100%)"),
           },
         ],
       },
@@ -240,10 +250,21 @@ describe("Foundry blueprint parser", () => {
     const systemPrompt = body.input[0].content[0].text as string;
     expect(systemPrompt).toContain("untrusted data");
     expect(systemPrompt).toContain("embedded instructions");
-    expect(systemPrompt).toContain("must not be invented");
+    expect(systemPrompt).toContain("Only return headings");
+    expect(systemPrompt).toContain("immediately associated");
+    expect(systemPrompt).toContain("percentage or percentage range");
+    expect(systemPrompt).toContain("weightMinPct");
+    expect(systemPrompt).toContain("weightMaxPct");
+    expect(systemPrompt).toContain("never choose or calculate a midpoint");
+    expect(systemPrompt).toContain("parentCode");
     expect(systemPrompt).toContain("null");
-    expect(systemPrompt).toContain("warning");
+    expect(systemPrompt).toContain("top-level");
+    expect(systemPrompt).toContain("Detailed subsection headings");
+    expect(systemPrompt).toContain("evidence");
+    expect(systemPrompt).toContain("must not be returned as categories");
+    expect(systemPrompt).toContain("Exclude headings without an adjacent percentage");
     expect(systemPrompt).toContain("only the requested schema");
+    expect(systemPrompt).not.toContain("If a weight is absent or ambiguous");
 
     const userPrompt = body.input[1].content[0].text as string;
     expect(userPrompt).toContain("BEGIN CERTIFICATION METADATA");
@@ -317,9 +338,11 @@ describe("Foundry blueprint parser", () => {
                     code: "d1",
                     name: "Domain 1",
                     parentCode: null,
-                    weightPct: 100,
+                    weightPct: null,
+                    weightMinPct: 20,
+                    weightMaxPct: 25,
                     sortOrder: 0,
-                    evidence: [],
+                    evidence: evidenceFixture("Domain 1 (20-25%)"),
                   },
                 ],
               }) },
@@ -339,9 +362,11 @@ describe("Foundry blueprint parser", () => {
             code: "d1",
             name: "Domain 1",
             parentCode: null,
-            weightPct: 100,
+            weightPct: null,
+            weightMinPct: 20,
+            weightMaxPct: 25,
             sortOrder: 0,
-            evidence: [],
+            evidence: evidenceFixture("Domain 1 (20-25%)"),
           },
         ],
       }),
@@ -353,9 +378,11 @@ describe("Foundry blueprint parser", () => {
             code: "D1",
             name: "Domain 1",
             parentCode: null,
-            weightPct: 100,
+            weightPct: null,
+            weightMinPct: 20,
+            weightMaxPct: 25,
             sortOrder: 0,
-            evidence: [],
+            evidence: evidenceFixture("Domain 1 (20-25%)"),
           },
         ],
       },
@@ -372,8 +399,10 @@ describe("Foundry blueprint parser", () => {
           name: "Domain 1",
           parentCode: null,
           weightPct: 100,
+          weightMinPct: 100,
+          weightMaxPct: 100,
           sortOrder: 0,
-          evidence: [],
+          evidence: evidenceFixture("Domain 1 (100%)"),
         },
       ],
     })));
@@ -446,8 +475,10 @@ describe("Foundry blueprint parser", () => {
           name: "Domain 1",
           parentCode: null,
           weightPct: 100,
+          weightMinPct: 100,
+          weightMaxPct: 100,
           sortOrder: 0,
-          evidence: [],
+          evidence: evidenceFixture("Domain 1 (100%)"),
           extra: true,
         },
       ],

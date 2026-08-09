@@ -224,6 +224,7 @@ describe("Blueprint parse service", () => {
       completedAt: fixedNow,
       updatedAt: fixedNow,
     });
+    expect(state.runs.find((entry) => entry.id === run.id)?.proposalJson).toEqual(proposal({ confidence: "high" }));
   });
 
   it("persists parser raw output when a typed parser error includes diagnostics", async () => {
@@ -379,16 +380,20 @@ function proposalBase() {
         name: "Domain 1",
         parentCode: null,
         weightPct: 50,
+        weightMinPct: 50,
+        weightMaxPct: 50,
         sortOrder: 0,
-        evidence: [{ excerpt: "Domain 1 details", location: "page 1" }],
+        evidence: [{ excerpt: "Domain 1 (50%) details", location: "page 1" }],
       },
       {
         code: "D2",
         name: "Domain 2",
         parentCode: null,
         weightPct: 50,
+        weightMinPct: 50,
+        weightMaxPct: 50,
         sortOrder: 1,
-        evidence: [{ excerpt: "Domain 2 details", location: "page 2" }],
+        evidence: [{ excerpt: "Domain 2 (50%) details", location: "page 2" }],
       },
     ],
   };
