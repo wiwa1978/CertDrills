@@ -7,22 +7,51 @@ import {
   validateBlueprintProposal,
 } from "../../../src/modules/certdrill/blueprint-proposal";
 
-function createCategory(overrides: Partial<{
+type CategoryOverride = Partial<{
   code: string;
   name: string;
   parentCode: string | null;
   weightPct: number | null;
+  weightMinPct: number | null;
+  weightMaxPct: number | null;
   sortOrder: number;
   evidence: Array<{ excerpt: string; location: string | null }>;
-}> = {}) {
+}>;
+
+function buildWeightedHeadingEvidence(
+  name: string,
+  weightPct: number | null,
+  weightMinPct: number | null,
+  weightMaxPct: number | null,
+) {
+  const trimmedName = name.trim();
+
+  if (weightPct !== null) {
+    return `${trimmedName} (${weightPct}%)`;
+  }
+
+  return `${trimmedName} (${weightMinPct}\u2013${weightMaxPct}%)`;
+}
+
+function createCategory(overrides: CategoryOverride = {}) {
+  const code = overrides.code ?? " D1 ";
+  const name = overrides.name ?? " Author and manage workflows ";
+  const parentCode = overrides.parentCode ?? null;
+  const weightPct = "weightPct" in overrides ? overrides.weightPct ?? null : 20;
+  const weightMinPct = "weightMinPct" in overrides ? overrides.weightMinPct ?? null : weightPct;
+  const weightMaxPct = "weightMaxPct" in overrides ? overrides.weightMaxPct ?? null : weightPct;
+  const sortOrder = overrides.sortOrder ?? 0;
+  const evidence = overrides.evidence ?? [{ excerpt: buildWeightedHeadingEvidence(name, weightPct, weightMinPct, weightMaxPct), location: null }];
+
   return {
-    code: " D1 ",
-    name: " Domain 1 ",
-    parentCode: null,
-    weightPct: 100,
-    sortOrder: 0,
-    evidence: [],
-    ...overrides,
+    code,
+    name,
+    parentCode,
+    weightPct,
+    weightMinPct,
+    weightMaxPct,
+    sortOrder,
+    evidence,
   };
 }
 
@@ -90,54 +119,68 @@ function findUnsupportedSchemaKeywords(value: unknown) {
 }
 
 describe("CertDrill blueprint proposal validation", () => {
-  it("normalizes codes, trims schema strings, preserves order, and applies defaults", () => {
+  it("accepts exact weighted heading categories and normalizes codes", () => {
     const result = validateBlueprintProposal(createProposal({
       confidence: "medium",
       warnings: ["  Preserve vendor terminology.  "],
       categories: [
-        createCategory({ code: " d1 ", name: " Domain 1 ", weightPct: 60, sortOrder: 2 }),
         createCategory({
-          code: " d1-a ",
-          name: " Task 1 ",
-          parentCode: " d1 ",
-          weightPct: null,
-          sortOrder: 3,
-          evidence: [{ excerpt: " page 14 objective ", location: " section 1.2 " }],
+          code: " d1 ",
+          name: " Author and manage workflows ",
+          weightPct: 20,
+          weightMinPct: 20,
+          weightMaxPct: 20,
+          evidence: [{ excerpt: " Author and manage workflows (20%) ", location: " section 1.2 " }],
         }),
-        createCategory({ code: " d2 ", name: " Domain 2 ", weightPct: 40, sortOrder: 1 }),
       ],
     }));
 
     expect(result).toEqual({
       confidence: "medium",
-      warnings: ["Preserve vendor terminology."],
+      warnings: [
+        "Preserve vendor terminology.",
+        "Top-level category weights total 20.00 instead of 100.00.",
+      ],
       categories: [
         {
           code: "D1",
-          name: "Domain 1",
+          name: "Author and manage workflows",
           parentCode: null,
-          weightPct: 60,
-          sortOrder: 2,
-          evidence: [],
-        },
-        {
-          code: "D1-A",
-          name: "Task 1",
-          parentCode: "D1",
-          weightPct: null,
-          sortOrder: 3,
-          evidence: [{ excerpt: "page 14 objective", location: "section 1.2" }],
-        },
-        {
-          code: "D2",
-          name: "Domain 2",
-          parentCode: null,
-          weightPct: 40,
-          sortOrder: 1,
-          evidence: [],
+          weightPct: 20,
+          weightMinPct: 20,
+          weightMaxPct: 20,
+          sortOrder: 0,
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: "section 1.2" }],
         },
       ],
     });
+  });
+
+  it("accepts weighted heading ranges without midpoint conversion", () => {
+    const result = validateBlueprintProposal(createProposal({
+      categories: [
+        createCategory({
+          weightPct: null,
+          weightMinPct: 20,
+          weightMaxPct: 25,
+          evidence: [{ excerpt: " Author and manage workflows (20\u201325%) ", location: null }],
+        }),
+      ],
+    }));
+
+    expect(result.categories).toEqual([
+      {
+        code: "D1",
+        name: "Author and manage workflows",
+        parentCode: null,
+        weightPct: null,
+        weightMinPct: 20,
+        weightMaxPct: 25,
+        sortOrder: 0,
+        evidence: [{ excerpt: "Author and manage workflows (20\u201325%)", location: null }],
+      },
+    ]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("rejects unknown top-level and nested AI-output fields", () => {
@@ -147,11 +190,13 @@ describe("CertDrill blueprint proposal validation", () => {
       categories: [
         {
           code: "D1",
-          name: "Domain 1",
+          name: "Author and manage workflows",
           parentCode: null,
-          weightPct: 100,
+          weightPct: 20,
+          weightMinPct: 20,
+          weightMaxPct: 20,
           sortOrder: 0,
-          evidence: [{ excerpt: "excerpt", location: null, extra: true }],
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: null, extra: true }],
           extra: true,
         },
       ],
@@ -172,6 +217,21 @@ describe("CertDrill blueprint proposal validation", () => {
     expect(parsed.error.issues.every((issue) => issue.code === "unrecognized_keys")).toBe(true);
   });
 
+  it("rejects categories missing required percentage range fields", () => {
+    expect(blueprintProposalSchema.safeParse(createProposal({
+      categories: [
+        {
+          code: "D1",
+          name: "Author and manage workflows",
+          parentCode: null,
+          weightPct: 20,
+          sortOrder: 0,
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: null }],
+        },
+      ],
+    })).success).toBe(false);
+  });
+
   it("rejects empty category codes after trimming", () => {
     expect(blueprintProposalSchema.safeParse(createProposal({
       categories: [createCategory({ code: "   " })],
@@ -181,8 +241,8 @@ describe("CertDrill blueprint proposal validation", () => {
   it("rejects duplicate category codes after normalization", () => {
     const error = expectValidationError(createProposal({
       categories: [
-        createCategory({ code: " d1 ", weightPct: 60 }),
-        createCategory({ code: "D1", name: "Domain 1 duplicate", weightPct: 40, sortOrder: 1 }),
+        createCategory({ code: " d1 " }),
+        createCategory({ code: "D1", name: "Different domain", sortOrder: 1 }),
       ],
     }));
 
@@ -191,106 +251,151 @@ describe("CertDrill blueprint proposal validation", () => {
     ]);
   });
 
-  it("rejects categories whose parent code does not exist", () => {
+  it("rejects categories whose weights are all null", () => {
     const error = expectValidationError(createProposal({
       categories: [
-        createCategory({ code: "D1", weightPct: 100 }),
-        createCategory({ code: "D1-A", parentCode: "missing", weightPct: null, sortOrder: 1 }),
+        createCategory({
+          weightPct: null,
+          weightMinPct: null,
+          weightMaxPct: null,
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: null }],
+        }),
       ],
     }));
 
     expect(issueMessages(error)).toEqual([
-      "categories.1.parentCode: Parent category must reference an existing category code.",
+      "categories.0.weightPct: Category must define an exact percentage or percentage range.",
     ]);
   });
 
-  it("rejects categories that reference themselves as a parent", () => {
+  it("rejects percentage ranges with a missing bound", () => {
     const error = expectValidationError(createProposal({
       categories: [
-        createCategory({ code: "D1", parentCode: "d1", weightPct: null }),
+        createCategory({
+          weightPct: null,
+          weightMinPct: 20,
+          weightMaxPct: null,
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: null }],
+        }),
       ],
     }));
 
     expect(issueMessages(error)).toEqual([
-      "categories.0.parentCode: Category cannot be its own parent.",
+      "categories.0.weightPct: Percentage range requires both minimum and maximum values.",
     ]);
   });
 
-  it("rejects direct parent cycles", () => {
+  it("rejects percentage ranges whose minimum exceeds their maximum", () => {
     const error = expectValidationError(createProposal({
       categories: [
-        createCategory({ code: "D1", parentCode: "D2", weightPct: null }),
-        createCategory({ code: "D2", parentCode: "D1", weightPct: null, sortOrder: 1 }),
+        createCategory({
+          weightPct: null,
+          weightMinPct: 25,
+          weightMaxPct: 20,
+          evidence: [{ excerpt: "Author and manage workflows (25\u201320%)", location: null }],
+        }),
       ],
     }));
 
     expect(issueMessages(error)).toEqual([
-      "categories.0.parentCode: Category hierarchy must not contain cycles.",
-      "categories.1.parentCode: Category hierarchy must not contain cycles.",
-    ]);
-  });
-
-  it("rejects indirect parent cycles", () => {
-    const error = expectValidationError(createProposal({
-      categories: [
-        createCategory({ code: "D1", parentCode: "D3", weightPct: null }),
-        createCategory({ code: "D2", parentCode: "D1", weightPct: null, sortOrder: 1 }),
-        createCategory({ code: "D3", parentCode: "D2", weightPct: null, sortOrder: 2 }),
-      ],
-    }));
-
-    expect(issueMessages(error)).toEqual([
-      "categories.0.parentCode: Category hierarchy must not contain cycles.",
-      "categories.1.parentCode: Category hierarchy must not contain cycles.",
-      "categories.2.parentCode: Category hierarchy must not contain cycles.",
-    ]);
-  });
-
-  it("rejects non-null child category weights", () => {
-    const error = expectValidationError(createProposal({
-      categories: [
-        createCategory({ code: "D1", weightPct: 100 }),
-        createCategory({ code: "D1-A", parentCode: "D1", weightPct: 25, sortOrder: 1 }),
-      ],
-    }));
-
-    expect(issueMessages(error)).toEqual([
-      "categories.1.weightPct: Child categories must not define weightPct.",
+      "categories.0.weightMinPct: Percentage range minimum must not exceed maximum.",
     ]);
   });
 
   it("rejects out-of-range weights and non-integer sort orders", () => {
     expect(blueprintProposalSchema.safeParse(createProposal({
-      categories: [createCategory({ weightPct: -1 })],
+      categories: [createCategory({ weightPct: -1, weightMinPct: -1, weightMaxPct: -1 })],
     })).success).toBe(false);
     expect(blueprintProposalSchema.safeParse(createProposal({
-      categories: [createCategory({ weightPct: 101 })],
+      categories: [createCategory({ weightPct: 101, weightMinPct: 101, weightMaxPct: 101 })],
+    })).success).toBe(false);
+    expect(blueprintProposalSchema.safeParse(createProposal({
+      categories: [createCategory({ weightPct: null, weightMinPct: 0, weightMaxPct: 101 })],
     })).success).toBe(false);
     expect(blueprintProposalSchema.safeParse(createProposal({
       categories: [createCategory({ sortOrder: 1.5 })],
     })).success).toBe(false);
   });
 
-  it("preserves missing top-level weights as null and appends one deterministic warning", () => {
-    const result = validateBlueprintProposal(createProposal({
+  it("rejects exact percentages that differ from the range bounds", () => {
+    const error = expectValidationError(createProposal({
       categories: [
-        createCategory({ code: "D1", weightPct: null }),
-        createCategory({ code: "D2", weightPct: 40, sortOrder: 1 }),
-        createCategory({ code: "D3", weightPct: null, sortOrder: 2 }),
+        createCategory({
+          weightPct: 20,
+          weightMinPct: 20,
+          weightMaxPct: 25,
+          evidence: [{ excerpt: "Author and manage workflows (20%)", location: null }],
+        }),
       ],
     }));
 
-    expect(result.categories.map((category) => category.weightPct)).toEqual([null, 40, null]);
-    expect(result.warnings).toEqual([
-      "One or more top-level category weights are missing; weightPct values were preserved as null.",
+    expect(issueMessages(error)).toEqual([
+      "categories.0.weightPct: Exact percentage must equal both percentage range bounds.",
     ]);
   });
 
-  it("appends a deterministic warning when all top-level weights are known but total is not 100", () => {
+  it("rejects categories with a non-null parent code", () => {
+    const error = expectValidationError(createProposal({
+      categories: [
+        createCategory({
+          parentCode: "D0",
+        }),
+      ],
+    }));
+
+    expect(issueMessages(error)).toEqual([
+      "categories.0.parentCode: Weighted blueprint categories must be top-level.",
+    ]);
+  });
+
+  it("rejects evidence that omits a percentage sign", () => {
+    const error = expectValidationError(createProposal({
+      categories: [
+        createCategory({
+          evidence: [{ excerpt: "Author and manage workflows (20 percent)", location: null }],
+        }),
+      ],
+    }));
+
+    expect(issueMessages(error)).toEqual([
+      "categories.0.evidence: Evidence must include the weighted category title and percentage.",
+    ]);
+  });
+
+  it("rejects evidence with a percentage but without the normalized category title", () => {
+    const error = expectValidationError(createProposal({
+      categories: [
+        createCategory({
+          evidence: [{ excerpt: "Manage workflows (20%)", location: null }],
+        }),
+      ],
+    }));
+
+    expect(issueMessages(error)).toEqual([
+      "categories.0.evidence: Evidence must include the weighted category title and percentage.",
+    ]);
+  });
+
+  it("appends a deterministic warning when top-level exact weights do not total 100", () => {
     const result = validateBlueprintProposal(createProposal({
       categories: [
-        createCategory({ code: "D1", weightPct: 60 }),
-        createCategory({ code: "D2", weightPct: 30, sortOrder: 1 }),
+        createCategory({
+          code: "D1",
+          name: "Domain 1",
+          weightPct: 60,
+          weightMinPct: 60,
+          weightMaxPct: 60,
+          evidence: [{ excerpt: "Domain 1 (60%)", location: null }],
+        }),
+        createCategory({
+          code: "D2",
+          name: "Domain 2",
+          weightPct: 30,
+          weightMinPct: 30,
+          weightMaxPct: 30,
+          sortOrder: 1,
+          evidence: [{ excerpt: "Domain 2 (30%)", location: null }],
+        }),
       ],
     }));
 
@@ -299,35 +404,40 @@ describe("CertDrill blueprint proposal validation", () => {
     ]);
   });
 
-  it("does not append a generated warning when top-level weights total 100 within tolerance", () => {
+  it("does not append a generated warning when exact top-level weights total 100 within tolerance", () => {
     const result = validateBlueprintProposal(createProposal({
       warnings: ["  Already noted.  "],
       categories: [
-        createCategory({ code: "D1", weightPct: 33.33 }),
-        createCategory({ code: "D2", weightPct: 33.33, sortOrder: 1 }),
-        createCategory({ code: "D3", weightPct: 33.34, sortOrder: 2 }),
+        createCategory({
+          code: "D1",
+          name: "Domain 1",
+          weightPct: 33.33,
+          weightMinPct: 33.33,
+          weightMaxPct: 33.33,
+          evidence: [{ excerpt: "Domain 1 (33.33%)", location: null }],
+        }),
+        createCategory({
+          code: "D2",
+          name: "Domain 2",
+          weightPct: 33.33,
+          weightMinPct: 33.33,
+          weightMaxPct: 33.33,
+          sortOrder: 1,
+          evidence: [{ excerpt: "Domain 2 (33.33%)", location: null }],
+        }),
+        createCategory({
+          code: "D3",
+          name: "Domain 3",
+          weightPct: 33.34,
+          weightMinPct: 33.34,
+          weightMaxPct: 33.34,
+          sortOrder: 2,
+          evidence: [{ excerpt: "Domain 3 (33.34%)", location: null }],
+        }),
       ],
     }));
 
     expect(result.warnings).toEqual(["Already noted."]);
-  });
-
-  it("preserves trimmed warnings and avoids duplicate generated warning strings", () => {
-    const result = validateBlueprintProposal(createProposal({
-      warnings: [
-        "  Keep the intro concise.  ",
-        "  One or more top-level category weights are missing; weightPct values were preserved as null.  ",
-      ],
-      categories: [
-        createCategory({ code: "D1", weightPct: null }),
-        createCategory({ code: "D2", weightPct: null, sortOrder: 1 }),
-      ],
-    }));
-
-    expect(result.warnings).toEqual([
-      "Keep the intro concise.",
-      "One or more top-level category weights are missing; weightPct values were preserved as null.",
-    ]);
   });
 
   it("exports a strict JSON schema suitable for structured output", () => {
@@ -363,7 +473,7 @@ describe("CertDrill blueprint proposal validation", () => {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["code", "name", "parentCode", "weightPct", "sortOrder", "evidence"],
+            required: ["code", "name", "parentCode", "weightPct", "weightMinPct", "weightMaxPct", "sortOrder", "evidence"],
             properties: {
               code: {
                 type: "string",
@@ -375,6 +485,18 @@ describe("CertDrill blueprint proposal validation", () => {
                 anyOf: [{ type: "string" }, { type: "null" }],
               },
               weightPct: {
+                anyOf: [
+                  { type: "number" },
+                  { type: "null" },
+                ],
+              },
+              weightMinPct: {
+                anyOf: [
+                  { type: "number" },
+                  { type: "null" },
+                ],
+              },
+              weightMaxPct: {
                 anyOf: [
                   { type: "number" },
                   { type: "null" },

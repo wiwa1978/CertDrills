@@ -2,7 +2,6 @@ import { z } from "zod";
 
 const TOP_LEVEL_WEIGHT_TARGET = 100;
 const TOP_LEVEL_WEIGHT_TOLERANCE = 0.01;
-const MISSING_TOP_LEVEL_WEIGHTS_WARNING = "One or more top-level category weights are missing; weightPct values were preserved as null.";
 
 const blueprintEvidenceSchema = z.object({
   excerpt: z.string().trim().min(1),
@@ -14,6 +13,8 @@ const blueprintCategorySchema = z.object({
   name: z.string().trim().min(1),
   parentCode: z.string().trim().min(1).nullable(),
   weightPct: z.number().min(0).max(100).nullable(),
+  weightMinPct: z.number().min(0).max(100).nullable(),
+  weightMaxPct: z.number().min(0).max(100).nullable(),
   sortOrder: z.number().int().nonnegative(),
   evidence: z.array(blueprintEvidenceSchema).default([]),
 }).strict();
@@ -46,6 +47,16 @@ function appendGeneratedWarning(warnings: string[], warning: string) {
   if (!warnings.includes(warning)) {
     warnings.push(warning);
   }
+}
+
+function normalizeEvidenceText(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}%]+/gu, " ").trim();
+}
+
+function hasWeightedHeadingEvidence(category: BlueprintProposal["categories"][number]) {
+  const normalizedName = normalizeEvidenceText(category.name);
+
+  return category.evidence.some((item) => item.excerpt.includes("%") && normalizeEvidenceText(item.excerpt).includes(normalizedName));
 }
 
 function formatWeight(weightPct: number) {
@@ -106,46 +117,31 @@ export function validateBlueprintProposal(value: unknown): BlueprintProposal {
   });
 
   categories.forEach((category, index) => {
-    if (category.parentCode === null) {
-      return;
+    if (category.parentCode !== null) {
+      issues.push(buildCustomIssue(["categories", index, "parentCode"], "Weighted blueprint categories must be top-level."));
     }
 
-    if (category.parentCode === category.code) {
-      issues.push(buildCustomIssue(["categories", index, "parentCode"], "Category cannot be its own parent."));
-      return;
+    const hasExactWeight = category.weightPct !== null;
+    const hasMinimumWeight = category.weightMinPct !== null;
+    const hasMaximumWeight = category.weightMaxPct !== null;
+    const minimumWeight = category.weightMinPct;
+    const maximumWeight = category.weightMaxPct;
+
+    if (!hasExactWeight && !hasMinimumWeight && !hasMaximumWeight) {
+      issues.push(buildCustomIssue(["categories", index, "weightPct"], "Category must define an exact percentage or percentage range."));
+    } else if (hasMinimumWeight !== hasMaximumWeight) {
+      issues.push(buildCustomIssue(["categories", index, "weightPct"], "Percentage range requires both minimum and maximum values."));
+    } else if (minimumWeight !== null && maximumWeight !== null && minimumWeight > maximumWeight) {
+      issues.push(buildCustomIssue(["categories", index, "weightMinPct"], "Percentage range minimum must not exceed maximum."));
+    } else if (
+      hasExactWeight
+      && (minimumWeight === null || maximumWeight === null || category.weightPct !== minimumWeight || category.weightPct !== maximumWeight)
+    ) {
+      issues.push(buildCustomIssue(["categories", index, "weightPct"], "Exact percentage must equal both percentage range bounds."));
     }
 
-    if (!indexByCode.has(category.parentCode)) {
-      issues.push(buildCustomIssue(["categories", index, "parentCode"], "Parent category must reference an existing category code."));
-    }
-
-    if (category.weightPct !== null) {
-      issues.push(buildCustomIssue(["categories", index, "weightPct"], "Child categories must not define weightPct."));
-    }
-  });
-
-  categories.forEach((category, index) => {
-    if (category.parentCode === null || category.parentCode === category.code || !indexByCode.has(category.parentCode)) {
-      return;
-    }
-
-    const visited = new Set<string>([category.code]);
-    let currentCode: string | null = category.parentCode;
-
-    while (currentCode !== null) {
-      if (visited.has(currentCode)) {
-        issues.push(buildCustomIssue(["categories", index, "parentCode"], "Category hierarchy must not contain cycles."));
-        return;
-      }
-
-      visited.add(currentCode);
-      const parentIndex = indexByCode.get(currentCode);
-
-      if (parentIndex === undefined) {
-        return;
-      }
-
-      currentCode = categories[parentIndex]?.parentCode ?? null;
+    if (!hasWeightedHeadingEvidence(category)) {
+      issues.push(buildCustomIssue(["categories", index, "evidence"], "Evidence must include the weighted category title and percentage."));
     }
   });
 
@@ -154,12 +150,8 @@ export function validateBlueprintProposal(value: unknown): BlueprintProposal {
   }
 
   const warnings = [...parsed.warnings];
-  const topLevelCategories = categories.filter((category) => category.parentCode === null);
-
-  if (topLevelCategories.some((category) => category.weightPct === null)) {
-    appendGeneratedWarning(warnings, MISSING_TOP_LEVEL_WEIGHTS_WARNING);
-  } else {
-    const totalWeight = topLevelCategories.reduce((sum, category) => sum + (category.weightPct ?? 0), 0);
+  if (categories.every((category) => category.weightPct !== null)) {
+    const totalWeight = categories.reduce((sum, category) => sum + (category.weightPct ?? 0), 0);
 
     if (Math.abs(totalWeight - TOP_LEVEL_WEIGHT_TARGET) > TOP_LEVEL_WEIGHT_TOLERANCE) {
       appendGeneratedWarning(warnings, buildIncorrectTotalWarning(totalWeight));
