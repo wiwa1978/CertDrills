@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth/passkey": "^1.4.9",
+    "@better-auth/passkey": "^1.6.22",
     "@dodopayments/better-auth": "^1.4.2",
-    "better-auth": "^1.4.9"
+    "better-auth": "^1.6.22"
   }
 }

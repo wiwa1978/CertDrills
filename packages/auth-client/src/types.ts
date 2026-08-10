@@ -1,8 +1,8 @@
 import type { BetterAuthClientPlugin } from "better-auth";
 
-export type CreateWebAuthClientOptions = {
+export type CreateWebAuthClientOptions<Plugins extends BetterAuthClientPlugin[] = BetterAuthClientPlugin[]> = {
   baseURL: string;
-  plugins?: BetterAuthClientPlugin[];
+  plugins?: Plugins;
   features?: {
     billing?: boolean;
     twoFactor?: boolean;

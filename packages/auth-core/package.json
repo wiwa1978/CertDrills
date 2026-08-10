@@ -11,9 +11,9 @@
   "dependencies": {
     "@platform/auth-shared": "*",
     "@platform/contracts": "*",
-    "@better-auth/passkey": "^1.4.9",
+    "@better-auth/passkey": "^1.6.22",
     "@hono/zod-validator": "^0.7.4",
-    "better-auth": "^1.4.9",
+    "better-auth": "^1.6.22",
     "hono": "^4.10.3",
     "jose": "^5.9.6",
     "zod": "^4.2.1"

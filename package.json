@@ -31,6 +31,9 @@
     "typecheck:packages": "bun run --filter './packages/*' typecheck",
     "typecheck:all": "bun run typecheck:packages && bun run typecheck:api && bun run typecheck:web && bun run typecheck:admin"
   },
+  "overrides": {
+    "@hono/node-server": "^2.0.5"
+  },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "concurrently": "^9.2.1",
