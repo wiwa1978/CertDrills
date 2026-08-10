@@ -13,9 +13,14 @@ function Dialog({
 }
 
 function DialogTrigger({
+  "aria-controls": ariaControls,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+  // Radix generates this ID with React.useId(). Next.js can assign a different
+  // tree prefix while hydrating async Server Component output. aria-controls is
+  // optional for dialog triggers, so omit the generated value unless a caller
+  // supplies a deterministic content ID.
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" aria-controls={ariaControls} {...props} />
 }
 
 function DialogPortal({

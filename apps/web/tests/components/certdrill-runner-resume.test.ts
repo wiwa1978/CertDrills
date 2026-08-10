@@ -33,6 +33,8 @@ const attempt = {
       id: "55555555-5555-4555-8555-555555555555",
       stem: "Question 1",
       mediaAssets: [],
+      questionType: "single_choice" as const,
+      interaction: null,
       category: { id: "44444444-4444-4444-8444-444444444444", code: "D1", name: "Domain 1" },
       options: [{ id: "77777777-7777-4777-8777-777777777777", text: "Option 1", mediaAssets: [] }],
     },
@@ -40,6 +42,8 @@ const attempt = {
       id: "66666666-6666-4666-8666-666666666666",
       stem: "Question 2",
       mediaAssets: [],
+      questionType: "single_choice" as const,
+      interaction: null,
       category: { id: "44444444-4444-4444-8444-444444444444", code: "D1", name: "Domain 1" },
       options: [{ id: "99999999-9999-4999-8999-999999999999", text: "Option 2", mediaAssets: [] }],
     },
@@ -48,6 +52,7 @@ const attempt = {
     {
       questionId: "55555555-5555-4555-8555-555555555555",
       selectedOptionId: "77777777-7777-4777-8777-777777777777",
+      response: { type: "single_choice" as const, selectedOptionId: "77777777-7777-4777-8777-777777777777" },
       confidence: "guessed" as const,
     },
   ],
@@ -61,6 +66,7 @@ describe("CertDrill runner resume state", () => {
   it("hydrates selected option and confidence for answered questions", () => {
     expect(getResumeSelection(attempt, 0)).toEqual({
       selectedOptionId: "77777777-7777-4777-8777-777777777777",
+      response: { type: "single_choice", selectedOptionId: "77777777-7777-4777-8777-777777777777" },
       confidence: "guessed",
     });
   });

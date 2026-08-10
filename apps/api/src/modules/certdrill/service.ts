@@ -1,16 +1,20 @@
-import { and, count, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
 import type {
   AnswerCertDrillQuestionRequest,
   AnswerCertDrillQuestionResponse,
+  AnswerCertDrillScenarioRequest,
+  AnswerCertDrillScenarioResponse,
   CertDrillAttemptHistoryItem,
   CertDrillAttemptSnapshot,
   CertDrillCategory,
   CertDrillCertificationListItem,
   CertDrillFeedbackMode,
   CertDrillQuestionSnapshot,
+  CertDrillQuestionResponse,
   CertDrillReadinessSummary,
   CertDrillResumeExamAttemptResponse,
+  CertDrillScenarioSnapshot,
   CertDrillSelectionMode,
   CertDrillTestMode,
   CertDrillTestVariant,
@@ -23,14 +27,16 @@ import { certdrillAttemptSnapshotSchema } from "@platform/contracts";
 import {
   certdrillCertifications,
   certdrillExamForms,
+  certdrillExamFormScenarios,
   certdrillExamAttemptAnswers,
+  certdrillExamAttemptScenarioResponses,
   certdrillExamAttempts,
   certdrillExamCategories,
   certdrillQuestionFeedback,
   certdrillQuestions,
   certdrillReviewQueue,
+  certdrillScenarios,
 } from "@platform/platform-db";
-
 import type { CertificationAccessProvider } from "./access";
 import { selectQuestionIdsForVariant } from "./selection";
 import {
@@ -39,16 +45,18 @@ import {
   buildPracticeFeedback,
   buildReview,
   scoreAttempt,
+  scoreScenario,
+  snapshotScenarios,
   toExamQuestionPayload,
+  toExamScenarioPayload,
 } from "./snapshot";
-
 type CertDrillServiceDeps = {
   db: any;
   accessProvider: CertificationAccessProvider;
   rng?: () => number;
 };
 
-type AttemptAnswer = { questionId: string; selectedOptionId: string; isCorrect: boolean };
+type AttemptAnswer = { questionId: string; selectedOptionId: string | null; responseJson?: CertDrillQuestionResponse | null; isCorrect: boolean };
 type AttemptAnswerWithConfidence = AttemptAnswer & { confidence?: "guessed" | "somewhat_sure" | "confident" | null };
 type PracticeFeedback = Exclude<AnswerCertDrillQuestionResponse, { received: true }>;
 type ReviewQueueReason = "incorrect" | "low_confidence" | "incorrect_low_confidence";
@@ -75,6 +83,9 @@ export type CertDrillServiceErrorCode =
   | "CERTDRILL_QUESTION_NOT_FOUND"
   | "CERTDRILL_NO_MISSED_QUESTIONS"
   | "CERTDRILL_NO_WEAK_AREAS"
+  | "CERTDRILL_NO_FRESH_EXAM_QUESTIONS"
+  | "CERTDRILL_NO_PUBLISHED_SCENARIOS"
+  | "CERTDRILL_SCENARIO_NOT_IN_ATTEMPT"
   | "CERTDRILL_QUESTION_NOT_IN_ATTEMPT"
   | "CERTDRILL_OPTION_NOT_IN_QUESTION";
 
@@ -88,9 +99,12 @@ export class CertDrillServiceError extends Error {
 type QuestionRow = {
   id: string;
   stem: string;
+  questionType?: CertDrillQuestionSnapshot["questionType"];
+  interactionJson?: CertDrillQuestionSnapshot["interaction"];
   mediaAssets: CertDrillQuestionSnapshot["mediaAssets"] | null;
   difficulty: CertDrillQuestionSnapshot["difficulty"];
   categoryId: string;
+  deliveryPurpose?: "practice" | "assessment" | "both";
   category: { id: string; code: string; name: string };
   options: Array<{
     id: string;
@@ -120,6 +134,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
         quickDrillQuestionCount: certdrillCertifications.quickDrillQuestionCount,
         categoryDrillQuestionCount: certdrillCertifications.categoryDrillQuestionCount,
         examSimulationQuestionCount: certdrillCertifications.examSimulationQuestionCount,
+        examSimulationScenarioCount: certdrillCertifications.examSimulationScenarioCount,
         examSimulationDurationMinutes: certdrillCertifications.examSimulationDurationMinutes,
         passThresholdPct: certdrillCertifications.passThresholdPct,
         publishedQuestionCount: count(certdrillQuestions.id),
@@ -148,6 +163,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
         certdrillCertifications.quickDrillQuestionCount,
         certdrillCertifications.categoryDrillQuestionCount,
         certdrillCertifications.examSimulationQuestionCount,
+        certdrillCertifications.examSimulationScenarioCount,
         certdrillCertifications.examSimulationDurationMinutes,
         certdrillCertifications.passThresholdPct,
       );
@@ -155,7 +171,13 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     const activeForms = typeof deps.db.query?.certdrillExamForms?.findMany === "function"
       ? await deps.db.query.certdrillExamForms.findMany({ where: eq(certdrillExamForms.isActive, true) })
       : [];
-    const formsByCertification = groupExamFormsByCertification(activeForms);
+    const activeFormIds = activeForms.map((form: any) => form.id);
+    const scenarioAssignments = activeFormIds.length > 0 && typeof deps.db.query?.certdrillExamFormScenarios?.findMany === "function"
+      ? await deps.db.query.certdrillExamFormScenarios.findMany({ where: inArray(certdrillExamFormScenarios.examFormId, activeFormIds) })
+      : [];
+    const scenarioCountByForm = new Map<string, number>();
+    for (const assignment of scenarioAssignments) scenarioCountByForm.set(assignment.examFormId, (scenarioCountByForm.get(assignment.examFormId) ?? 0) + 1);
+    const formsByCertification = groupExamFormsByCertification(activeForms.map((form: any) => ({ ...form, scenarioCount: scenarioCountByForm.get(form.id) ?? 0 })));
     const access = await deps.accessProvider.getAccessForUser(userId, rows.map((row: { id: string }) => row.id));
 
     return rows.map((row: Record<string, unknown> & { id: string }) => ({
@@ -171,6 +193,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
       quickDrillQuestionCount: Number(row.quickDrillQuestionCount),
       categoryDrillQuestionCount: Number(row.categoryDrillQuestionCount),
       examSimulationQuestionCount: row.examSimulationQuestionCount === null ? null : Number(row.examSimulationQuestionCount),
+      ...(Number(row.examSimulationScenarioCount) > 0 ? { examSimulationScenarioCount: Number(row.examSimulationScenarioCount) } : {}),
       examSimulationDurationMinutes: Number(row.examSimulationDurationMinutes),
       examForms: (formsByCertification.get(row.id) ?? []).slice(0, 3).map(toExamFormListItem),
       passThresholdPct: Number(row.passThresholdPct),
@@ -256,56 +279,91 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     const testMode = feedbackModeForTestVariant(testVariant);
     const feedbackMode = feedbackModeForTestVariant(testVariant);
     const selectionMode = selectionModeForTestVariant(testVariant);
+    const examSimulationCount = input.questionCount ?? certification.examSimulationQuestionCount ?? certification.questionCountDefault;
 
-    const [categories, questions, examForm, missedQuestionIds, weakCategoryIds] = await Promise.all([
+    const [categories, publishedQuestions, publishedScenarios, examForm, attemptHistory, dueReviewQuestionIds, reservedQuestionIds] = await Promise.all([
       deps.db.query.certdrillExamCategories.findMany({
         where: eq(certdrillExamCategories.certificationId, input.certificationId),
       }),
       deps.db.query.certdrillQuestions.findMany({
         where: and(eq(certdrillQuestions.certificationId, input.certificationId), eq(certdrillQuestions.status, "published")),
-        with: {
-          category: true,
-          options: true,
-        },
-      }),
+        with: { category: true, options: true },
+      }) as Promise<QuestionRow[]>,
+      testMode === "exam" && typeof deps.db.query.certdrillScenarios?.findMany === "function" ? deps.db.query.certdrillScenarios.findMany({
+        where: and(eq(certdrillScenarios.certificationId, input.certificationId), eq(certdrillScenarios.status, "published")),
+      }) : Promise.resolve([]),
       loadExamForm(input.certificationId, testVariant === "exam_form" ? input.examFormId : undefined),
-      testVariant === "missed_review" ? loadMissedQuestionIds(userId, input.certificationId) : Promise.resolve<string[]>([]),
-      testVariant === "weak_areas" ? loadWeakCategoryIds(userId, input.certificationId) : Promise.resolve<string[]>([]),
+      loadAttemptHistory(userId, input.certificationId),
+      testVariant === "missed_review" ? loadDueReviewQuestionIds(userId, input.certificationId) : Promise.resolve<string[]>([]),
+      testVariant === "exam_form" ? Promise.resolve<string[]>([]) : loadReservedQuestionIds(input.certificationId),
     ]);
+    const weakCategoryIds = testVariant === "weak_areas"
+      ? await loadWeakCategoryIds(attemptHistory)
+      : [];
+    const questions = prepareQuestionsForVariant(
+      publishedQuestions,
+      testVariant,
+      attemptHistory,
+      dueReviewQuestionIds,
+      reservedQuestionIds,
+    );
 
     const selection = selectQuestionIdsForVariant({
       testVariant,
       selectedCategoryIds: input.categoryIds,
       examFormQuestionIds: examForm?.questionIds,
-      missedQuestionIds,
+      missedQuestionIds: dueReviewQuestionIds,
       weakCategoryIds,
       categories,
       questions,
       quickDrillCount: input.questionCount ?? certification.quickDrillQuestionCount ?? certification.questionCountDefault,
       categoryDrillCount: input.questionCount ?? certification.categoryDrillQuestionCount ?? certification.questionCountDefault,
-      examSimulationCount: input.questionCount ?? certification.examSimulationQuestionCount ?? certification.questionCountDefault,
+      examSimulationCount,
       rng: deps.rng,
     });
 
+    if (testVariant === "exam_simulation" && selection.questionIds.length < examSimulationCount) {
+      throw new CertDrillServiceError(
+        "CERTDRILL_NO_FRESH_EXAM_QUESTIONS",
+        `A fresh exam simulation needs ${examSimulationCount} unseen assessment questions, but only ${selection.questionIds.length} are currently available.`,
+      );
+    }
+
     if (selection.questionIds.length === 0) {
       if (testVariant === "missed_review") {
-        throw new CertDrillServiceError("CERTDRILL_NO_MISSED_QUESTIONS", "No missed questions are available yet. Answer questions incorrectly first, then try this review.");
+        throw new CertDrillServiceError("CERTDRILL_NO_MISSED_QUESTIONS", "No review questions are due right now.");
       }
 
       if (testVariant === "weak_areas") {
-        throw new CertDrillServiceError("CERTDRILL_NO_WEAK_AREAS", "No weak areas are available yet. Complete at least one attempt with answered questions first.");
+        throw new CertDrillServiceError("CERTDRILL_NO_WEAK_AREAS", "No recent weak areas are available. Complete more practice questions first.");
       }
 
       throw new Error("No published questions available for this attempt");
     }
 
-    const questionById = new Map<string, QuestionRow>(questions.map((question: QuestionRow) => [question.id, question]));
+    let selectedScenarioRows: any[] = [];
+    if (testVariant === "exam_simulation") {
+      const requestedScenarioCount = Number(certification.examSimulationScenarioCount ?? 0);
+      if (publishedScenarios.length < requestedScenarioCount) {
+        throw new CertDrillServiceError("CERTDRILL_NO_PUBLISHED_SCENARIOS", `Exam Simulation requires ${requestedScenarioCount} published scenarios, but only ${publishedScenarios.length} are available.`);
+      }
+      selectedScenarioRows = shuffled(publishedScenarios, deps.rng ?? Math.random).slice(0, requestedScenarioCount);
+    } else if (testVariant === "exam_form" && examForm) {
+      const assignments = typeof deps.db.query.certdrillExamFormScenarios?.findMany === "function" ? await deps.db.query.certdrillExamFormScenarios.findMany({ where: eq(certdrillExamFormScenarios.examFormId, examForm.id) }) : [];
+      const scenarioById = new Map(publishedScenarios.map((scenario: any) => [scenario.id, scenario]));
+      selectedScenarioRows = [...assignments]
+        .sort((left: any, right: any) => left.sortOrder - right.sortOrder)
+        .map((assignment: any) => scenarioById.get(assignment.scenarioId))
+        .filter(Boolean);
+    }
+
+    const questionById = new Map<string, QuestionRow>(publishedQuestions.map((question) => [question.id, question]));
     const selectedQuestions = selection.questionIds.map((questionId) => {
       const question = questionById.get(questionId);
       if (!question) throw new Error("Selected question was not loaded");
       return question;
     });
-    const snapshot = buildAttemptSnapshot(selectedQuestions.map(toQuestionSnapshot), { rng: deps.rng });
+    const snapshot = buildAttemptSnapshot(selectedQuestions.map(toQuestionSnapshot), selectedScenarioRows.map(toScenarioSnapshot), { rng: deps.rng });
     const expiresAt = getAttemptExpiry(testVariant, certification, examForm);
 
     const [attempt] = await deps.db
@@ -321,12 +379,14 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
         confidenceEnabled: input.confidenceEnabled ?? false,
         categoryIds: input.categoryIds ?? null,
         questionIds: selection.questionIds,
+        scenarioIds: selectedScenarioRows.map((scenario) => scenario.id),
         snapshotVersion: snapshot.version,
         questionSnapshotJson: snapshot,
         expiresAt,
       })
       .returning({ id: certdrillExamAttempts.id });
 
+    const scenarioPayload = toExamScenarioPayload(snapshot);
     return {
       attemptId: attempt.id,
       feedbackMode,
@@ -337,6 +397,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
       confidenceEnabled: input.confidenceEnabled ?? false,
       expiresAt: expiresAt ? expiresAt.toISOString() : null,
       questions: toExamQuestionPayload(snapshot),
+      ...(scenarioPayload.length > 0 ? { scenarios: scenarioPayload } : {}),
       ...(selection.warnings.length > 0 ? { warnings: selection.warnings } : {}),
     };
   }
@@ -351,7 +412,9 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     if (isExpiredInProgress(attempt)) throw new CertDrillServiceError("CERTDRILL_ATTEMPT_EXPIRED", "Attempt has expired");
 
     const snapshot = parseSnapshot(attempt.questionSnapshotJson);
-    const feedback = withSnapshotErrorWrapping(() => buildPracticeFeedback(snapshot, input.questionId, input.selectedOptionId) as PracticeFeedback);
+    const scored = withSnapshotErrorWrapping(() => buildPracticeFeedback(snapshot, input));
+    const { response, ...feedback } = scored;
+    const selectedOptionId = response.type === "single_choice" ? response.selectedOptionId : null;
     const confidenceUpdate = attempt.confidenceEnabled && input.confidence !== undefined ? { confidence: input.confidence } : {};
     const writeAnswer = async (db: any) => {
       await assertAttemptStillInProgress(db, userId, attemptId);
@@ -360,14 +423,16 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
         .values({
           examAttemptId: attemptId,
           questionId: input.questionId,
-          selectedOptionId: input.selectedOptionId,
+          selectedOptionId,
+          responseJson: response,
           isCorrect: feedback.isCorrect,
           confidence: attempt.confidenceEnabled ? input.confidence ?? null : null,
         })
         .onConflictDoUpdate({
           target: [certdrillExamAttemptAnswers.examAttemptId, certdrillExamAttemptAnswers.questionId],
           set: {
-            selectedOptionId: input.selectedOptionId,
+            selectedOptionId,
+            responseJson: response,
             isCorrect: feedback.isCorrect,
             ...confidenceUpdate,
             answeredAt: new Date(),
@@ -385,22 +450,66 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     return attempt.feedbackMode === "practice" ? feedback : { received: true };
   }
 
+  async function answerScenario(userId: string, attemptId: string, input: AnswerCertDrillScenarioRequest): Promise<AnswerCertDrillScenarioResponse> {
+    const attempt = await loadOwnedAttempt(userId, attemptId);
+    if (attempt.status !== "in_progress") throw new CertDrillServiceError("CERTDRILL_ATTEMPT_NOT_IN_PROGRESS", "Attempt is not in progress");
+    if (isExpiredInProgress(attempt)) throw new CertDrillServiceError("CERTDRILL_ATTEMPT_EXPIRED", "Attempt has expired");
+    const score = withSnapshotErrorWrapping(() => scoreScenario(parseSnapshot(attempt.questionSnapshotJson), input.scenarioId, input.decisions));
+    const writeResponse = async (db: any) => {
+      await assertAttemptStillInProgress(db, userId, attemptId);
+      await db.insert(certdrillExamAttemptScenarioResponses).values({
+        examAttemptId: attemptId,
+        scenarioId: input.scenarioId,
+        decisionsJson: score.decisions,
+        earnedPoints: score.earnedPoints,
+        maxPoints: score.maxPoints,
+        scorePct: score.scorePct.toFixed(2),
+        completedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: [certdrillExamAttemptScenarioResponses.examAttemptId, certdrillExamAttemptScenarioResponses.scenarioId],
+        set: {
+          decisionsJson: score.decisions,
+          earnedPoints: score.earnedPoints,
+          maxPoints: score.maxPoints,
+          scorePct: score.scorePct.toFixed(2),
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    };
+    if (typeof deps.db.transaction === "function") await deps.db.transaction(writeResponse);
+    else await writeResponse(deps.db);
+    return { received: true };
+  }
+
   async function getAttemptForResume(userId: string, attemptId: string): Promise<CertDrillResumeExamAttemptResponse> {
     const attempt = await loadOwnedAttempt(userId, attemptId);
     if (attempt.status !== "in_progress") throw new CertDrillServiceError("CERTDRILL_ATTEMPT_NOT_IN_PROGRESS", "Attempt is not in progress");
 
-    const answers = await loadAttemptAnswers(deps.db, attemptId);
+    const [answers, scenarioResponses] = await Promise.all([
+      loadAttemptAnswers(deps.db, attemptId),
+      loadScenarioResponses(deps.db, attemptId),
+    ]);
+    const snapshot = parseSnapshot(attempt.questionSnapshotJson);
+    const scenarioPayload = toExamScenarioPayload(snapshot);
     return {
       attemptId,
       feedbackMode: attempt.feedbackMode as CertDrillFeedbackMode,
       selectionMode: attempt.selectionMode as CertDrillSelectionMode,
       ...attemptMetadata(attempt),
-      questions: toExamQuestionPayload(parseSnapshot(attempt.questionSnapshotJson)),
+      questions: toExamQuestionPayload(snapshot),
+      ...(scenarioPayload.length > 0 ? { scenarios: scenarioPayload } : {}),
       recordedAnswers: answers.map((answer) => ({
         questionId: answer.questionId,
         selectedOptionId: answer.selectedOptionId,
+        response: answer.responseJson ?? { type: "single_choice", selectedOptionId: answer.selectedOptionId! },
         ...(answer.confidence !== undefined && answer.confidence !== null ? { confidence: answer.confidence } : {}),
       })),
+      ...(scenarioResponses.length > 0 ? { recordedScenarioResponses: scenarioResponses.map((response: any) => ({
+        scenarioId: response.scenarioId,
+        decisions: response.decisionsJson,
+        scorePct: Number(response.scorePct),
+      })) } : {}),
     };
   }
 
@@ -441,11 +550,14 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
       throw new CertDrillServiceError("CERTDRILL_ATTEMPT_NOT_IN_PROGRESS", "Attempt is not in progress");
     }
 
-    const answers = await loadAttemptAnswers(db, attemptId);
+    const [answers, scenarioResponses] = await Promise.all([
+      loadAttemptAnswers(db, attemptId),
+      loadScenarioResponses(db, attemptId),
+    ]);
     const snapshot = parseSnapshot(claimed.questionSnapshotJson);
 
-    if (answers.length !== snapshot.questions.length && !isPastExpiresAt(claimed.expiresAt)) {
-      throw new CertDrillServiceError("CERTDRILL_ATTEMPT_INCOMPLETE", "All questions must be answered before submitting");
+    if ((answers.length !== snapshot.questions.length || scenarioResponses.length !== snapshotScenarios(snapshot).length) && !isPastExpiresAt(claimed.expiresAt)) {
+      throw new CertDrillServiceError("CERTDRILL_ATTEMPT_INCOMPLETE", "All questions and scenarios must be completed before submitting");
     }
 
     const certification = await db.query.certdrillCertifications.findFirst({
@@ -453,7 +565,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     });
     if (!certification) throw new Error("Certification not found");
 
-    const result = buildSubmitResult(snapshot, answers, Number(certification.passThresholdPct));
+    const result = buildSubmitResult(snapshot, answers, scenarioResponses, Number(certification.passThresholdPct));
 
     const [completed] = await db
       .update(certdrillExamAttempts)
@@ -484,11 +596,14 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     attemptId: string,
     attempt: { certificationId: string; questionSnapshotJson: unknown; expiresAt?: unknown; status?: unknown },
   ): Promise<SubmitCertDrillExamAttemptResponse> {
-    const answers = await loadAttemptAnswers(deps.db, attemptId);
+    const [answers, scenarioResponses] = await Promise.all([
+      loadAttemptAnswers(deps.db, attemptId),
+      loadScenarioResponses(deps.db, attemptId),
+    ]);
     const snapshot = parseSnapshot(attempt.questionSnapshotJson);
 
-    if (answers.length !== snapshot.questions.length && !isExpiredInProgress(attempt)) {
-      throw new CertDrillServiceError("CERTDRILL_ATTEMPT_INCOMPLETE", "All questions must be answered before submitting");
+    if ((answers.length !== snapshot.questions.length || scenarioResponses.length !== snapshotScenarios(snapshot).length) && !isExpiredInProgress(attempt)) {
+      throw new CertDrillServiceError("CERTDRILL_ATTEMPT_INCOMPLETE", "All questions and scenarios must be completed before submitting");
     }
 
     const certification = await deps.db.query.certdrillCertifications.findFirst({
@@ -496,7 +611,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     });
     if (!certification) throw new Error("Certification not found");
 
-    const result = buildSubmitResult(snapshot, answers, Number(certification.passThresholdPct));
+    const result = buildSubmitResult(snapshot, answers, scenarioResponses, Number(certification.passThresholdPct));
 
     const [completed] = await deps.db
       .update(certdrillExamAttempts)
@@ -526,8 +641,11 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     const attempt = await loadOwnedAttempt(userId, attemptId);
     if (attempt.status !== "completed") throw new CertDrillServiceError("CERTDRILL_ATTEMPT_NOT_COMPLETED", "Attempt is not completed");
 
-    const answers = await loadAttemptAnswers(deps.db, attemptId);
-    const review = withSnapshotErrorWrapping(() => buildReview(parseSnapshot(attempt.questionSnapshotJson), answers));
+    const [answers, scenarioResponses] = await Promise.all([
+      loadAttemptAnswers(deps.db, attemptId),
+      loadScenarioResponses(deps.db, attemptId),
+    ]);
+    const review = withSnapshotErrorWrapping(() => buildReview(parseSnapshot(attempt.questionSnapshotJson), answers, scenarioResponses));
     return {
       ...review,
       questions: withAnswerConfidence(review.questions, answers),
@@ -763,6 +881,13 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     });
   }
 
+  async function loadScenarioResponses(db: any, attemptId: string) {
+    if (typeof db.query.certdrillExamAttemptScenarioResponses?.findMany !== "function") return [];
+    return db.query.certdrillExamAttemptScenarioResponses.findMany({
+      where: eq(certdrillExamAttemptScenarioResponses.examAttemptId, attemptId),
+    });
+  }
+
   async function loadExamForm(certificationId: string, examFormId: string | undefined) {
     if (!examFormId) {
       return null;
@@ -779,75 +904,119 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     return forms[0] ?? null;
   }
 
-  async function loadMissedQuestionIds(userId: string, certificationId: string) {
-    if (typeof deps.db.query?.certdrillExamAttempts?.findMany !== "function" || typeof deps.db.query?.certdrillExamAttemptAnswers?.findMany !== "function") {
-      return [];
-    }
-
-    const attempts = await deps.db.query.certdrillExamAttempts.findMany({
-      where: and(eq(certdrillExamAttempts.userId, userId), eq(certdrillExamAttempts.certificationId, certificationId)),
-      orderBy: desc(certdrillExamAttempts.completedAt),
-    });
-    const missedQuestionIds: string[] = [];
-    const seen = new Set<string>();
-
-    for (const attempt of attempts) {
-      const snapshot = parseSnapshot(attempt.questionSnapshotJson);
-      const answers = await deps.db.query.certdrillExamAttemptAnswers.findMany({
-        where: eq(certdrillExamAttemptAnswers.examAttemptId, attempt.id),
-      });
-      for (const answer of answers) {
-        if (isSnapshotCorrect(snapshot, answer) === false && !seen.has(answer.questionId)) {
-          seen.add(answer.questionId);
-          missedQuestionIds.push(answer.questionId);
-        }
-      }
-    }
-
-    return missedQuestionIds;
-  }
-
-  async function loadWeakCategoryIds(userId: string, certificationId: string) {
-    if (typeof deps.db.query?.certdrillExamAttempts?.findMany !== "function" || typeof deps.db.query?.certdrillExamAttemptAnswers?.findMany !== "function") {
-      return [];
-    }
-
-    const attempts = await deps.db.query.certdrillExamAttempts.findMany({
+  async function loadAttemptHistory(userId: string, certificationId: string) {
+    return deps.db.query.certdrillExamAttempts.findMany({
       where: and(
         eq(certdrillExamAttempts.userId, userId),
         eq(certdrillExamAttempts.certificationId, certificationId),
-        eq(certdrillExamAttempts.status, "completed"),
       ),
-      orderBy: desc(certdrillExamAttempts.completedAt),
+      orderBy: desc(certdrillExamAttempts.startedAt),
     });
+  }
+
+  async function loadDueReviewQuestionIds(userId: string, certificationId: string) {
+    const rows = await deps.db.query.certdrillReviewQueue.findMany({
+      where: and(
+        eq(certdrillReviewQueue.userId, userId),
+        eq(certdrillReviewQueue.certificationId, certificationId),
+        eq(certdrillReviewQueue.status, "active"),
+        lte(certdrillReviewQueue.dueAt, new Date()),
+      ),
+      orderBy: certdrillReviewQueue.dueAt,
+    });
+    return rows.map((row: { questionId: string }) => row.questionId);
+  }
+
+  async function loadReservedQuestionIds(certificationId: string) {
+    const forms = await deps.db.query.certdrillExamForms.findMany({
+      where: and(
+        eq(certdrillExamForms.certificationId, certificationId),
+        eq(certdrillExamForms.isActive, true),
+      ),
+    });
+    const questionIds: string[] = forms
+      .filter((form: { isActive?: boolean }) => form.isActive === true)
+      .flatMap((form: { questionIds?: string[] }) => form.questionIds ?? []);
+    return [...new Set(questionIds)];
+  }
+
+  function prepareQuestionsForVariant(
+    questions: QuestionRow[],
+    testVariant: CertDrillTestVariant,
+    attempts: Array<Record<string, unknown>>,
+    dueQuestionIds: string[],
+    reservedQuestionIds: string[],
+  ) {
+    const reserved = new Set(reservedQuestionIds);
+    const due = new Set(dueQuestionIds);
+    const lastSeenAttemptIndex = new Map<string, number>();
+    attempts.forEach((attempt, attemptIndex) => {
+      for (const questionId of attemptQuestionIds(attempt)) {
+        if (!lastSeenAttemptIndex.has(questionId)) lastSeenAttemptIndex.set(questionId, attemptIndex);
+      }
+    });
+
+    return questions
+      .filter((question) => {
+        if (testVariant === "exam_form") return true;
+        if (reserved.has(question.id)) return false;
+        const purpose = question.deliveryPurpose ?? "both";
+        if (testVariant === "exam_simulation") {
+          return purpose !== "practice" && !lastSeenAttemptIndex.has(question.id);
+        }
+        if (testVariant === "missed_review") return true;
+        return purpose !== "assessment";
+      })
+      .map((question) => {
+        if (testVariant === "exam_simulation" || testVariant === "exam_form" || testVariant === "missed_review") {
+          return question;
+        }
+        const attemptIndex = lastSeenAttemptIndex.get(question.id);
+        const selectionPriority = attemptIndex === undefined
+          ? 0
+          : due.has(question.id)
+            ? 1
+            : 2 + attempts.length - attemptIndex;
+        return { ...question, selectionPriority };
+      });
+  }
+
+  function attemptQuestionIds(attempt: Record<string, unknown>) {
+    if (Array.isArray(attempt.questionIds)) {
+      return attempt.questionIds.filter((id): id is string => typeof id === "string");
+    }
+    if (!attempt.questionSnapshotJson) return [];
+    return parseSnapshot(attempt.questionSnapshotJson).questions.map((question) => question.id);
+  }
+
+  async function loadWeakCategoryIds(attempts: Array<Record<string, unknown>>) {
+    const recentAttempts = attempts
+      .filter((attempt) => attempt.status === "completed")
+      .slice(0, 10);
     const categoryStats = new Map<string, { correct: number; total: number }>();
 
-    for (const attempt of attempts) {
+    for (const [attemptIndex, attempt] of recentAttempts.entries()) {
       const snapshot = parseSnapshot(attempt.questionSnapshotJson);
       const questionCategory = new Map(snapshot.questions.map((question) => [question.id, question.category.id]));
       const answers = await deps.db.query.certdrillExamAttemptAnswers.findMany({
-        where: eq(certdrillExamAttemptAnswers.examAttemptId, attempt.id),
+        where: eq(certdrillExamAttemptAnswers.examAttemptId, String(attempt.id)),
       });
+      const recencyWeight = 0.85 ** attemptIndex;
 
       for (const answer of answers) {
         const categoryId = questionCategory.get(answer.questionId);
-        if (!categoryId) {
-          continue;
-        }
-        const isCorrect = isSnapshotCorrect(snapshot, answer);
-        if (isCorrect === null) {
-          continue;
-        }
+        if (!categoryId) continue;
+        const correct = isSnapshotCorrect(snapshot, answer);
+        if (correct === null) continue;
         const stats = categoryStats.get(categoryId) ?? { correct: 0, total: 0 };
-        stats.total += 1;
-        if (isCorrect) {
-          stats.correct += 1;
-        }
+        stats.total += recencyWeight;
+        if (correct) stats.correct += recencyWeight;
         categoryStats.set(categoryId, stats);
       }
     }
 
     return [...categoryStats.entries()]
+      .filter(([, stats]) => stats.correct / stats.total < 0.7)
       .sort((left, right) => (left[1].correct / left[1].total) - (right[1].correct / right[1].total) || right[1].total - left[1].total || left[0].localeCompare(right[0]))
       .slice(0, 3)
       .map(([categoryId]) => categoryId);
@@ -860,6 +1029,7 @@ export function createCertDrillService(deps: CertDrillServiceDeps) {
     createAttempt,
     getAttemptForResume,
     answerQuestion,
+    answerScenario,
     submitAttempt,
     reviewAttempt,
     listAttempts,
@@ -911,6 +1081,8 @@ function toQuestionSnapshot(question: QuestionRow): CertDrillQuestionSnapshot {
     id: question.id,
     stem: question.stem,
     mediaAssets: question.mediaAssets ?? [],
+    questionType: question.questionType ?? "single_choice",
+    interaction: question.interactionJson ?? null,
     category: {
       id: question.category.id,
       code: question.category.code,
@@ -931,13 +1103,39 @@ function toQuestionSnapshot(question: QuestionRow): CertDrillQuestionSnapshot {
   };
 }
 
+function toScenarioSnapshot(scenario: any): CertDrillScenarioSnapshot {
+  return {
+    id: scenario.id,
+    title: scenario.title,
+    description: scenario.description ?? null,
+    difficulty: scenario.difficulty,
+    estimatedMinutes: scenario.estimatedMinutes,
+    initialNodeKey: scenario.contentJson.initialNodeKey,
+    nodes: scenario.contentJson.nodes.map((node: any) => ({
+      ...node,
+      options: node.options.map((option: any, index: number) => ({ ...option, points: Number(option.points ?? (index === 0 ? 100 : 0)) })),
+    })),
+  };
+}
+
 function isSnapshotCorrect(
   snapshot: CertDrillAttemptSnapshot,
-  answer: { questionId: string; selectedOptionId?: string | null },
+  answer: { questionId: string; selectedOptionId?: string | null; responseJson?: CertDrillQuestionResponse | null },
 ) {
   const question = snapshot.questions.find((item) => item.id === answer.questionId);
-  const selectedOption = question?.options.find((option) => option.id === answer.selectedOptionId);
-  return selectedOption?.isCorrect ?? null;
+  if (!question) return null;
+  const response = answer.responseJson ?? (answer.selectedOptionId ? { type: "single_choice" as const, selectedOptionId: answer.selectedOptionId } : null);
+  if (!response || question.questionType !== response.type) return null;
+  if (response.type === "single_choice") return question.options.find((option) => option.id === response.selectedOptionId)?.isCorrect ?? null;
+  if (response.type === "fill_blank" && question.interaction?.type === "fill_blank") {
+    const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    return question.interaction.acceptedAnswers.some((answerText) => normalize(answerText) === normalize(response.text));
+  }
+  if (response.type === "matching" && question.interaction?.type === "matching") {
+    const expected = new Map(question.interaction.pairs.map((pair) => [pair.promptId, pair.targetId]));
+    return response.matches.length === expected.size && response.matches.every((match) => expected.get(match.promptId) === match.targetId);
+  }
+  return null;
 }
 
 async function upsertReviewQueueRows(
@@ -954,6 +1152,15 @@ async function upsertReviewQueueRows(
     const lowConfidence = answer.confidence === "guessed" || answer.confidence === "somewhat_sure";
     const reason = getReviewQueueReason(isCorrect === false, lowConfidence);
     if (!reason) {
+      await db
+        .update(certdrillReviewQueue)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(and(
+          eq(certdrillReviewQueue.userId, userId),
+          eq(certdrillReviewQueue.certificationId, certificationId),
+          eq(certdrillReviewQueue.questionId, answer.questionId),
+          eq(certdrillReviewQueue.status, "active"),
+        ));
       continue;
     }
 
@@ -1002,17 +1209,19 @@ function getReviewQueueReason(incorrect: boolean, lowConfidence: boolean): Revie
 function buildSubmitResult(
   snapshot: CertDrillAttemptSnapshot,
   answers: AttemptAnswerWithConfidence[],
+  scenarioResponses: any[],
   passThresholdPct: number,
 ): SubmitCertDrillExamAttemptResponse {
   return withSnapshotErrorWrapping(() => {
-    const score = scoreAttempt(snapshot, answers);
-    const review = buildReview(snapshot, answers);
+    const score = scoreAttempt(snapshot, answers, scenarioResponses);
+    const review = buildReview(snapshot, answers, scenarioResponses);
 
     return {
       scorePct: score.scorePct,
       passed: score.scorePct >= passThresholdPct,
       categoryBreakdown: buildCategoryBreakdown(snapshot, answers),
       questions: withAnswerConfidence(review.questions, answers),
+      scenarios: review.scenarios,
     };
   });
 }
@@ -1091,8 +1300,18 @@ function toExamFormListItem(form: Record<string, unknown>) {
     sortOrder: Number(form.sortOrder),
     isActive: Boolean(form.isActive),
     durationMinutes: Number(form.durationMinutes),
+    ...(Number(Array.isArray(form.scenarioIds) ? form.scenarioIds.length : form.scenarioCount ?? 0) > 0 ? { scenarioCount: Number(Array.isArray(form.scenarioIds) ? form.scenarioIds.length : form.scenarioCount ?? 0) } : {}),
     questionCount: Number(form.targetQuestionCount),
   };
+}
+
+function shuffled<T>(items: T[], rng: () => number) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
 }
 
 function withAnswerConfidence<T extends Array<{ id: string; confidence?: unknown }>>(questions: T, answers: AttemptAnswerWithConfidence[]): T {

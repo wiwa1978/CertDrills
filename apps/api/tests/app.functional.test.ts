@@ -79,12 +79,18 @@ const mocks = vi.hoisted(() => {
     createQuestion: vi.fn(),
     updateQuestion: vi.fn(),
     publishQuestion: vi.fn(),
+    updateQuestionStatuses: vi.fn(),
     previewQuestionImport: vi.fn(),
     importQuestions: vi.fn(),
-    startBlueprintParseRun: vi.fn(),
+    startCategoryDiscovery: vi.fn(),
     getBlueprintParseRun: vi.fn(),
     listBlueprintParseRuns: vi.fn(),
     processPendingBlueprintParseRuns: vi.fn(),
+    startQuestionGeneration: vi.fn(),
+    getQuestionGenerationJob: vi.fn(),
+    listQuestionGenerationJobs: vi.fn(),
+    processPendingQuestionGenerationJobs: vi.fn(),
+    processPendingScenarioGenerationJobs: vi.fn(),
     listExamForms: vi.fn(),
     createExamForm: vi.fn(),
     updateExamForm: vi.fn(),
@@ -92,7 +98,6 @@ const mocks = vi.hoisted(() => {
     listResources: vi.fn(),
     updateResource: vi.fn(),
     ingestResource: vi.fn(),
-    createMockGenerationJob: vi.fn(),
     listQuestionFeedbackForAdmin: vi.fn(),
     updateQuestionFeedback: vi.fn(),
   };
@@ -622,19 +627,24 @@ describe("API functional routes", () => {
     });
   });
 
-  it("registers the CertDrill blueprint parser job without removing existing jobs", async () => {
+  it("registers CertDrill background workers without removing existing jobs", async () => {
     const deps = mocks.state.jobsRunnerDeps as {
       jobs: Array<{
         name: string;
         intervalSeconds: number;
         handler: () => Promise<unknown>;
+        lockTimeoutSeconds?: number;
       }>;
     } | null;
     expect(deps).toBeTruthy();
     const jobNames = deps!.jobs.map((job) => job.name);
-    const certdrillJob = deps!.jobs.find((job) => job.name === "certdrill-blueprint-parser");
+    const blueprintJob = deps!.jobs.find((job) => job.name === "certdrill-blueprint-parser");
+    const generationJob = deps!.jobs.find((job) => job.name === "certdrill-question-generator");
+    const scenarioGenerationJob = deps!.jobs.find((job) => job.name === "certdrill-scenario-generator");
     const processResult = { checked: 5, completed: 4, failed: 1 };
     mocks.certdrillAdminService.processPendingBlueprintParseRuns.mockResolvedValueOnce(processResult);
+    mocks.certdrillAdminService.processPendingQuestionGenerationJobs.mockResolvedValueOnce(processResult);
+    mocks.certdrillAdminService.processPendingScenarioGenerationJobs.mockResolvedValueOnce(processResult);
 
     expect(jobNames).toEqual(expect.arrayContaining([
       "billing-reconciliation",
@@ -642,12 +652,20 @@ describe("API functional routes", () => {
       "expire-user-data-exports",
       "process-pending-emails",
       "certdrill-blueprint-parser",
+      "certdrill-question-generator",
+      "certdrill-scenario-generator",
     ]));
-    expect(jobNames).toHaveLength(5);
-    expect(certdrillJob).toBeTruthy();
-    expect(certdrillJob?.intervalSeconds).toBe(30);
-    await expect(certdrillJob!.handler()).resolves.toEqual(processResult);
+    expect(jobNames).toHaveLength(7);
+    expect(blueprintJob?.intervalSeconds).toBe(30);
+    expect(generationJob?.intervalSeconds).toBe(30);
+    expect(scenarioGenerationJob?.intervalSeconds).toBe(30);
+    expect(scenarioGenerationJob?.lockTimeoutSeconds).toBe(900);
+    await expect(blueprintJob!.handler()).resolves.toEqual(processResult);
+    await expect(generationJob!.handler()).resolves.toEqual(processResult);
+    await expect(scenarioGenerationJob!.handler()).resolves.toEqual(processResult);
     expect(mocks.certdrillAdminService.processPendingBlueprintParseRuns).toHaveBeenCalledWith(5);
+    expect(mocks.certdrillAdminService.processPendingQuestionGenerationJobs).toHaveBeenCalledWith(3);
+    expect(mocks.certdrillAdminService.processPendingScenarioGenerationJobs).toHaveBeenCalledWith(1);
   });
 
   // Verifies the health endpoint always reports service readiness.

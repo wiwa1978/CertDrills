@@ -5,10 +5,13 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import {
   certdrillBlueprintParseRuns,
   certdrillCertifications,
+  certdrillExamCategories,
   certdrillLearnResources,
 } from "@platform/platform-db";
 
 import { BlueprintParserError, type BlueprintParser } from "./blueprint-parser";
+import type { BlueprintProposal } from "./blueprint-proposal";
+import { validateCategorySiblingWeights } from "./validation";
 
 const DEFAULT_PROCESS_LIMIT = 5;
 const MAX_PROCESS_LIMIT = 25;
@@ -19,6 +22,10 @@ type CertificationRow = Pick<typeof certdrillCertifications.$inferSelect, "id" |
 type ResourceRow = Pick<
   typeof certdrillLearnResources.$inferSelect,
   "id" | "certificationId" | "title" | "url" | "rawContent" | "ingestedAt" | "status"
+>;
+type CategoryRow = Pick<
+  typeof certdrillExamCategories.$inferSelect,
+  "id" | "code" | "parentCategoryId" | "weightPct"
 >;
 
 export type BlueprintParseServiceErrorCode =
@@ -173,16 +180,19 @@ export function createBlueprintParseService(deps: {
         });
 
         const completedAt = now();
-        await deps.db.update(certdrillBlueprintParseRuns).set({
-          status: "completed",
-          proposalJson: result.proposal,
-          rawOutput: result.rawOutput,
-          confidence: result.proposal.confidence,
-          warningsJson: result.proposal.warnings,
-          errorMessage: null,
-          completedAt,
-          updatedAt: completedAt,
-        }).where(eq(certdrillBlueprintParseRuns.id, claimed.id)).returning();
+        await withTransaction(deps.db, async (db) => {
+          await persistDiscoveredCategories(db, claimed.certificationId, result.proposal);
+          await db.update(certdrillBlueprintParseRuns).set({
+            status: "completed",
+            proposalJson: result.proposal,
+            rawOutput: result.rawOutput,
+            confidence: result.proposal.confidence,
+            warningsJson: result.proposal.warnings,
+            errorMessage: null,
+            completedAt,
+            updatedAt: completedAt,
+          }).where(eq(certdrillBlueprintParseRuns.id, claimed.id)).returning();
+        });
         completed += 1;
       } catch (error) {
         const completedAt = now();
@@ -213,6 +223,56 @@ export function createBlueprintParseService(deps: {
     list,
     processPending,
   };
+}
+
+async function persistDiscoveredCategories(db: any, certificationId: string, proposal: BlueprintProposal) {
+  const existingCategories = await db.query.certdrillExamCategories.findMany({
+    where: eq(certdrillExamCategories.certificationId, certificationId),
+  }) as CategoryRow[];
+  const existingCodes = new Set(existingCategories.map((category) => normalizeCategoryCode(category.code)));
+  const discoveredCategories = proposal.categories.filter((category) => !existingCodes.has(normalizeCategoryCode(category.code)));
+
+  if (discoveredCategories.length === 0) {
+    return;
+  }
+
+  const weightValidation = validateCategorySiblingWeights([
+    ...existingCategories
+      .filter((category) => category.parentCategoryId === null)
+      .map((category) => ({ id: category.id, weightPct: category.weightPct })),
+    ...discoveredCategories.map((category) => ({ id: category.code, weightPct: category.weightPct })),
+  ]);
+  if (!weightValidation.valid) {
+    throw new Error(`Discovered categories could not be created. ${weightValidation.message}`);
+  }
+
+  const insert = db.insert(certdrillExamCategories).values(discoveredCategories.map((category) => ({
+    certificationId,
+    parentCategoryId: null,
+    code: category.code,
+    name: category.name,
+    weightPct: category.weightPct,
+    weightMinPct: category.weightMinPct,
+    weightMaxPct: category.weightMaxPct,
+    sortOrder: category.sortOrder,
+  })));
+
+  if (typeof insert.onConflictDoNothing === "function") {
+    await insert.onConflictDoNothing({
+      target: [certdrillExamCategories.certificationId, certdrillExamCategories.code],
+    }).returning();
+    return;
+  }
+
+  await insert.returning();
+}
+
+function normalizeCategoryCode(code: string) {
+  return code.trim().toUpperCase();
+}
+
+async function withTransaction<T>(db: any, callback: (transaction: any) => Promise<T>): Promise<T> {
+  return typeof db.transaction === "function" ? db.transaction(callback) : callback(db);
 }
 
 function normalizeLimit(limit?: number) {

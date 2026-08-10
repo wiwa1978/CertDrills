@@ -213,6 +213,7 @@
     },
     "errors": {
       "default": "An error occurred. Please try again.",
+      "NETWORK_ERROR": "Unable to reach the authentication service. Please try again in a moment.",
       "PASSWORD_COMPROMISED": "This password has been found in a data breach. Please choose a different password.",
       "INVALID_EMAIL_OR_PASSWORD": "Invalid email or password.",
       "USER_ALREADY_EXISTS": "An account with this email already exists.",

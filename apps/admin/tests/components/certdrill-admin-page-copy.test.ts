@@ -14,12 +14,23 @@ const questionActionsMenuSource = readFileSync(
   new URL("../../src/modules/certdrill/question-actions-menu.tsx", import.meta.url),
   "utf8",
 );
-const apiSource = readFileSync(new URL("../../src/lib/api/certdrill.server.ts", import.meta.url), "utf8");
-const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
-const ingestResourceActionSource = actionsSource.slice(
-  actionsSource.indexOf("export async function ingestCertDrillResourceAction(formData: FormData) {"),
-  actionsSource.indexOf("export async function createCertDrillMockGenerationAction(formData: FormData) {"),
+const questionTableSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-table.tsx", import.meta.url),
+  "utf8",
 );
+const questionBulkSelectionSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-bulk-selection.tsx", import.meta.url),
+  "utf8",
+);
+const questionGenerationControlSource = readFileSync(
+  new URL("../../src/modules/certdrill/question-generation-control.tsx", import.meta.url),
+  "utf8",
+);
+const scenarioAdminSource = readFileSync(
+  new URL("../../src/modules/certdrill/scenario-admin.tsx", import.meta.url),
+  "utf8",
+);
+const actionsSource = readFileSync(new URL("../../src/modules/certdrill/admin-actions.ts", import.meta.url), "utf8");
 const routeSource = readFileSync(
   new URL("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/page.tsx", import.meta.url),
   "utf8",
@@ -63,14 +74,24 @@ describe("CertDrill admin page copy", () => {
 
   it("drops the one-shot imported confirmation flag when filters navigate", () => {
     expect(questionFilterBarSource).toContain('params.delete("imported");');
+    expect(questionFilterBarSource).toContain('params.delete("generated");');
   });
 
   it("shows management tabs and primary form labels", () => {
     expect(source).toContain("Categories");
     expect(source).toContain("Questions");
+    expect(source).toContain('id={`${tabIdPrefix}-scenarios-trigger`}');
+    expect(source).toContain('aria-controls={`${tabIdPrefix}-scenarios-content`}');
+    expect(source).toContain('value="scenarios">Scenarios</TabsTrigger>');
+    expect(source).toContain('selectedTab === "scenarios"');
+    expect(source).toContain("<ScenarioAdmin");
+    expect(scenarioAdminSource).toContain("Create scenario");
+    expect(scenarioAdminSource).not.toContain("Exam form assignments");
+    expect(scenarioAdminSource).toContain("Archive scenario");
     expect(source).toContain("Exam Forms");
-    expect(source).toContain("Resources");
-    expect(source).toContain("Generate");
+    expect(source).not.toContain('<TabsTrigger value="resources">');
+    expect(source).toContain("QuestionGenerationControl");
+    expect(questionGenerationControlSource).toContain("Generate Questions with AI");
     expect(source).toContain("Feedback");
     expect(source).toContain("Manage CertDrill content for the selected certification.");
     expect(source).toContain("Certification overview");
@@ -78,6 +99,8 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Update certification details");
     expect(source).toContain("Selected certification");
     expect(source).toContain("Click to view or update certification details.");
+    expect(source).toContain("<CardDescription>Scenarios</CardDescription>");
+    expect(source).toContain("{scenarios.length.toLocaleString()}");
     expect(source).toContain("DialogTrigger");
     expect(source).toContain("DialogTrigger");
     expect(source).toContain("Logo URL");
@@ -96,61 +119,36 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Create or update question");
     expect(source).toContain("Publish");
     expect(source).toContain("ExamFormCreateDialog");
-    expect(source).toContain("Create or update resource");
-    expect(source).toContain("Mock generation");
-    expect(source).toContain("Draft questions");
+    expect(source).not.toContain("Mock generation");
+    expect(source).not.toContain('<TabsTrigger value="generate">');
   });
 
-  it("wires resource ingestion through the api, server action, and table copy", () => {
-    expect(apiSource).toContain("ingestedAt?: Nullable<string>;");
-    expect(apiSource).toContain("ingestError?: Nullable<string>;");
-    expect(apiSource).toContain("export async function ingestCertDrillAdminResourceServer(resourceId: string): Promise<CertDrillAdminResource>");
-    expect(apiSource).toContain('return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));');
-    expect(actionsSource).toContain("ingestCertDrillAdminResourceServer");
-    expect(ingestResourceActionSource).toContain(`export async function ingestCertDrillResourceAction(formData: FormData) {
-  const resourceId = requiredString(formData, "resourceId");
-  if (!resourceId) {
-    throw new Error("Resource ID is required.");
-  }
-
-  try {
-    await ingestCertDrillAdminResourceServer(resourceId);
-  } finally {
-    revalidateCertDrillAdminPage();
-  }
-}`);
-    expect(source).toContain("ingestCertDrillResourceAction");
-    expect(source).toContain("<TableHead>Actions</TableHead>");
-    expect(source).toContain('type="hidden" name="resourceId" value={resource.id}');
-    expect(source).toContain('{resource.status === "ingested" ? "Refresh" : "Ingest"}');
-    expect(source).toContain("Snapshot:");
-    expect(source).toContain("Ingest error:");
-    expect(source).toContain("resource.ingestedAt");
-    expect(source).toContain("resource.ingestError");
+  it("keeps resources internal while using them for AI workflows", () => {
+    expect(source).toContain("listCertDrillAdminResourcesServer");
+    expect(source).toContain("resources={resources}");
+    expect(source).toContain("resources.find((resource) => resource.id === newestBlueprintRun.resourceId)");
+    expect(source).not.toContain('<TabsContent value="resources"');
+    expect(source).not.toContain("function ResourceForm(");
+    expect(source).not.toContain("function ResourceTable(");
+    expect(source).not.toContain("createCertDrillResourceAction");
+    expect(source).not.toContain("ingestCertDrillResourceAction");
+    expect(source).not.toContain("updateCertDrillResourceAction");
+    expect(actionsSource).not.toContain("createCertDrillResourceAction");
+    expect(actionsSource).not.toContain("ingestCertDrillResourceAction");
+    expect(actionsSource).not.toContain("updateCertDrillResourceAction");
   });
 
-  it("loads the newest blueprint parse run for each resource without changing ingestion wiring", () => {
-    expect(source).toContain('import { BlueprintAnalysisControl } from "@/modules/certdrill/blueprint-analysis-control";');
+  it("keeps AI category discovery beside manual category creation", () => {
+    expect(source).toContain('import { CategoryDiscoveryControl } from "@/modules/certdrill/category-discovery-control";');
     expect(source).toContain("listCertDrillAdminBlueprintParseRunsServer");
-    expect(source).toContain("type CertDrillBlueprintParseRun,");
-    expect(source).toContain("let blueprintParseRuns: CertDrillBlueprintParseRun[] = [];");
-    expect(source).toContain("listCertDrillAdminBlueprintParseRunsServer(selectedCertificationId)");
-    expect(source).toContain("const newestBlueprintRuns = newestBlueprintRunByResource(blueprintParseRuns);");
-    expect(source).toContain("<ResourceTable certificationId={selectedCertificationId} resources={resources} newestBlueprintRuns={newestBlueprintRuns} />");
-    expect(source).toContain("function newestBlueprintRunByResource(runs: CertDrillBlueprintParseRun[])");
-    expect(source).toContain("function ResourceTable({");
-    expect(source).toContain("certificationId,");
-    expect(source).toContain("newestBlueprintRuns,");
-    expect(source).toContain("newestBlueprintRuns: Map<string, CertDrillBlueprintParseRun>;");
-    expect(source).toContain('<div className="flex flex-wrap items-center gap-2">');
-    expect(source).toContain("<form action={ingestCertDrillResourceAction}>");
-    expect(source).toContain('type="hidden" name="resourceId" value={resource.id}');
-    expect(source).toContain('aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}');
-    expect(source).toContain('{resource.status === "ingested" ? "Refresh" : "Ingest"}');
-    expect(source).toContain("<BlueprintAnalysisControl");
-    expect(source).toContain("certificationId={certificationId}");
-    expect(source).toContain("resource={resource}");
-    expect(source).toContain("initialRun={newestBlueprintRuns.get(resource.id)}");
+    expect(source).toContain("const newestBlueprintRun = newestBlueprintParseRun(blueprintParseRuns);");
+    expect(source).toContain("const categoryDiscoveryUrl = latestDiscoveryResource?.url ?? selectedAdminCertification?.blueprintSourceUrl ?? \"\";");
+    expect(source).toContain("<CategoryDiscoveryControl");
+    expect(source).toContain("certificationId={selectedCertificationId}");
+    expect(source).toContain("defaultUrl={categoryDiscoveryUrl}");
+    expect(source).toContain("initialRun={newestBlueprintRun}");
+    expect(source).not.toContain("BlueprintAnalysisControl");
+    expect(source).not.toContain("newestBlueprintRuns.get(resource.id)");
   });
 
   it("keeps the selected certification archive form wired to the destructive action", () => {
@@ -214,6 +212,8 @@ describe("CertDrill admin page copy", () => {
   it("shows question filter controls and accepts filter query params", () => {
     expect(questionFilterBarSource).toContain("Search questions");
     expect(questionFilterBarSource).toContain("Filter by category");
+    expect(questionFilterBarSource).toContain("<option key={category.id} value={category.id}>{category.name}</option>");
+    expect(questionFilterBarSource).not.toContain("{category.code} - {category.name}");
     expect(questionFilterBarSource).toContain("Filter by status");
     expect(questionFilterBarSource).toContain("Filter by difficulty");
     expect(questionFilterBarSource).not.toContain("Sort by");
@@ -239,16 +239,16 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("if (item !== undefined) searchParams.append(key, item);");
     expect(source).toContain("} else if (value !== undefined) {");
     expect(source).toContain("paginateQuestions");
-    expect(source).toContain("Stem A-Z");
-    expect(source).toContain("Stem Z-A");
-    expect(source).toContain('aria-sort={sort === "stem-desc" ? "descending" : "ascending"}');
-    expect(source).toContain('{sort === "stem-desc" ? "↓" : "↑"}');
+    expect(questionTableSource).toContain("Stem A-Z");
+    expect(questionTableSource).toContain("Stem Z-A");
+    expect(questionTableSource).toContain('aria-sort={sort === "stem-desc" ? "descending" : "ascending"}');
+    expect(questionTableSource).toContain('{sort === "stem-desc" ? "↓" : "↑"}');
     expect(source).toContain("questionPage");
-    expect(source).toContain("Page {page} of {pageCount}");
-    expect(source).toContain("<LocalizedLink href={previousPageHref}>Previous</LocalizedLink>");
-    expect(source).toContain("<LocalizedLink href={nextPageHref}>Next</LocalizedLink>");
-    expect(source).toContain(': <Button variant="outline" size="sm" disabled>Previous</Button>');
-    expect(source).toContain(': <Button variant="outline" size="sm" disabled>Next</Button>');
+    expect(questionTableSource).toContain("Page {page} of {pageCount}");
+    expect(questionTableSource).toContain("<LocalizedLink href={previousPageHref}>Previous</LocalizedLink>");
+    expect(questionTableSource).toContain("<LocalizedLink href={nextPageHref}>Next</LocalizedLink>");
+    expect(questionTableSource).toContain(': <Button variant="outline" size="sm" disabled>Previous</Button>');
+    expect(questionTableSource).toContain(': <Button variant="outline" size="sm" disabled>Next</Button>');
     expect(detailRouteSource).toContain("questionPage={firstSearchParamString(questionPage)}");
     expect(detailRouteSource).toContain("searchParams: Promise<Record<string, SearchParamValue>>");
     expect(detailRouteSource).toContain("questionTableQuery={query}");
@@ -313,17 +313,17 @@ describe("CertDrill admin page copy", () => {
     expect(questionFormSource).not.toContain("Source resource ID");
   });
 
-  it("shows new-record controls for every editable tab", () => {
+  it("shows new-record controls for visible editable areas", () => {
     expect(source).toContain("New certification");
     expect(source).toContain("Create category");
     expect(source).toContain("Create question");
     expect(source).toContain("ExamFormList");
-    expect(source).toContain("New resource");
+    expect(source).not.toContain("New resource");
   });
 
   it("uses dedicated routes for question editing", () => {
     expect(source).toContain("questionEditorNewHref(selectedCertificationId)");
-    expect(source).toContain("questionEditorHref(selectedCertificationId, question.id)");
+    expect(questionTableSource).toContain("questionEditorHref(certificationId, question.id)");
     expect(newQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("CertDrillQuestionEditorPage");
     expect(editQuestionRouteSource).toContain("questionId");
@@ -337,21 +337,21 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('import { Link as LocalizedLink } from "@/i18n/navigation";');
     expect(source).toContain('<LocalizedLink href={certdrillAdminDetailHref(certificationId, { tab: "questions" })}>Back to questions</LocalizedLink>');
     expect(source).toContain('<LocalizedLink href={questionEditorNewHref(selectedCertificationId)}>Create question</LocalizedLink>');
-    expect(source).toContain("compactQuestionId(question.id)");
-    expect(source).toContain('aria-label={`Open question ${question.id}`}');
-    expect(source).toContain('<LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>');
+    expect(questionTableSource).toContain("compactQuestionId(question.id)");
+    expect(questionTableSource).toContain('aria-label={`Open question ${question.id}`}');
+    expect(questionTableSource).toContain('<LocalizedLink href={href} className="hover:underline">{question.stem}</LocalizedLink>');
   });
 
   it("shares question publishing and archiving through a focused row actions menu", () => {
-    expect(source).toContain('import { QuestionActionsMenu } from "./question-actions-menu";');
-    expect(source).toContain("<QuestionActionsMenu");
-    expect(source).toContain('<TableHead className="text-right">Actions</TableHead>');
-    expect(source).toContain('edit={<LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>}');
-    expect(source).toContain('publishAction={publishAction}');
-    expect(source).toContain('archiveAction={archiveAction}');
-    expect(source).not.toContain('from "@/components/ui/dropdown-menu"');
-    expect(source).not.toContain("<DropdownMenu");
-    expect(source).not.toContain("MoreHorizontal");
+    expect(questionTableSource).toContain('import { QuestionActionsMenu } from "./question-actions-menu";');
+    expect(questionTableSource).toContain("<QuestionActionsMenu");
+    expect(questionTableSource).toContain('<TableHead className="text-right">Actions</TableHead>');
+    expect(questionTableSource).toContain('edit={<LocalizedLink href={href}>Edit</LocalizedLink>}');
+    expect(questionTableSource).toContain("publishAction={publishQuestionAction}");
+    expect(questionTableSource).toContain("archiveAction={archiveAction}");
+    expect(questionTableSource).not.toContain('from "@/components/ui/dropdown-menu"');
+    expect(questionTableSource).not.toContain("<DropdownMenu");
+    expect(questionTableSource).not.toContain("MoreHorizontal");
     expect(questionActionsMenuSource).toContain('"use client"');
     expect(questionActionsMenuSource).toContain("DropdownMenu");
     expect(questionActionsMenuSource).toContain("DropdownMenuSeparator");
@@ -360,7 +360,7 @@ describe("CertDrill admin page copy", () => {
     expect(questionActionsMenuSource).toContain("onClick={stopPropagation}");
     expect(questionActionsMenuSource).toContain('const questionStatus = status ?? "draft";');
     expect(questionActionsMenuSource).toContain("{edit}");
-    expect(source).toContain('const questionStatus = question.status ?? "draft";');
+    expect(questionTableSource).toContain('const questionStatus = question.status ?? "draft";');
     expect(questionActionsMenuSource).toContain('questionStatus === "draft"');
     expect(questionActionsMenuSource).toContain('questionStatus !== "archived"');
     expect(questionActionsMenuSource).toContain(">Publish</button>");
@@ -368,10 +368,24 @@ describe("CertDrill admin page copy", () => {
     expect(questionActionsMenuSource).toContain('id={`publish-question-${questionId}`}');
     expect(questionActionsMenuSource).toContain('id={`archive-question-${questionId}`}');
     expect(source).not.toContain("<CardTitle>Publish question</CardTitle>");
-    expect(source).toContain("publishAction={publishCertDrillQuestionAction}");
+    expect(source).toContain("publishQuestionAction={publishCertDrillQuestionAction}");
     expect(source).toContain("archiveAction={archiveCertDrillQuestionAction}");
     expect(actionsSource).toContain("archiveCertDrillQuestionAction");
     expect(actionsSource).toContain('updateCertDrillAdminQuestionServer(questionId, { status: "archived" })');
+  });
+
+  it("supports selecting all visible questions for publish or unpublish", () => {
+    expect(questionTableSource).toContain("<QuestionBulkActionBar");
+    expect(questionTableSource).toContain("<QuestionSelectionCheckbox");
+    expect(questionBulkSelectionSource).toContain("Select all");
+    expect(questionBulkSelectionSource).toContain("Publish");
+    expect(questionBulkSelectionSource).toContain("Unpublish");
+    expect(questionBulkSelectionSource).toContain('name="questionIds"');
+    expect(actionsSource).toContain("publishSelectedCertDrillQuestionsAction");
+    expect(actionsSource).toContain("unpublishSelectedCertDrillQuestionsAction");
+    expect(actionsSource).toContain("setSelectedCertDrillQuestionsPracticeAction");
+    expect(actionsSource).toContain("setSelectedCertDrillQuestionsAssessmentAction");
+    expect(questionBulkSelectionSource).toContain("Set type:");
   });
 
   it("revalidates both certification and centralized questions pages after admin mutations", () => {
@@ -414,7 +428,10 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("URLs must start with http:// or https://.");
     expect(source).toContain("Must be between 0 and 100.");
     expect(source).toContain("Must be 1 or greater.");
-    expect(source).toContain("TextField id={`${idPrefix}-code`} name=\"code\" label=\"Code\" required");
+    expect(source).toContain("TextField id={`${idPrefix}-code`} name=\"code\" label=\"Blueprint code\" required");
+    expect(source).toContain("The category UUID is generated automatically.");
+    expect(source).toContain("{formatCategoryWeight(category)}");
+    expect(source).not.toContain("<TableHead className=\"text-right\">Drill count</TableHead>");
     expect(source).toContain("VendorField id={`${idPrefix}-vendor`} vendors={vendors} selectedCertification={selectedCertification} required");
     expect(source).toContain("helperText");
   });
@@ -440,11 +457,11 @@ describe("CertDrill admin page copy", () => {
     expect(detailRouteSource).toContain("CertDrillAdminPage");
     expect(detailRouteSource).toContain("categoryId");
     expect(detailRouteSource).not.toContain("examFormId");
-    expect(detailRouteSource).toContain("resourceId");
+    expect(detailRouteSource).not.toContain("resourceId");
     expect(source).toContain("selectedCertificationId");
     expect(source).toContain("selectedCategoryId");
     expect(source).not.toContain("selectedExamFormId");
-    expect(source).toContain("selectedResourceId");
+    expect(source).not.toContain("selectedResourceId");
     expect(source).toContain("certdrillAdminDetailHref");
     expect(source).toContain("/admin/certdrill/${certificationId}");
     expect(source).toContain("certdrillAdminOverviewHref");
@@ -452,9 +469,8 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Manage CertDrill content for the selected certification.");
     expect(source).not.toContain("Switch the query-scoped certification");
     expect(source).toContain("certificationId:");
-    expect(source).toContain('type="hidden" name="certificationId" value={selectedCertificationId ?? ""}');
+    expect(source).toContain("certificationId={selectedCertificationId}");
     expect(source).toContain("questionCategoryId: category.id");
-    expect(source).toContain("resourceId:");
     expect(source).toContain("Manage CertDrill content for the selected certification.");
   });
 
@@ -462,30 +478,25 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('type="hidden" name="certificationId"');
     expect(source).toContain('type="hidden" name="categoryId"');
     expect(questionFormSource).toContain('type="hidden" name="questionId"');
-    expect(source).toContain('type="hidden" name="resourceId"');
     expect(source).toContain("selectedCertification={selectedAdminCertification}");
     expect(source).toContain("selectedCategory={selectedCategory}");
     expect(source).toContain("selectedQuestion={selectedQuestion}");
-    expect(source).toContain("selectedResource={selectedResource}");
     expect(source).toContain("defaultValue={selectedCertification?.code}");
     expect(source).toContain("defaultValue={selectedCategory?.code}");
     expect(questionFormSource).toContain('useState(() => selectedQuestion?.stem ?? "")');
-    expect(source).toContain("defaultValue={selectedResource?.title}");
   });
 
   it("keeps PATCH payloads submitted-only", () => {
     expect(actionsSource).toContain("submittedString");
     expect(actionsSource).toContain("submittedNumber");
     expect(actionsSource).toContain("submittedBoolean");
-    expect(actionsSource).toContain("submittedResourceSourceTypeValue");
     expect(actionsSource).toContain("submittedQuestionOptions");
   });
 
   it("uses selected-record defaults and explicit clear sentinels for nullable relationships", () => {
     expect(source).toContain("defaultValue={selectedCategory?.parentCategoryId");
-    expect(source).toContain("defaultValue={selectedResource?.categoryId");
     expect(questionFormSource).toContain('name="sourceResourceId"');
-    expect(source).toContain("Clear category");
+    expect(source).toContain("Clear parent category");
     expect(actionsSource).toContain("CLEAR_RELATIONSHIP_SENTINEL");
     expect(actionsSource).toContain("submittedNullableString");
   });
@@ -513,7 +524,7 @@ describe("CertDrill admin page copy", () => {
   });
 
   it("shows a secondary import questions entry point beside create question, only when a certification is selected", () => {
-    expect(source).toContain('import { questionEditorHref, questionEditorNewHref, questionImportHref } from "./question-editor-href";');
+    expect(source).toContain('import { questionEditorNewHref, questionImportHref } from "./question-editor-href";');
     expect(source).toContain("<Button asChild variant=\"secondary\">");
     expect(source).toContain('<LocalizedLink href={questionImportHref(selectedCertificationId)}>Import questions</LocalizedLink>');
     expect(source.indexOf("Import questions")).toBeLessThan(source.indexOf(">Create question</LocalizedLink>"));

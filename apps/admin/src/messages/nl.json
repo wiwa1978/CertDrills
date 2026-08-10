@@ -213,6 +213,7 @@
     },
     "errors": {
       "default": "Er is een fout opgetreden. Probeer het opnieuw.",
+      "NETWORK_ERROR": "Kan de authenticatieservice niet bereiken. Probeer het zo meteen opnieuw.",
       "PASSWORD_COMPROMISED": "Dit wachtwoord is gevonden in een datalek. Kies een ander wachtwoord.",
       "INVALID_EMAIL_OR_PASSWORD": "Ongeldig e-mailadres of wachtwoord.",
       "USER_ALREADY_EXISTS": "Er bestaat al een account met dit e-mailadres.",

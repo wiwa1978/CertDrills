@@ -71,7 +71,7 @@ describe("questions index table source", () => {
     expect(tableSource).toContain("isExpanded ? (");
     expect(tableSource).toContain("<TableRow key={`${question.questionId}-details`}>");
     expect(tableSource).toContain("<div id={detailsId} className=\"space-y-3 py-2\">");
-    expect(tableSource).toContain("<TableCell colSpan={6}");
+    expect(tableSource).toContain("<TableCell colSpan={8}");
     expect(tableSource).toContain("question.options.toSorted((first, second) => first.sortOrder - second.sortOrder)");
     expect(tableSource).toContain("Correct");
     expect(tableSource).toContain("Incorrect");
@@ -79,6 +79,16 @@ describe("questions index table source", () => {
     expect(tableSource).toContain("No answer options.");
     expect(tableSource.toLowerCase()).not.toContain("citation");
     expect(tableSource.toLowerCase()).not.toContain("media");
+  });
+
+  it("renders bulk selection controls before the question rows", () => {
+    expect(tableSource).toContain("<QuestionBulkActionBar");
+    expect(tableSource).toContain("<QuestionSelectionCheckbox");
+    expect(tableSource).toContain("bulkPublishAction");
+    expect(tableSource).toContain("bulkUnpublishAction");
+    expect(tableSource).toContain("bulkPracticeAction");
+    expect(tableSource).toContain("bulkAssessmentAction");
+    expect(tableSource).toContain("QuestionDeliveryPurposeBadge");
   });
 
   it("shows compact question ids while preserving the full accessible identifier", () => {

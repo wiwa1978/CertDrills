@@ -112,6 +112,16 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall("publishCertDrillAdminQuestionServer", ["question-1"], "/api/admin/certdrill/questions/question-1/publish", {
       method: "POST",
     });
+    const bulkPayload = { questionIds: ["question-1", "question-2"], status: "published" };
+    await expectHelperCall("updateCertDrillAdminQuestionStatusesServer", [bulkPayload], "/api/admin/certdrill/questions/status", {
+      method: "PATCH",
+      body: JSON.stringify(bulkPayload),
+    });
+    const purposePayload = { questionIds: ["question-1", "question-2"], deliveryPurpose: "assessment" as const };
+    await expectHelperCall("updateCertDrillAdminQuestionDeliveryPurposesServer", [purposePayload], "/api/admin/certdrill/questions/delivery-purpose", {
+      method: "PATCH",
+      body: JSON.stringify(purposePayload),
+    });
   });
 
   it("lists the centralized admin question index with only defined query params", async () => {
@@ -297,6 +307,18 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall("setCertDrillAdminExamFormActiveServer", ["form-1", false], "/api/admin/certdrill/exam-forms/form-1/activation", { method: "PATCH", body: JSON.stringify({ isActive: false }) });
   });
 
+  it("uses focused scenario administration endpoints", async () => {
+    const createPayload = { certificationId: "cert-1", title: "Incident", description: null, difficulty: "medium", estimatedMinutes: 15, contentJson: { initialNodeKey: "start", nodes: [] } };
+    const { certificationId: _certificationId, ...updatePayload } = createPayload;
+    await expectHelperCall("listCertDrillAdminScenariosServer", ["cert-1"], "/api/admin/certdrill/certifications/cert-1/scenarios");
+    await expectHelperCall("createCertDrillAdminScenarioServer", [createPayload], "/api/admin/certdrill/scenarios", { method: "POST", body: JSON.stringify(createPayload) });
+    await expectHelperCall("updateCertDrillAdminScenarioServer", ["scenario-1", updatePayload], "/api/admin/certdrill/scenarios/scenario-1", { method: "PATCH", body: JSON.stringify(updatePayload) });
+    await expectHelperCall("validateCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/validate", { method: "POST", body: JSON.stringify({}) });
+    await expectHelperCall("publishCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/publish", { method: "POST", body: JSON.stringify({}) });
+    await expectHelperCall("updateCertDrillAdminScenarioStatusesServer", [{ scenarioIds: ["scenario-1"], status: "published" }], "/api/admin/certdrill/scenarios/status", { method: "PATCH", body: JSON.stringify({ scenarioIds: ["scenario-1"], status: "published" }) });
+    await expectHelperCall("archiveCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/archive", { method: "POST", body: JSON.stringify({}) });
+  });
+
   it("lists, creates, and updates admin resources", async () => {
     const createPayload = {
       certificationId: "cert-1",
@@ -325,7 +347,7 @@ describe("CertDrill admin API helpers", () => {
     });
   });
 
-  it("lists, starts, and reads blueprint parse runs without exposing raw output", async () => {
+  it("lists and reads blueprint runs and starts URL category discovery without exposing raw output", async () => {
     const proposal = {
       confidence: "high" as const,
       warnings: ["Keep vendor phrasing."],
@@ -386,10 +408,10 @@ describe("CertDrill admin API helpers", () => {
     expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/blueprint-parse-runs");
 
     serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
-    await expect(certdrillApi.startCertDrillAdminBlueprintParseRunServer("cert-1", "resource-1")).resolves.toEqual(expectedRun);
-    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/blueprint-parse-runs", {
+    await expect(certdrillApi.startCertDrillAdminCategoryDiscoveryServer("cert-1", "https://learn.example/study-guide")).resolves.toEqual(expectedRun);
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/category-discoveries", {
       method: "POST",
-      body: JSON.stringify({ resourceId: "resource-1" }),
+      body: JSON.stringify({ url: "https://learn.example/study-guide" }),
     });
 
     serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
@@ -397,20 +419,26 @@ describe("CertDrill admin API helpers", () => {
     expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/blueprint-parse-runs/run-1");
   });
 
-  it("creates mock generation jobs", async () => {
-    const payload = {
-      certificationId: "cert-1",
+  it("starts, lists, and reads grounded generation jobs", async () => {
+    const input = {
       categoryId: "category-1",
-      prompt: "Generate questions about identity.",
-      topic: "Identity",
-      requestedCount: 3,
       resourceIds: ["resource-1"],
+      sourceUrls: ["https://docs.example.com/guide"],
+      requestedCount: 3,
+      focus: "Identity",
+      systemInstructions: null,
+      instructions: null,
+      questionTypes: ["single_choice"] as const,
+      difficultyMix: { easy: 20, medium: 60, hard: 20 },
+      deliveryPurpose: "practice" as const,
     };
 
-    await expectHelperCall("createCertDrillAdminMockGenerationJobServer", [payload], "/api/admin/certdrill/generation-jobs/mock", {
+    await expectHelperCall("startCertDrillAdminQuestionGenerationServer", ["cert-1", input], "/api/admin/certdrill/certifications/cert-1/question-generation-jobs", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(input),
     });
+    await expectHelperCall("listCertDrillAdminQuestionGenerationJobsServer", ["cert-1"], "/api/admin/certdrill/certifications/cert-1/question-generation-jobs");
+    await expectHelperCall("getCertDrillAdminQuestionGenerationJobServer", ["job-1"], "/api/admin/certdrill/question-generation-jobs/job-1");
   });
 
   it("lists question feedback for admin review", async () => {

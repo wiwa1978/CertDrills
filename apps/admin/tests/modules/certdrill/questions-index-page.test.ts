@@ -13,6 +13,10 @@ vi.mock("@/lib/api/certdrill.server", () => ({
 vi.mock("@/modules/certdrill/admin-actions", () => ({
   archiveCertDrillQuestionAction: vi.fn(),
   publishCertDrillQuestionAction: vi.fn(),
+  publishSelectedCertDrillQuestionsAction: vi.fn(),
+  unpublishSelectedCertDrillQuestionsAction: vi.fn(),
+  setSelectedCertDrillQuestionsPracticeAction: vi.fn(),
+  setSelectedCertDrillQuestionsAssessmentAction: vi.fn(),
 }));
 
 vi.mock("@/modules/certdrill/questions-index-filter-bar", () => ({

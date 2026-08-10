@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_VALIDATION_DETAILS, TRUNCATED_VALIDATION_DETAILS_MESSAGE, UNKNOWN_FIELD_VALIDATION_MESSAGE } from "../src/lib/http";
 import { CertDrillAdminServiceError, type createCertDrillAdminService } from "../src/modules/certdrill/admin-service";
-import { BlueprintParseServiceError } from "../src/modules/certdrill/blueprint-parse-service";
 import {
   QUESTION_IMPORT_MAX_DOCUMENT_BYTES,
   QUESTION_IMPORT_MAX_DOCUMENT_NESTING,
@@ -21,6 +20,9 @@ const examFormId = "55555555-5555-4555-8555-555555555555";
 const resourceId = "66666666-6666-4666-8666-666666666666";
 const feedbackId = "77777777-7777-4777-8777-777777777777";
 const blueprintParseRunId = "88888888-8888-4888-8888-888888888889";
+const generationJobId = "99999999-9999-4999-8999-999999999999";
+const scenarioId = "12121212-1212-4212-8212-121212121212";
+const userId = "13131313-1313-4313-8313-131313131313";
 
 type CertDrillAdminService = ReturnType<typeof createCertDrillAdminService>;
 type MockedCertDrillAdminService = {
@@ -44,12 +46,30 @@ const service = {
   createQuestion: vi.fn<CertDrillAdminService["createQuestion"]>(),
   updateQuestion: vi.fn<CertDrillAdminService["updateQuestion"]>(),
   publishQuestion: vi.fn<CertDrillAdminService["publishQuestion"]>(),
+  updateQuestionStatuses: vi.fn<CertDrillAdminService["updateQuestionStatuses"]>(),
+  updateQuestionDeliveryPurposes: vi.fn<CertDrillAdminService["updateQuestionDeliveryPurposes"]>(),
   previewQuestionImport: vi.fn<CertDrillAdminService["previewQuestionImport"]>(),
   importQuestions: vi.fn<CertDrillAdminService["importQuestions"]>(),
-  startBlueprintParseRun: vi.fn<CertDrillAdminService["startBlueprintParseRun"]>(),
+  startCategoryDiscovery: vi.fn<CertDrillAdminService["startCategoryDiscovery"]>(),
   getBlueprintParseRun: vi.fn<CertDrillAdminService["getBlueprintParseRun"]>(),
   listBlueprintParseRuns: vi.fn<CertDrillAdminService["listBlueprintParseRuns"]>(),
   processPendingBlueprintParseRuns: vi.fn<CertDrillAdminService["processPendingBlueprintParseRuns"]>(),
+  startQuestionGeneration: vi.fn<CertDrillAdminService["startQuestionGeneration"]>(),
+  getQuestionGenerationJob: vi.fn<CertDrillAdminService["getQuestionGenerationJob"]>(),
+  listQuestionGenerationJobs: vi.fn<CertDrillAdminService["listQuestionGenerationJobs"]>(),
+  processPendingQuestionGenerationJobs: vi.fn<CertDrillAdminService["processPendingQuestionGenerationJobs"]>(),
+  startScenarioGeneration: vi.fn<CertDrillAdminService["startScenarioGeneration"]>(),
+  getScenarioGenerationJob: vi.fn<CertDrillAdminService["getScenarioGenerationJob"]>(),
+  listScenarioGenerationJobs: vi.fn<CertDrillAdminService["listScenarioGenerationJobs"]>(),
+  processPendingScenarioGenerationJobs: vi.fn<CertDrillAdminService["processPendingScenarioGenerationJobs"]>(),
+  listScenarios: vi.fn<CertDrillAdminService["listScenarios"]>(),
+  createScenario: vi.fn<CertDrillAdminService["createScenario"]>(),
+  updateScenario: vi.fn<CertDrillAdminService["updateScenario"]>(),
+  archiveScenario: vi.fn<CertDrillAdminService["archiveScenario"]>(),
+  validateScenario: vi.fn<CertDrillAdminService["validateScenario"]>(),
+  publishScenario: vi.fn<CertDrillAdminService["publishScenario"]>(),
+  updateScenarioStatuses: vi.fn<CertDrillAdminService["updateScenarioStatuses"]>(),
+  setExamFormScenarios: vi.fn<CertDrillAdminService["setExamFormScenarios"]>(),
   listExamForms: vi.fn<CertDrillAdminService["listExamForms"]>(),
   createExamForm: vi.fn<CertDrillAdminService["createExamForm"]>(),
   getExamForm: vi.fn<CertDrillAdminService["getExamForm"]>(),
@@ -61,8 +81,8 @@ const service = {
   createResource: vi.fn<CertDrillAdminService["createResource"]>(),
   updateResource: vi.fn<CertDrillAdminService["updateResource"]>(),
   ingestResource: vi.fn<CertDrillAdminService["ingestResource"]>(),
-  createMockGenerationJob: vi.fn<CertDrillAdminService["createMockGenerationJob"]>(),
   listQuestionFeedbackForAdmin: vi.fn<CertDrillAdminService["listQuestionFeedbackForAdmin"]>(),
+  resetUserProgress: vi.fn<CertDrillAdminService["resetUserProgress"]>(),
   updateQuestionFeedback: vi.fn<CertDrillAdminService["updateQuestionFeedback"]>(),
 } satisfies MockedCertDrillAdminService;
 
@@ -138,6 +158,14 @@ describe("CertDrill admin routes", () => {
     service.createQuestion.mockResolvedValueOnce({ id: questionId });
     service.updateQuestion.mockResolvedValueOnce({ id: questionId });
     service.publishQuestion.mockResolvedValueOnce({ id: questionId, status: "published" });
+    service.updateQuestionStatuses.mockResolvedValueOnce([
+      { id: questionId, status: "published" },
+      { id: otherQuestionId, status: "published" },
+    ]);
+    service.updateQuestionDeliveryPurposes.mockResolvedValueOnce([
+      { id: questionId, deliveryPurpose: "assessment" },
+      { id: otherQuestionId, deliveryPurpose: "assessment" },
+    ]);
 
     const body = {
       certificationId,
@@ -160,11 +188,25 @@ describe("CertDrill admin routes", () => {
       body: JSON.stringify({ stem: "Updated?" }),
     });
     const publishResponse = await createApp().request(`/api/admin/certdrill/questions/${questionId}/publish`, { method: "POST" });
+    const bulkResponse = await createApp().request("/api/admin/certdrill/questions/status", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionIds: [questionId, otherQuestionId], status: "published" }),
+    });
+    const bulkPurposeResponse = await createApp().request("/api/admin/certdrill/questions/delivery-purpose", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionIds: [questionId, otherQuestionId], deliveryPurpose: "assessment" }),
+    });
 
     expect(publishResponse.status).toBe(200);
+    expect(bulkResponse.status).toBe(200);
+    expect(bulkPurposeResponse.status).toBe(200);
     expect(service.createQuestion).toHaveBeenCalledWith(body);
     expect(service.updateQuestion).toHaveBeenCalledWith(questionId, { stem: "Updated?" });
     expect(service.publishQuestion).toHaveBeenCalledWith(questionId);
+    expect(service.updateQuestionStatuses).toHaveBeenCalledWith({ questionIds: [questionId, otherQuestionId], status: "published" });
+    expect(service.updateQuestionDeliveryPurposes).toHaveBeenCalledWith({ questionIds: [questionId, otherQuestionId], deliveryPurpose: "assessment" });
   });
 
   it("delegates question index requests with supported query filters", async () => {
@@ -299,6 +341,53 @@ describe("CertDrill admin routes", () => {
     expect(service.setExamFormActive).toHaveBeenCalledWith(examFormId, true);
   });
 
+  it("delegates scenario CRUD, validation, and exam form assignment", async () => {
+    const contentJson = {
+      initialNodeKey: "start",
+      nodes: [{
+        key: "start",
+        title: "Start",
+        situation: "Choose a response.",
+        evidence: ["Signal"],
+        options: [
+          { key: "a", title: "A", description: "Action A", consequence: "Outcome A", nextNodeKey: null },
+          { key: "b", title: "B", description: "Action B", consequence: "Outcome B", nextNodeKey: null },
+        ],
+      }],
+    };
+    const createPayload = { certificationId, title: "Incident", description: null, difficulty: "medium" as const, estimatedMinutes: 15, contentJson };
+    const updatePayload = { title: "Updated incident", description: "Review", difficulty: "hard" as const, estimatedMinutes: 20, contentJson };
+    service.listScenarios.mockResolvedValueOnce([{ id: scenarioId }]);
+    service.createScenario.mockResolvedValueOnce({ id: scenarioId });
+    service.updateScenario.mockResolvedValueOnce({ id: scenarioId });
+    service.validateScenario.mockResolvedValueOnce({ id: scenarioId, status: "validated" });
+    service.publishScenario.mockResolvedValueOnce({ id: scenarioId, status: "published" });
+    service.updateScenarioStatuses.mockResolvedValueOnce([{ id: scenarioId, status: "draft" }]);
+    service.setExamFormScenarios.mockResolvedValueOnce({ id: examFormId, scenarioIds: [scenarioId] });
+    service.archiveScenario.mockResolvedValueOnce({ id: scenarioId, status: "archived" });
+
+    const responses = await Promise.all([
+      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenarios`),
+      createApp().request("/api/admin/certdrill/scenarios", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) }),
+      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(updatePayload) }),
+      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/validate`, { method: "POST" }),
+      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/publish`, { method: "POST" }),
+      createApp().request("/api/admin/certdrill/scenarios/status", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId], status: "draft" }) }),
+      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/scenarios`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId] }) }),
+      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/archive`, { method: "POST" }),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([200, 201, 200, 200, 200, 200, 200, 200]);
+    expect(service.listScenarios).toHaveBeenCalledWith(certificationId);
+    expect(service.createScenario).toHaveBeenCalledWith(createPayload);
+    expect(service.updateScenario).toHaveBeenCalledWith(scenarioId, updatePayload);
+    expect(service.validateScenario).toHaveBeenCalledWith(scenarioId);
+    expect(service.publishScenario).toHaveBeenCalledWith(scenarioId);
+    expect(service.updateScenarioStatuses).toHaveBeenCalledWith({ scenarioIds: [scenarioId], status: "draft" });
+    expect(service.setExamFormScenarios).toHaveBeenCalledWith(examFormId, [scenarioId]);
+    expect(service.archiveScenario).toHaveBeenCalledWith(scenarioId);
+  });
+
   it("rejects invalid exam form payloads without delegation", async () => {
     const responses = await Promise.all([
       createApp().request("/api/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ certificationId: "bad", name: "", durationMinutes: 0, targetQuestionCount: -1 }) }),
@@ -328,12 +417,11 @@ describe("CertDrill admin routes", () => {
     expect(inUse.status).toBe(409);
   });
 
-  it("delegates resource and mock generation requests", async () => {
+  it("delegates resource requests", async () => {
     service.createResource.mockResolvedValueOnce({ id: resourceId });
     service.listResources.mockResolvedValueOnce([{ id: resourceId }]);
     service.updateResource.mockResolvedValueOnce({ id: resourceId });
     service.ingestResource.mockResolvedValueOnce({ id: resourceId, status: "ingested" });
-    service.createMockGenerationJob.mockResolvedValueOnce({ job: { id: "job-1" }, generatedQuestions: [] });
     await createApp().request("/api/admin/certdrill/resources", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -345,42 +433,107 @@ describe("CertDrill admin routes", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Updated" }),
     });
-    const ingestResponse = await createApp().request(`/api/admin/certdrill/resources/${resourceId}/ingest`, {
-      method: "POST",
-    });
-    await createApp().request("/api/admin/certdrill/generation-jobs/mock", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ certificationId, categoryId, prompt: "Prompt", topic: "Topic", requestedCount: 1 }),
-    });
+    const ingestResponse = await createApp().request(`/api/admin/certdrill/resources/${resourceId}/ingest`, { method: "POST" });
 
     expect(service.createResource).toHaveBeenCalledWith({ certificationId, url: "https://docs.example.com", title: "Docs", sourceType: "doc", contentMode: "deep_content" });
     expect(service.listResources).toHaveBeenCalledWith(certificationId);
     expect(service.updateResource).toHaveBeenCalledWith(resourceId, { title: "Updated" });
     expect(ingestResponse.status).toBe(200);
-    await expect(ingestResponse.json()).resolves.toEqual({ success: true, data: { id: resourceId, status: "ingested" } });
     expect(service.ingestResource).toHaveBeenCalledWith(resourceId);
-    expect(service.createMockGenerationJob).toHaveBeenCalledWith({ certificationId, categoryId, prompt: "Prompt", topic: "Topic", requestedCount: 1 });
   });
 
-  it("starts blueprint parse runs with the certification path id and returns 201", async () => {
+  it("starts and reads grounded question generation jobs", async () => {
+    const job = { id: generationJobId, certificationId, categoryId, status: "pending" as const };
+    service.startQuestionGeneration.mockResolvedValueOnce(job);
+    service.listQuestionGenerationJobs.mockResolvedValueOnce([job]);
+    service.getQuestionGenerationJob.mockResolvedValueOnce(job);
+    const payload = {
+      categoryId: null,
+      resourceIds: [resourceId],
+      sourceUrls: ["https://docs.example.com/guide"],
+      requestedCount: 5,
+      focus: "Identity",
+      systemInstructions: "Use detailed answer choices.",
+      instructions: null,
+      questionTypes: ["single_choice", "fill_blank", "matching"],
+      difficultyMix: { easy: 20, medium: 60, hard: 20 },
+      deliveryPurpose: "assessment",
+    };
+    const startResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/question-generation-jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const [listResponse, detailResponse] = await Promise.all([
+      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/question-generation-jobs`),
+      createApp().request(`/api/admin/certdrill/question-generation-jobs/${generationJobId}`),
+    ]);
+
+    expect(startResponse.status).toBe(201);
+    expect(listResponse.status).toBe(200);
+    expect(detailResponse.status).toBe(200);
+    expect(service.startQuestionGeneration).toHaveBeenCalledWith({
+      certificationId,
+      categoryId: null,
+      resourceIds: [resourceId],
+      sourceUrls: ["https://docs.example.com/guide"],
+      requestedCount: 5,
+      config: { focus: "Identity", systemInstructions: "Use detailed answer choices.", instructions: null, questionTypes: ["single_choice", "fill_blank", "matching"], difficultyMix: { easy: 20, medium: 60, hard: 20 }, deliveryPurpose: "assessment" },
+    });
+    expect(service.listQuestionGenerationJobs).toHaveBeenCalledWith(certificationId);
+    expect(service.getQuestionGenerationJob).toHaveBeenCalledWith(generationJobId);
+  });
+
+  it("starts and reads grounded scenario generation jobs", async () => {
+    const job = { id: generationJobId, certificationId, status: "pending" as const };
+    service.startScenarioGeneration.mockResolvedValueOnce(job);
+    service.listScenarioGenerationJobs.mockResolvedValueOnce([job]);
+    service.getScenarioGenerationJob.mockResolvedValueOnce(job);
+    const payload = {
+      resourceIds: [resourceId],
+      sourceUrls: ["https://docs.example.com/guide"],
+      requestedCount: 2,
+      difficulty: "hard" as const,
+      focus: "Incident response",
+      instructions: null,
+    };
+    const startResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const [listResponse, detailResponse] = await Promise.all([
+      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`),
+      createApp().request(`/api/admin/certdrill/scenario-generation-jobs/${generationJobId}`),
+    ]);
+
+    expect(startResponse.status).toBe(201);
+    expect(listResponse.status).toBe(200);
+    expect(detailResponse.status).toBe(200);
+    expect(service.startScenarioGeneration).toHaveBeenCalledWith({ certificationId, ...payload });
+    expect(service.listScenarioGenerationJobs).toHaveBeenCalledWith(certificationId);
+    expect(service.getScenarioGenerationJob).toHaveBeenCalledWith(generationJobId);
+  });
+
+  it("starts category discovery from a study guide URL and returns 201", async () => {
+    const studyGuideUrl = "https://learn.example.com/study-guide";
     const pendingRun = {
       id: blueprintParseRunId,
       certificationId,
       resourceId,
       status: "pending",
     };
-    service.startBlueprintParseRun.mockResolvedValueOnce(pendingRun);
+    service.startCategoryDiscovery.mockResolvedValueOnce(pendingRun);
 
-    const response = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+    const response = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ resourceId }),
+      body: JSON.stringify({ url: studyGuideUrl }),
     });
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ success: true, data: pendingRun });
-    expect(service.startBlueprintParseRun).toHaveBeenCalledWith({ certificationId, resourceId });
+    expect(service.startCategoryDiscovery).toHaveBeenCalledWith({ certificationId, url: studyGuideUrl });
   });
 
   it("delegates blueprint parse run list and detail requests", async () => {
@@ -420,12 +573,12 @@ describe("CertDrill admin routes", () => {
     });
   });
 
-  it("rejects invalid blueprint parse run path and body values before delegation", async () => {
+  it("rejects invalid category discovery and blueprint parse run values before delegation", async () => {
     const invalidCertificationResponse = await createApp().request("/api/admin/certdrill/certifications/not-a-uuid/blueprint-parse-runs");
-    const invalidBodyResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+    const invalidBodyResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ resourceId: "not-a-uuid", extra: true }),
+      body: JSON.stringify({ url: "not-a-url", extra: true }),
     });
     const invalidDetailResponse = await createApp().request("/api/admin/certdrill/blueprint-parse-runs/not-a-uuid");
 
@@ -443,9 +596,9 @@ describe("CertDrill admin routes", () => {
       success: false,
       error: {
         code: "VALIDATION_FAILED",
-        message: "Invalid blueprint parse run payload",
+        message: "Invalid category discovery payload",
         details: expect.arrayContaining([
-          expect.objectContaining({ path: "resourceId", message: "Resource ID must be a valid UUID." }),
+          expect.objectContaining({ path: "url", message: "Resource URL must be a valid URL." }),
           expect.objectContaining({ path: "extra", message: UNKNOWN_FIELD_VALIDATION_MESSAGE }),
         ]),
       },
@@ -460,39 +613,36 @@ describe("CertDrill admin routes", () => {
       },
     });
 
-    expect(service.startBlueprintParseRun).not.toHaveBeenCalled();
+    expect(service.startCategoryDiscovery).not.toHaveBeenCalled();
     expect(service.listBlueprintParseRuns).not.toHaveBeenCalled();
     expect(service.getBlueprintParseRun).not.toHaveBeenCalled();
   });
 
-  it("maps blueprint parse service errors to the established not-found and bad-request envelopes", async () => {
-    service.startBlueprintParseRun
-      .mockRejectedValueOnce(new BlueprintParseServiceError(
-        "CERTDRILL_BLUEPRINT_PARSE_RESOURCE_NOT_FOUND",
-        "Resource not found for certification.",
+  it("maps category discovery service errors to not-found and bad-request envelopes", async () => {
+    service.startCategoryDiscovery
+      .mockRejectedValueOnce(new CertDrillAdminServiceError(
+        "CERTDRILL_ADMIN_CERTIFICATION_NOT_FOUND",
+        "Certification not found.",
       ))
-      .mockRejectedValueOnce(new BlueprintParseServiceError(
-        "CERTDRILL_BLUEPRINT_PARSE_SNAPSHOT_UNAVAILABLE",
-        "Resource does not have a usable ingested snapshot.",
+      .mockRejectedValueOnce(new CertDrillAdminServiceError(
+        "CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED",
+        "Study guide could not be fetched.",
       ));
 
-    const notFoundResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
+    const request = () => createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ resourceId }),
+      body: JSON.stringify({ url: "https://learn.example.com/study-guide" }),
     });
-    const badRequestResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ resourceId }),
-    });
+    const notFoundResponse = await request();
+    const badRequestResponse = await request();
 
     expect(notFoundResponse.status).toBe(404);
     await expect(notFoundResponse.json()).resolves.toEqual({
       success: false,
       error: {
-        code: "NOT_FOUND",
-        message: "Resource not found for certification.",
+        code: "CERTDRILL_ADMIN_CERTIFICATION_NOT_FOUND",
+        message: "Certification not found.",
       },
     });
 
@@ -500,8 +650,8 @@ describe("CertDrill admin routes", () => {
     await expect(badRequestResponse.json()).resolves.toEqual({
       success: false,
       error: {
-        code: "BAD_REQUEST",
-        message: "Resource does not have a usable ingested snapshot.",
+        code: "CERTDRILL_ADMIN_RESOURCE_INGESTION_FAILED",
+        message: "Study guide could not be fetched.",
       },
     });
   });
@@ -642,6 +792,23 @@ describe("CertDrill admin routes", () => {
       },
     });
   });
+  it("resets all CertDrill progress for a valid user id", async () => {
+    service.resetUserProgress.mockResolvedValueOnce({ deletedAttemptCount: 3, deletedReviewItemCount: 2 });
+
+    const response = await createApp().request(`/api/admin/certdrill/users/${userId}/progress`, { method: "DELETE" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, data: { deletedAttemptCount: 3, deletedReviewItemCount: 2 } });
+    expect(service.resetUserProgress).toHaveBeenCalledWith(userId);
+  });
+
+  it("rejects malformed progress reset user ids", async () => {
+    const response = await createApp().request("/api/admin/certdrill/users/not-a-uuid/progress", { method: "DELETE" });
+
+    expect(response.status).toBe(400);
+    expect(service.resetUserProgress).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("CertDrill admin question import routes", () => {

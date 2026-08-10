@@ -1,5 +1,5 @@
 type CategoryInput = { id: string; parentCategoryId: string | null; weightPct: string | number | null };
-type QuestionInput = { id: string; categoryId: string };
+type QuestionInput = { id: string; categoryId: string; selectionPriority?: number };
 type CategoryDrillInput = CategoryInput & { drillQuestionCount?: number | null };
 
 type SelectionInput = {
@@ -246,7 +246,17 @@ function maybeShuffle<T>(items: T[], shouldShuffle: boolean, rng: () => number):
 }
 
 function takeQuestionIds(questions: QuestionInput[], targetCount: number, shouldShuffle: boolean, rng: () => number) {
-  return maybeShuffle(uniqueById(questions), shouldShuffle, rng).slice(0, normalizeCount(targetCount)).map((question) => question.id);
+  const byPriority = new Map<number, QuestionInput[]>();
+  for (const question of uniqueById(questions)) {
+    const priority = question.selectionPriority ?? 0;
+    byPriority.set(priority, [...(byPriority.get(priority) ?? []), question]);
+  }
+
+  return [...byPriority.entries()]
+    .sort(([left], [right]) => left - right)
+    .flatMap(([, candidates]) => maybeShuffle(candidates, shouldShuffle, rng))
+    .slice(0, normalizeCount(targetCount))
+    .map((question) => question.id);
 }
 
 function normalizeCount(count: number) {

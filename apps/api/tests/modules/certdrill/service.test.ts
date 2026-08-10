@@ -20,6 +20,7 @@ const ids = {
   option1Wrong: "88888888-8888-4888-8888-888888888888",
   option2Correct: "99999999-9999-4999-8999-999999999999",
   option2Wrong: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  scenario: "abababab-abab-4aba-8aba-abababababab",
 };
 
 const snapshot = buildAttemptSnapshot([
@@ -379,6 +380,8 @@ describe("CertDrill service", () => {
           certdrillCertifications: { findFirst: vi.fn().mockResolvedValue({ id: ids.cert, questionCountDefault: 2 }) },
           certdrillExamCategories: { findMany: vi.fn().mockResolvedValue([{ id: ids.parentCategory, parentCategoryId: null, weightPct: "100.00" }]) },
           certdrillQuestions: { findMany: vi.fn().mockResolvedValue(createQuestions()) },
+          certdrillExamAttempts: { findMany: vi.fn().mockResolvedValue([]) },
+          certdrillExamForms: { findMany: vi.fn().mockResolvedValue([]) },
         },
         insert: vi.fn(() => ({
           values: vi.fn((value: unknown) => {
@@ -452,6 +455,56 @@ describe("CertDrill service", () => {
     expect((insertedValues[0] as { questionIds: string[] }).questionIds).toHaveLength(1);
   });
 
+  it("prioritizes unseen questions in quick drills", async () => {
+    const service = createCertDrillService({
+      db: createAttemptDb({
+        quickDrillQuestionCount: 1,
+        attempts: [{ id: ids.secondAttempt, status: "completed", startedAt: new Date("2026-01-01T00:00:00.000Z"), questionIds: [ids.question1] }],
+      }),
+      accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
+    });
+
+    const result = await service.createAttempt(ids.user, {
+      certificationId: ids.cert,
+      testMode: "practice",
+      testVariant: "quick_drill",
+      confidenceEnabled: false,
+    });
+
+    expect(result.questions.map((question) => question.id)).toEqual([ids.question2]);
+  });
+
+  it("keeps assessment-only and reserved form questions out of practice", async () => {
+    const [assessmentQuestion, reservedQuestion] = createQuestions();
+    const practiceQuestion = createQuestion({
+      id: "10101010-1010-4010-8010-101010101010",
+      categoryId: ids.parentCategory,
+      categoryCode: "D1",
+      categoryName: "Domain 1",
+    });
+    const service = createCertDrillService({
+      db: createAttemptDb({
+        quickDrillQuestionCount: 1,
+        questions: [
+          { ...assessmentQuestion!, deliveryPurpose: "assessment" },
+          { ...reservedQuestion!, deliveryPurpose: "both" },
+          { ...practiceQuestion, deliveryPurpose: "practice" },
+        ],
+        examForms: [{ id: ids.examForm, certificationId: ids.cert, isActive: true, questionIds: [reservedQuestion!.id] }],
+      }),
+      accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
+    });
+
+    const result = await service.createAttempt(ids.user, {
+      certificationId: ids.cert,
+      testMode: "practice",
+      testVariant: "quick_drill",
+      confidenceEnabled: false,
+    });
+
+    expect(result.questions.map((question) => question.id)).toEqual([practiceQuestion.id]);
+  });
+
   it("creates exam simulation attempts with expiry", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-02-01T10:00:00.000Z"));
@@ -486,6 +539,49 @@ describe("CertDrill service", () => {
       expiresAt: new Date("2026-02-01T12:00:00.000Z"),
     });
     vi.useRealTimers();
+  });
+
+  it("builds exam simulations only from fresh assessment questions", async () => {
+    const questions = createQuestions().map((question) => ({ ...question, deliveryPurpose: "assessment" as const }));
+    const service = createCertDrillService({
+      db: createAttemptDb({
+        examSimulationQuestionCount: 1,
+        questions,
+        attempts: [{ id: ids.secondAttempt, status: "completed", startedAt: new Date("2026-01-01T00:00:00.000Z"), questionIds: [ids.question1] }],
+      }),
+      accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
+    });
+
+    const result = await service.createAttempt(ids.user, {
+      certificationId: ids.cert,
+      testMode: "exam",
+      testVariant: "exam_simulation",
+      confidenceEnabled: false,
+    });
+
+    expect(result.questions.map((question) => question.id)).toEqual([ids.question2]);
+  });
+
+  it("refuses an exam simulation rather than repeating seen questions", async () => {
+    const questions = createQuestions().map((question) => ({ ...question, deliveryPurpose: "assessment" as const }));
+    const service = createCertDrillService({
+      db: createAttemptDb({
+        examSimulationQuestionCount: 2,
+        questions,
+        attempts: [{ id: ids.secondAttempt, status: "completed", startedAt: new Date("2026-01-01T00:00:00.000Z"), questionIds: [ids.question1] }],
+      }),
+      accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
+    });
+
+    await expect(service.createAttempt(ids.user, {
+      certificationId: ids.cert,
+      testMode: "exam",
+      testVariant: "exam_simulation",
+      confidenceEnabled: false,
+    })).rejects.toMatchObject({
+      code: "CERTDRILL_NO_FRESH_EXAM_QUESTIONS",
+      message: "A fresh exam simulation needs 2 unseen assessment questions, but only 1 are currently available.",
+    });
   });
 
   it("creates exam form attempts from active form question order with expiry", async () => {
@@ -550,11 +646,10 @@ describe("CertDrill service", () => {
     });
   });
 
-  it("starts missed question reviews from missed history", async () => {
+  it("starts missed question reviews from the due review queue", async () => {
     const service = createCertDrillService({
       db: createAttemptDb({
-        attempts: [{ id: ids.attempt, certificationId: ids.cert, status: "completed", completedAt: new Date("2026-01-01T00:00:00.000Z"), questionSnapshotJson: snapshot }],
-        answersByAttempt: new Map([[ids.attempt, [{ questionId: ids.question2, selectedOptionId: ids.option2Wrong, isCorrect: false }]]]),
+        reviewQueue: [{ questionId: ids.question2, dueAt: new Date("2026-01-01T00:00:00.000Z"), status: "active" }],
       }),
       accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
     });
@@ -569,14 +664,12 @@ describe("CertDrill service", () => {
     expect(result.questions.map((question) => question.id)).toEqual([ids.question2]);
   });
 
-  it("starts missed question reviews from snapshot correctness when persisted correctness is stale", async () => {
+  it("uses the due review queue instead of retaining every historical miss", async () => {
     const service = createCertDrillService({
       db: createAttemptDb({
         attempts: [{ id: ids.attempt, certificationId: ids.cert, status: "completed", completedAt: new Date("2026-01-01T00:00:00.000Z"), questionSnapshotJson: snapshot }],
-        answersByAttempt: new Map([[ids.attempt, [
-          { questionId: ids.question1, selectedOptionId: ids.option1Correct, isCorrect: false },
-          { questionId: ids.question2, selectedOptionId: ids.option2Wrong, isCorrect: true },
-        ]]]),
+        answersByAttempt: new Map([[ids.attempt, [{ questionId: ids.question1, selectedOptionId: ids.option1Wrong, isCorrect: false }]]]),
+        reviewQueue: [{ questionId: ids.question2, dueAt: new Date("2026-01-02T00:00:00.000Z"), status: "active" }],
       }),
       accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
     });
@@ -591,9 +684,9 @@ describe("CertDrill service", () => {
     expect(result.questions.map((question) => question.id)).toEqual([ids.question2]);
   });
 
-  it("returns a specific error when missed question review has no missed history", async () => {
+  it("returns a specific error when no review questions are due", async () => {
     const service = createCertDrillService({
-      db: createAttemptDb({ attempts: [], answersByAttempt: new Map() }),
+      db: createAttemptDb({ reviewQueue: [] }),
       accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
     });
 
@@ -604,7 +697,7 @@ describe("CertDrill service", () => {
       confidenceEnabled: false,
     })).rejects.toMatchObject({
       code: "CERTDRILL_NO_MISSED_QUESTIONS",
-      message: "No missed questions are available yet. Answer questions incorrectly first, then try this review.",
+      message: "No review questions are due right now.",
     });
   });
 
@@ -621,7 +714,7 @@ describe("CertDrill service", () => {
       confidenceEnabled: false,
     })).rejects.toMatchObject({
       code: "CERTDRILL_NO_WEAK_AREAS",
-      message: "No weak areas are available yet. Complete at least one attempt with answered questions first.",
+      message: "No recent weak areas are available. Complete more practice questions first.",
     });
   });
 
@@ -735,6 +828,31 @@ describe("CertDrill service", () => {
     ]);
   });
 
+  it("calculates weak areas from only the ten most recent completed attempts", async () => {
+    const recentAttempts = Array.from({ length: 10 }, (_, index) => ({
+      id: `recent-${index}`,
+      status: "completed",
+      startedAt: new Date(`2026-02-${String(20 - index).padStart(2, "0")}T00:00:00.000Z`),
+      questionSnapshotJson: snapshot,
+    }));
+    const oldAttempt = { id: "old-attempt", status: "completed", startedAt: new Date("2025-01-01T00:00:00.000Z"), questionSnapshotJson: snapshot };
+    const answersByAttempt = new Map<string, unknown[]>([
+      ...recentAttempts.map((attempt) => [attempt.id, [{ questionId: ids.question1, selectedOptionId: ids.option1Correct }]] as [string, unknown[]]),
+      [oldAttempt.id, Array.from({ length: 20 }, () => ({ questionId: ids.question1, selectedOptionId: ids.option1Wrong }))],
+    ]);
+    const service = createCertDrillService({
+      db: createAttemptDb({ attempts: [...recentAttempts, oldAttempt], answersByAttempt }),
+      accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }),
+    });
+
+    await expect(service.createAttempt(ids.user, {
+      certificationId: ids.cert,
+      testMode: "practice",
+      testVariant: "weak_areas",
+      confidenceEnabled: false,
+    })).rejects.toMatchObject({ code: "CERTDRILL_NO_WEAK_AREAS" });
+  });
+
   it("answers from the snapshot and stores snapshot-derived correctness", async () => {
     const writes: unknown[] = [];
     const guardedUpdates: unknown[] = [];
@@ -772,6 +890,7 @@ describe("CertDrill service", () => {
       examAttemptId: ids.attempt,
       questionId: ids.question1,
       selectedOptionId: ids.option1Correct,
+      responseJson: { type: "single_choice", selectedOptionId: ids.option1Correct },
       isCorrect: true,
     });
     expect(guardedUpdates[0]).toMatchObject({ updatedAt: expect.any(Date) });
@@ -997,6 +1116,8 @@ describe("CertDrill service", () => {
           id: ids.question1,
           stem: "Question 1",
           mediaAssets: [],
+          questionType: "single_choice",
+          interaction: null,
           category: { id: ids.parentCategory, code: "D1", name: "Domain 1" },
           options: [
             { id: ids.option1Correct, text: "Correct 1", mediaAssets: [] },
@@ -1007,6 +1128,8 @@ describe("CertDrill service", () => {
           id: ids.question2,
           stem: "Question 2",
           mediaAssets: [],
+          questionType: "single_choice",
+          interaction: null,
           category: { id: ids.parentCategory, code: "D1", name: "Domain 1" },
           options: [
             { id: ids.option2Correct, text: "Correct 2", mediaAssets: [] },
@@ -1015,7 +1138,7 @@ describe("CertDrill service", () => {
         },
       ],
       recordedAnswers: [
-        { questionId: ids.question1, selectedOptionId: ids.option1Wrong, confidence: "guessed" },
+        { questionId: ids.question1, selectedOptionId: ids.option1Wrong, response: { type: "single_choice", selectedOptionId: ids.option1Wrong }, confidence: "guessed" },
       ],
     });
     expect(JSON.stringify(resume)).not.toContain("isCorrect");
@@ -1170,11 +1293,14 @@ describe("CertDrill service", () => {
       update: vi.fn(() => ({
         set: vi.fn((value: unknown) => {
           txUpdates.push(value);
-          operations.push((value as { scorePct?: string }).scorePct ? "final-complete" : "claim-submit");
+          const mutation = value as { scorePct?: string | null; status?: string };
+          operations.push("scorePct" in mutation
+            ? mutation.scorePct ? "final-complete" : "claim-submit"
+            : "complete-review");
           return {
             where: vi.fn(() => ({
               returning: vi.fn().mockResolvedValue(
-                (value as { scorePct?: string }).scorePct
+                "scorePct" in mutation && mutation.scorePct
                   ? [{ id: ids.attempt }]
                   : [{ id: ids.attempt, certificationId: ids.cert, questionSnapshotJson: snapshot }],
               ),
@@ -1198,7 +1324,7 @@ describe("CertDrill service", () => {
     const result = await service.submitAttempt(ids.user, ids.attempt);
 
     expect(db.transaction).toHaveBeenCalledOnce();
-    expect(operations).toEqual(["claim-submit", "read-answers", "final-complete"]);
+    expect(operations).toEqual(["claim-submit", "read-answers", "final-complete", "complete-review"]);
     expect(txUpdates[0]).toMatchObject({ status: "completed", scorePct: null });
     expect(result.scorePct).toBe(50);
     expect(db.update).not.toHaveBeenCalled();
@@ -1323,6 +1449,33 @@ describe("CertDrill service", () => {
     expect(conflictDebug).toContain("status");
     expect(conflictDebug).toContain("updated_at");
     vi.useRealTimers();
+  });
+
+  it("completes active review items after a confident correct answer", async () => {
+    const updates: unknown[] = [];
+    const service = createCertDrillService({
+      db: {
+        query: {
+          certdrillExamAttempts: { findFirst: vi.fn().mockResolvedValue({ id: ids.attempt, userId: ids.user, certificationId: ids.cert, status: "in_progress", questionSnapshotJson: snapshot }) },
+          certdrillCertifications: { findFirst: vi.fn().mockResolvedValue({ id: ids.cert, passThresholdPct: 70 }) },
+          certdrillExamAttemptAnswers: { findMany: vi.fn().mockResolvedValue([
+            { questionId: ids.question1, selectedOptionId: ids.option1Correct, isCorrect: true, confidence: "confident" },
+            { questionId: ids.question2, selectedOptionId: ids.option2Correct, isCorrect: true, confidence: "confident" },
+          ]) },
+        },
+        update: updateReturningRows(updates, [{ id: ids.attempt }]),
+        insert: reviewQueueInsert([], []),
+      },
+      accessProvider: createStaticCertificationAccessProvider({}),
+    });
+
+    await service.submitAttempt(ids.user, ids.attempt);
+
+    expect(updates).toHaveLength(3);
+    expect(updates.slice(1)).toEqual([
+      expect.objectContaining({ status: "completed", updatedAt: expect.any(Date) }),
+      expect.objectContaining({ status: "completed", updatedAt: expect.any(Date) }),
+    ]);
   });
 
   it("lists active due review queue rows for a user", async () => {
@@ -1794,6 +1947,35 @@ describe("CertDrill service", () => {
     })).rejects.toMatchObject({ code: "CERTDRILL_QUESTION_NOT_FOUND" });
     expect(insert).not.toHaveBeenCalled();
   });
+  it("adds configured scored scenarios to exam simulations", async () => {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const scenario = scoredScenario();
+    const db = createAttemptDb({ examSimulationQuestionCount: 1, examSimulationScenarioCount: 1, scenarios: [scenario], insertedValues });
+    const service = createCertDrillService({ db, accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }), rng: () => 0 });
+
+    const attempt = await service.createAttempt(ids.user, { certificationId: ids.cert, testMode: "exam", testVariant: "exam_simulation", confidenceEnabled: false });
+
+    expect(attempt.scenarios).toHaveLength(1);
+    expect(attempt.scenarios?.[0]?.nodes[0]?.options[0]).not.toHaveProperty("points");
+    expect(insertedValues[0]).toMatchObject({ scenarioIds: [ids.scenario], snapshotVersion: 2 });
+  });
+
+  it("loads fixed published scenario assignments for final mock exams", async () => {
+    const insertedValues: Array<Record<string, unknown>> = [];
+    const db = createAttemptDb({
+      scenarios: [scoredScenario()],
+      scenarioAssignments: [{ examFormId: ids.examForm, scenarioId: ids.scenario, sortOrder: 0 }],
+      examForms: [{ id: ids.examForm, certificationId: ids.cert, isActive: true, questionIds: [ids.question1], durationMinutes: 120 }],
+      insertedValues,
+    });
+    const service = createCertDrillService({ db, accessProvider: createStaticCertificationAccessProvider({ [ids.cert]: "purchased" }) });
+
+    const attempt = await service.createAttempt(ids.user, { certificationId: ids.cert, testMode: "exam", testVariant: "exam_form", examFormId: ids.examForm, confidenceEnabled: false });
+
+    expect(attempt.scenarios?.map((scenario) => scenario.id)).toEqual([ids.scenario]);
+    expect(insertedValues[0]).toMatchObject({ examFormId: ids.examForm, scenarioIds: [ids.scenario] });
+  });
+
 });
 
 type QueryChain = {
@@ -1875,14 +2057,18 @@ function createAttemptDb(input: {
   quickDrillQuestionCount?: number;
   categoryDrillQuestionCount?: number;
   examSimulationQuestionCount?: number | null;
+  examSimulationScenarioCount?: number;
   examSimulationDurationMinutes?: number;
   certification?: Record<string, unknown> | null;
   examForms?: unknown[];
   insertedValues?: unknown[];
   categories?: unknown[];
   questions?: ReturnType<typeof createQuestion>[];
-  attempts?: Array<{ id: string }>;
+  attempts?: Array<Record<string, unknown> & { id: string }>;
+  scenarios?: unknown[];
+  scenarioAssignments?: unknown[];
   answersByAttempt?: Map<string, unknown[]>;
+  reviewQueue?: unknown[];
 } = {}) {
   const insertedValues = input.insertedValues ?? [];
   const answerFallbacks = [...(input.answersByAttempt?.values() ?? [])];
@@ -1898,6 +2084,7 @@ function createAttemptDb(input: {
               categoryDrillQuestionCount: input.categoryDrillQuestionCount ?? 2,
               examSimulationQuestionCount: input.examSimulationQuestionCount ?? null,
               examSimulationDurationMinutes: input.examSimulationDurationMinutes ?? 120,
+              examSimulationScenarioCount: input.examSimulationScenarioCount ?? 0,
               passThresholdPct: 70,
             }
           : input.certification),
@@ -1905,6 +2092,9 @@ function createAttemptDb(input: {
       certdrillExamCategories: { findMany: vi.fn().mockResolvedValue(input.categories ?? [{ id: ids.parentCategory, parentCategoryId: null, weightPct: "100.00", drillQuestionCount: null }]) },
       certdrillQuestions: { findMany: vi.fn().mockResolvedValue(input.questions ?? createQuestions()) },
       certdrillExamForms: { findMany: vi.fn().mockResolvedValue(input.examForms ?? []) },
+      certdrillScenarios: { findMany: vi.fn().mockResolvedValue(input.scenarios ?? []) },
+      certdrillExamFormScenarios: { findMany: vi.fn().mockResolvedValue(input.scenarioAssignments ?? []) },
+      certdrillReviewQueue: { findMany: vi.fn().mockResolvedValue(input.reviewQueue ?? []) },
       certdrillExamAttempts: { findMany: vi.fn().mockResolvedValue(input.attempts ?? []) },
       certdrillExamAttemptAnswers: {
         findMany: vi.fn((query: unknown) => {
@@ -1925,6 +2115,25 @@ function createAttemptDb(input: {
         return { returning: vi.fn().mockResolvedValue([{ id: ids.attempt }]) };
       }),
     })),
+  };
+}
+
+function scoredScenario() {
+  return {
+    id: ids.scenario,
+    certificationId: ids.cert,
+    title: "Incident response",
+    description: null,
+    difficulty: "hard",
+    estimatedMinutes: 10,
+    status: "published",
+    contentJson: {
+      initialNodeKey: "start",
+      nodes: [{ key: "start", title: "Start", situation: "An alert fires.", evidence: [], options: [
+        { key: "contain", title: "Contain", description: "Contain it.", consequence: "Stopped.", points: 100, nextNodeKey: null },
+        { key: "wait", title: "Wait", description: "Wait.", consequence: "Spread.", points: 0, nextNodeKey: null },
+      ] }],
+    },
   };
 }
 

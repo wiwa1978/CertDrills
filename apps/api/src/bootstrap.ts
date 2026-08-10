@@ -47,6 +47,16 @@ import {
   createFoundryBlueprintParser,
   type BlueprintParser,
 } from "./modules/certdrill/blueprint-parser";
+import {
+  createFoundryQuestionGenerator,
+  QuestionGeneratorError,
+  type QuestionGenerator,
+} from "./modules/certdrill/question-generator";
+import {
+  createFoundryScenarioGenerator,
+  ScenarioGeneratorError,
+  type ScenarioGenerator,
+} from "./modules/certdrill/scenario-generator";
 import { createCertDrillService } from "./modules/certdrill/service";
 
 const adminAllowlist = new Set(
@@ -165,7 +175,14 @@ const paymentWebhookEventStore = createPaymentWebhookEventStore({ db });
 const webhookRecoveryService = createWebhookRecoveryService({ db });
 const certdrillAccessProvider = createAllPurchasedCertificationAccessProvider();
 const certdrillBlueprintParser = createCertDrillBlueprintParser();
-const certdrillAdminService = createCertDrillAdminService({ db, blueprintParser: certdrillBlueprintParser });
+const certdrillQuestionGenerator = createCertDrillQuestionGenerator();
+const certdrillScenarioGenerator = createCertDrillScenarioGenerator();
+const certdrillAdminService = createCertDrillAdminService({
+  db,
+  blueprintParser: certdrillBlueprintParser,
+  questionGenerator: certdrillQuestionGenerator,
+  scenarioGenerator: certdrillScenarioGenerator,
+});
 const certdrillService = createCertDrillService({ db, accessProvider: certdrillAccessProvider });
 const jobsRunner = createJobsRunner({
   db,
@@ -193,7 +210,20 @@ const jobsRunner = createJobsRunner({
     {
       name: "certdrill-blueprint-parser",
       intervalSeconds: 30,
+      lockTimeoutSeconds: 900,
       handler: () => certdrillAdminService.processPendingBlueprintParseRuns(5),
+    },
+    {
+      name: "certdrill-question-generator",
+      intervalSeconds: 30,
+      lockTimeoutSeconds: 600,
+      handler: () => certdrillAdminService.processPendingQuestionGenerationJobs(3),
+    },
+    {
+      name: "certdrill-scenario-generator",
+      intervalSeconds: 30,
+      lockTimeoutSeconds: 900,
+      handler: () => certdrillAdminService.processPendingScenarioGenerationJobs(1),
     },
   ],
 });
@@ -216,6 +246,46 @@ function createCertDrillBlueprintParser(): BlueprintParser {
         "BLUEPRINT_PARSER_NOT_CONFIGURED",
         "Blueprint parser is not configured.",
       );
+    },
+  };
+}
+
+function createCertDrillQuestionGenerator(): QuestionGenerator {
+  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
+    return createFoundryQuestionGenerator({
+      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
+      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
+      model: env.AZURE_AI_FOUNDRY_MODEL,
+      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
+    });
+  }
+
+  return {
+    provider: "not-configured",
+    model: "not-configured",
+    async generate() {
+      throw new QuestionGeneratorError(
+        "QUESTION_GENERATOR_NOT_CONFIGURED",
+        "Question generator is not configured.",
+      );
+    },
+  };
+}
+
+function createCertDrillScenarioGenerator(): ScenarioGenerator {
+  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
+    return createFoundryScenarioGenerator({
+      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
+      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
+      model: env.AZURE_AI_FOUNDRY_MODEL,
+      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
+    });
+  }
+  return {
+    provider: "not-configured",
+    model: "not-configured",
+    async generate() {
+      throw new ScenarioGeneratorError("SCENARIO_GENERATOR_NOT_CONFIGURED", "Scenario generator is not configured.");
     },
   };
 }

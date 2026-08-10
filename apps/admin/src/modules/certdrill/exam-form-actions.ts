@@ -7,6 +7,7 @@ import {
   createCertDrillAdminExamFormServer,
   regenerateCertDrillAdminExamFormServer,
   replaceCertDrillAdminExamFormQuestionServer,
+  setCertDrillAdminExamFormScenariosServer,
   setCertDrillAdminExamFormActiveServer,
   updateCertDrillAdminExamFormMetadataServer,
 } from "@/lib/api/certdrill.server";
@@ -89,6 +90,17 @@ export async function setCertDrillExamFormActiveAction(_state: ExamFormActionSta
   const examFormId = value(formData, "examFormId");
   try {
     await setCertDrillAdminExamFormActiveServer(examFormId, value(formData, "isActive") === "true");
+    revalidateExamForm(certificationId, examFormId);
+    return { status: "success", fieldErrors: {} };
+  } catch (error) { return examFormActionError(error); }
+}
+
+export async function setCertDrillExamFormScenariosAction(_state: ExamFormActionState, formData: FormData): Promise<ExamFormActionState> {
+  const certificationId = value(formData, "certificationId");
+  const examFormId = value(formData, "examFormId");
+  const scenarioIds = [...new Set(formData.getAll("scenarioIds").filter((entry): entry is string => typeof entry === "string" && entry.length > 0))];
+  try {
+    await setCertDrillAdminExamFormScenariosServer(examFormId, scenarioIds);
     revalidateExamForm(certificationId, examFormId);
     return { status: "success", fieldErrors: {} };
   } catch (error) { return examFormActionError(error); }

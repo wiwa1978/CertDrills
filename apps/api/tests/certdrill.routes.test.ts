@@ -309,7 +309,7 @@ describe("CertDrill routes", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, data: { isCorrect: true } });
-    expect(service.answerQuestion).toHaveBeenCalledWith(userId, attemptId, body);
+    expect(service.answerQuestion).toHaveBeenCalledWith(userId, attemptId, { ...body, type: "single_choice" });
   });
 
   it("delegates question feedback with authenticated user id and path question id", async () => {

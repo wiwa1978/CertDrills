@@ -10,13 +10,16 @@ const apiSource = readFileSync(new URL("../../src/lib/api/certdrill.server.ts", 
 const examsPageSource = readFileSync(new URL("../../src/app/[locale]/(backend)/exams/page.tsx", import.meta.url), "utf8");
 
 describe("CertDrill mode copy", () => {
-  it("shows the approved practice and exam options", () => {
-    expect(source).toContain("Quick Drill");
-    expect(source).toContain("Category Drill");
-    expect(source).toContain("Missed Questions Review");
-    expect(source).toContain("Weak Areas Drill");
-    expect(source).toContain("Exam Simulation");
-    expect(source).toContain("Exam Form");
+  it("guides candidates through three simple training steps", () => {
+    expect(source).toContain('stage="Step 1" title="Learn and explore"');
+    expect(source).toContain('stage="Step 2" title="Strengthen knowledge"');
+    expect(source).toContain('title="Repair knowledge"');
+    expect(source).toContain('title="Improve coverage"');
+    expect(source).toContain('stage="Step 3" title="Exam readiness"');
+    expect(source).toContain('title="Exam Simulation"');
+    expect(source).toContain("Final Exam");
+    expect(source).toContain("fresh questions");
+    expect(source).toContain("scored scenarios");
   });
 
   it("marks selectable mode and confidence buttons as pressed for assistive tech", () => {

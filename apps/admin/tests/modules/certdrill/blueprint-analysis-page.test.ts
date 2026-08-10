@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CertDrillAdminCertification,
   CertDrillAdminResource,
+  CertDrillAdminQuestion,
   CertDrillBlueprintParseRun,
 } from "@/lib/api/certdrill.server";
 import type { CertDrillCertificationListItem } from "@platform/contracts";
@@ -15,9 +16,12 @@ const {
   listCertDrillAdminCategoriesServer,
   listCertDrillAdminCertificationsServer,
   listCertDrillAdminExamFormsServer,
+  listCertDrillAdminQuestionGenerationJobsServer,
+  listCertDrillAdminScenarioGenerationJobsServer,
   listCertDrillAdminQuestionFeedbackServer,
   listCertDrillAdminQuestionsServer,
   listCertDrillAdminResourcesServer,
+  listCertDrillAdminScenariosServer,
   listCertDrillAdminVendorsServer,
 } = vi.hoisted(() => ({
   getCertDrillCertificationsServer: vi.fn(),
@@ -25,9 +29,12 @@ const {
   listCertDrillAdminCategoriesServer: vi.fn(),
   listCertDrillAdminCertificationsServer: vi.fn(),
   listCertDrillAdminExamFormsServer: vi.fn(),
+  listCertDrillAdminQuestionGenerationJobsServer: vi.fn(),
+  listCertDrillAdminScenarioGenerationJobsServer: vi.fn(),
   listCertDrillAdminQuestionFeedbackServer: vi.fn(),
   listCertDrillAdminQuestionsServer: vi.fn(),
   listCertDrillAdminResourcesServer: vi.fn(),
+  listCertDrillAdminScenariosServer: vi.fn(),
   listCertDrillAdminVendorsServer: vi.fn(),
 }));
 
@@ -53,9 +60,12 @@ vi.mock("@/lib/api/certdrill.server", () => ({
   listCertDrillAdminCategoriesServer,
   listCertDrillAdminCertificationsServer,
   listCertDrillAdminExamFormsServer,
+  listCertDrillAdminQuestionGenerationJobsServer,
+  listCertDrillAdminScenarioGenerationJobsServer,
   listCertDrillAdminQuestionFeedbackServer,
   listCertDrillAdminQuestionsServer,
   listCertDrillAdminResourcesServer,
+  listCertDrillAdminScenariosServer,
   listCertDrillAdminVendorsServer,
 }));
 
@@ -65,16 +75,16 @@ vi.mock("@/modules/certdrill/admin-actions", () => ({
   archiveCertDrillQuestionAction: vi.fn(),
   createCertDrillCategoryAction: vi.fn(),
   createCertDrillCertificationAction: vi.fn(),
-  createCertDrillMockGenerationAction: vi.fn(),
   createCertDrillQuestionAction: vi.fn(),
-  createCertDrillResourceAction: vi.fn(),
-  ingestCertDrillResourceAction: vi.fn(),
   publishCertDrillQuestionAction: vi.fn(),
+  publishSelectedCertDrillQuestionsAction: vi.fn(),
+  unpublishSelectedCertDrillQuestionsAction: vi.fn(),
+  setSelectedCertDrillQuestionsPracticeAction: vi.fn(),
+  setSelectedCertDrillQuestionsAssessmentAction: vi.fn(),
   updateCertDrillCategoryAction: vi.fn(),
   updateCertDrillCertificationAction: vi.fn(),
   updateCertDrillQuestionAction: vi.fn(),
   updateCertDrillQuestionFeedbackAction: vi.fn(),
-  updateCertDrillResourceAction: vi.fn(),
 }));
 
 vi.mock("@/modules/certdrill/question-filter-bar", () => ({
@@ -100,22 +110,32 @@ vi.mock("@/modules/certdrill/exam-form-list", () => ({
   ExamFormList: () => createElement("div", { "data-testid": "exam-form-list" }),
 }));
 
-vi.mock("@/modules/certdrill/blueprint-analysis-control", () => ({
-  BlueprintAnalysisControl: ({
+vi.mock("@/modules/certdrill/question-generation-control", () => ({
+  QuestionGenerationControl: ({ certificationId }: { certificationId: string }) => createElement("div", {
+    "data-testid": "question-generation-control",
+    "data-certification-id": certificationId,
+  }),
+  QuestionGenerationStatusBanner: () => createElement("div", { "data-testid": "question-generation-status-banner" }),
+}));
+
+vi.mock("@/modules/certdrill/scenario-admin", () => ({
+  ScenarioAdmin: () => createElement("div", { "data-testid": "scenario-admin" }),
+}));
+
+vi.mock("@/modules/certdrill/category-discovery-control", () => ({
+  CategoryDiscoveryControl: ({
     certificationId,
-    resource,
+    defaultUrl,
     initialRun,
   }: {
     certificationId: string;
-    resource: CertDrillAdminResource;
+    defaultUrl?: string;
     initialRun?: CertDrillBlueprintParseRun;
   }) => createElement("div", {
-    "data-testid": "blueprint-analysis-control",
+    "data-testid": "category-discovery-control",
     "data-certification-id": certificationId,
-    "data-resource-id": resource.id,
+    "data-default-url": defaultUrl ?? "",
     "data-run-id": initialRun?.id ?? "",
-    "data-run-created-at": initialRun?.createdAt ?? "",
-    "data-run-updated-at": initialRun?.updatedAt ?? "",
   }),
 }));
 
@@ -152,6 +172,20 @@ function createAdminCertification(): CertDrillAdminCertification {
     enabledAt: null,
     logoUrl: null,
   } as unknown as CertDrillAdminCertification;
+}
+
+function createQuestion(questionType?: CertDrillAdminQuestion["questionType"]): CertDrillAdminQuestion {
+  return {
+    id: `question-${questionType ?? "legacy"}`,
+    certificationId: "cert-1",
+    categoryId: "category-1",
+    stem: `A ${questionType ?? "legacy"} question`,
+    questionType,
+    status: "draft",
+    deliveryPurpose: "practice",
+    difficulty: "medium",
+    options: [],
+  } as CertDrillAdminQuestion;
 }
 
 function createResource(overrides: Partial<CertDrillAdminResource> = {}): CertDrillAdminResource {
@@ -203,38 +237,64 @@ describe("CertDrillAdminPage blueprint analysis integration", () => {
     listCertDrillAdminCategoriesServer.mockReset();
     listCertDrillAdminCertificationsServer.mockReset();
     listCertDrillAdminExamFormsServer.mockReset();
+    listCertDrillAdminQuestionGenerationJobsServer.mockReset();
     listCertDrillAdminQuestionFeedbackServer.mockReset();
     listCertDrillAdminQuestionsServer.mockReset();
     listCertDrillAdminResourcesServer.mockReset();
+    listCertDrillAdminScenariosServer.mockReset();
     listCertDrillAdminVendorsServer.mockReset();
 
     getCertDrillCertificationsServer.mockResolvedValue([]);
     listCertDrillAdminCategoriesServer.mockResolvedValue([]);
     listCertDrillAdminCertificationsServer.mockResolvedValue([createAdminCertification()]);
     listCertDrillAdminExamFormsServer.mockResolvedValue([]);
+    listCertDrillAdminQuestionGenerationJobsServer.mockResolvedValue([]);
+    listCertDrillAdminScenarioGenerationJobsServer.mockResolvedValue([]);
     listCertDrillAdminQuestionFeedbackServer.mockResolvedValue([]);
     listCertDrillAdminQuestionsServer.mockResolvedValue([]);
     listCertDrillAdminResourcesServer.mockResolvedValue([]);
+    listCertDrillAdminScenariosServer.mockResolvedValue([]);
     listCertDrillAdminVendorsServer.mockResolvedValue([]);
     listCertDrillAdminBlueprintParseRunsServer.mockResolvedValue([]);
   });
 
-  it("does not load blueprint parse runs on the overview page", async () => {
+  it("does not load category discovery history on the overview page", async () => {
     const markup = await renderPage({
       certifications: [createCatalogCertification()],
-      selectedTab: "resources",
+      selectedTab: "categories",
     });
 
     expect(listCertDrillAdminBlueprintParseRunsServer).not.toHaveBeenCalled();
-    expect(markup).toContain("No resources yet.");
-    expect(markup).not.toContain('data-testid="blueprint-analysis-control"');
+    expect(markup).not.toContain('data-testid="category-discovery-control"');
   });
 
-  it("loads blueprint parse runs only for a selected certification and passes each resource its newest run", async () => {
+  it("shows totals for every question interaction type", async () => {
+    listCertDrillAdminQuestionsServer.mockResolvedValue([
+      createQuestion(),
+      createQuestion("single_choice"),
+      createQuestion("matching"),
+      createQuestion("fill_blank"),
+      { ...createQuestion("fill_blank"), id: "question-fill-blank-2" },
+    ]);
+
+    const markup = await renderPage({
+      certifications: [createCatalogCertification()],
+      selectedCertificationId: "cert-1",
+      selectedTab: "questions",
+    });
+
+    const countsMarkup = markup.match(/<section aria-label="Question counts"[\s\S]*?<\/section>/)?.[0];
+    expect(countsMarkup).toBeDefined();
+    expect(countsMarkup).toMatch(/Normal questions[\s\S]*?text-2xl font-bold">2/);
+    expect(countsMarkup).toMatch(/Drag and drop[\s\S]*?text-2xl font-bold">1/);
+    expect(countsMarkup).toMatch(/Fill in the gap[\s\S]*?text-2xl font-bold">2/);
+  });
+
+  it("places one discovery control on Categories with the newest run and source URL", async () => {
     listCertDrillAdminResourcesServer.mockResolvedValue([
-      createResource({ id: "resource-1", title: "Resource one" }),
-      createResource({ id: "resource-2", title: "Resource two" }),
-      createResource({ id: "resource-3", title: "Resource three" }),
+      createResource({ id: "resource-1", title: "Resource one", url: "https://example.com/one" }),
+      createResource({ id: "resource-2", title: "Resource two", url: "https://example.com/two" }),
+      createResource({ id: "resource-3", title: "Resource three", url: "https://example.com/three" }),
     ]);
     listCertDrillAdminBlueprintParseRunsServer.mockResolvedValue([
       createRun({
@@ -245,18 +305,6 @@ describe("CertDrillAdminPage blueprint analysis integration", () => {
       }),
       createRun({
         id: "run-newest",
-        resourceId: "resource-1",
-        createdAt: "2026-08-07T10:01:00.000Z",
-        updatedAt: "2026-08-07T10:01:30.000Z",
-      }),
-      createRun({
-        id: "run-tie-a",
-        resourceId: "resource-2",
-        createdAt: "2026-08-07T10:02:00.000Z",
-        updatedAt: "2026-08-07T10:03:00.000Z",
-      }),
-      createRun({
-        id: "run-tie-b",
         resourceId: "resource-2",
         createdAt: "2026-08-07T10:02:00.000Z",
         updatedAt: "2026-08-07T10:03:00.000Z",
@@ -266,14 +314,13 @@ describe("CertDrillAdminPage blueprint analysis integration", () => {
     const markup = await renderPage({
       certifications: [createCatalogCertification()],
       selectedCertificationId: "cert-1",
-      selectedTab: "resources",
+      selectedTab: "categories",
     });
 
     expect(listCertDrillAdminBlueprintParseRunsServer).toHaveBeenCalledTimes(1);
     expect(listCertDrillAdminBlueprintParseRunsServer).toHaveBeenCalledWith("cert-1");
-    expect(markup).toContain('data-testid="blueprint-analysis-control"');
-    expect(markup).toContain('data-resource-id="resource-1" data-run-id="run-newest"');
-    expect(markup).toContain('data-resource-id="resource-2" data-run-id="run-tie-b"');
-    expect(markup).toContain('data-resource-id="resource-3" data-run-id=""');
+    expect(markup.match(/data-testid="category-discovery-control"/g)).toHaveLength(1);
+    expect(markup).toContain('data-default-url="https://example.com/two"');
+    expect(markup).toContain('data-run-id="run-newest"');
   });
 });

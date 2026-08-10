@@ -9,6 +9,10 @@ import { serverApiRequest } from "./client.server";
 
 type SuccessResult<T> = { success: boolean; data: T };
 type Nullable<T> = T | null;
+export type CertDrillAdminProgressResetResult = {
+  deletedAttemptCount: number;
+  deletedReviewItemCount: number;
+};
 
 const CERTDRILL_ADMIN_BASE_PATH = "/api/admin/certdrill";
 
@@ -24,6 +28,7 @@ export type CertDrillAdminCertificationInput = {
   quickDrillQuestionCount?: number;
   categoryDrillQuestionCount?: number;
   examSimulationQuestionCount?: Nullable<number>;
+  examSimulationScenarioCount?: number;
   examSimulationDurationMinutes?: number;
   passThresholdPct?: number;
   isActive?: boolean;
@@ -41,6 +46,8 @@ export type CertDrillAdminCategoryInput = {
   code: string;
   name: string;
   weightPct?: Nullable<string | number>;
+  weightMinPct?: Nullable<string | number>;
+  weightMaxPct?: Nullable<string | number>;
   drillQuestionCount?: Nullable<number>;
   sortOrder?: number;
 };
@@ -62,14 +69,22 @@ export type CertDrillAdminQuestionOptionInput = {
   citationUrls?: string[];
   sortOrder?: number;
 };
+export type CertDrillAdminQuestionType = "single_choice" | "fill_blank" | "matching";
+export type CertDrillAdminQuestionInteraction =
+  | { type: "fill_blank"; acceptedAnswers: string[]; explanation: string; citationUrls: string[] }
+  | { type: "matching"; pairs: Array<{ promptId: string; targetId: string; prompt: string; target: string; explanation: string; citationUrls: string[] }> };
+
 
 export type CertDrillAdminQuestionInput = {
   certificationId: string;
   categoryId: string;
   stem: string;
+  questionType?: CertDrillAdminQuestionType;
+  interactionJson?: Nullable<CertDrillAdminQuestionInteraction>;
   mediaAssets?: CertDrillAdminMediaAssetInput[];
   difficulty?: CertDrillDifficulty;
   status?: "draft" | "published" | "archived";
+  deliveryPurpose?: "practice" | "assessment" | "both";
   createdBy?: "ai" | "admin";
   sourceResourceId?: Nullable<string>;
   generationJobId?: Nullable<string>;
@@ -77,6 +92,14 @@ export type CertDrillAdminQuestionInput = {
 };
 
 export type CertDrillAdminQuestionUpdateInput = Partial<Omit<CertDrillAdminQuestionInput, "certificationId" | "createdBy">>;
+export type CertDrillAdminQuestionBulkStatusInput = {
+  questionIds: string[];
+  status: "draft" | "published";
+};
+export type CertDrillAdminQuestionBulkDeliveryPurposeInput = {
+  questionIds: string[];
+  deliveryPurpose: "practice" | "assessment";
+};
 export type CertDrillAdminQuestion = CertDrillAdminQuestionInput & { id: string };
 export type CertDrillAdminQuestionIndexSort = "stem-asc" | "stem-desc";
 export type CertDrillAdminQuestionIndexQuery = {
@@ -102,6 +125,7 @@ export type CertDrillAdminQuestionIndexItem = {
   questionId: string;
   stem: string;
   status: NonNullable<CertDrillAdminQuestion["status"]>;
+  deliveryPurpose: NonNullable<CertDrillAdminQuestion["deliveryPurpose"]>;
   difficulty: CertDrillDifficulty;
   certificationId: string;
   certificationCode: string;
@@ -150,6 +174,46 @@ export type CertDrillAdminExamFormCreateInput = {
 export type CertDrillAdminExamFormMetadataInput = { name?: string; durationMinutes?: number };
 export type CertDrillAdminExamFormRegenerateInput = { targetQuestionCount: number; expectedAssignmentVersion: number };
 export type CertDrillAdminExamFormReplaceInput = { currentQuestionId: string; replacementQuestionId: string; expectedAssignmentVersion: number };
+export type CertDrillAdminScenarioOption = {
+  key: string;
+  title: string;
+  description: string;
+  consequence: string;
+  points?: number;
+  nextNodeKey: Nullable<string>;
+};
+export type CertDrillAdminScenarioNode = {
+  key: string;
+  title: string;
+  situation: string;
+  evidence: string[];
+  options: CertDrillAdminScenarioOption[];
+};
+export type CertDrillAdminScenarioContent = {
+  initialNodeKey: string;
+  nodes: CertDrillAdminScenarioNode[];
+};
+export type CertDrillAdminScenarioInput = {
+  certificationId: string;
+  title: string;
+  description: Nullable<string>;
+  difficulty: "easy" | "medium" | "hard";
+  estimatedMinutes: number;
+  contentJson: CertDrillAdminScenarioContent;
+};
+export type CertDrillAdminScenario = CertDrillAdminScenarioInput & {
+  id: string;
+  status: "draft" | "validated" | "published" | "archived";
+  validatedAt: Nullable<string>;
+  examFormIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+export type CertDrillAdminScenarioBulkStatusInput = {
+  scenarioIds: string[];
+  status: "draft" | "published";
+};
+
 export type CertDrillAdminExamForm = {
   id: string;
   certificationId: string;
@@ -162,6 +226,7 @@ export type CertDrillAdminExamForm = {
   questionIds: string[];
   assignmentVersion: number;
   allocationSnapshot: CertDrillAdminExamFormAllocation[];
+  scenarioIds: string[];
   generatedAt: string;
 };
 
@@ -223,19 +288,63 @@ export type CertDrillBlueprintParseRun = {
   updatedAt: string;
 };
 
-export type CertDrillAdminMockGenerationInput = {
-  certificationId: string;
-  categoryId: string;
-  prompt: string;
-  topic?: Nullable<string>;
-  requestedCount?: number;
-  resourceIds?: string[];
+export type CertDrillQuestionGenerationInput = {
+  categoryId: Nullable<string>;
+  resourceIds: string[];
+  sourceUrls: string[];
+  requestedCount: number;
+  focus: Nullable<string>;
+  systemInstructions: Nullable<string>;
+  instructions: Nullable<string>;
+  questionTypes: Array<"single_choice" | "fill_blank" | "matching">;
+  difficultyMix: { easy: number; medium: number; hard: number };
+  deliveryPurpose: "practice" | "assessment";
 };
 
-export type CertDrillAdminMockGenerationJob = {
-  job: unknown;
-  generatedQuestions: CertDrillAdminQuestion[];
+export type CertDrillQuestionGenerationJob = {
+  id: string;
+  certificationId: string;
+  categoryId: Nullable<string>;
+  resourceIds: string[];
+  requestedCount: number;
+  provider: string;
+  status: "pending" | "running" | "completed" | "failed";
+  modelUsed: Nullable<string>;
+  generatedCount: Nullable<number>;
+  errorMessage: Nullable<string>;
+  startedAt: Nullable<string>;
+  completedAt: Nullable<string>;
+  createdAt: string;
+  updatedAt: string;
 };
+export type CertDrillScenarioGenerationInput = {
+  resourceIds: string[];
+  sourceUrls: string[];
+  requestedCount: number;
+  difficulty: "easy" | "medium" | "hard";
+  focus: Nullable<string>;
+  instructions: Nullable<string>;
+};
+
+export type CertDrillScenarioGenerationJob = {
+  id: string;
+  certificationId: string;
+  resourceIds: string[];
+  requestedCount: number;
+  difficulty: "easy" | "medium" | "hard";
+  focus: Nullable<string>;
+  instructions: Nullable<string>;
+  provider: string;
+  modelUsed: string;
+  status: "pending" | "running" | "completed" | "failed";
+  generatedCount: Nullable<number>;
+  errorMessage: Nullable<string>;
+  startedAt: Nullable<string>;
+  completedAt: Nullable<string>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 
 export type CertDrillAdminQuestionFeedback = {
   id: string;
@@ -277,7 +386,7 @@ type CertDrillAdminQuestionIndexApiResult = {
   };
 };
 
-function jsonRequestInit(method: "POST" | "PATCH", payload: unknown): RequestInit {
+function jsonRequestInit(method: "POST" | "PATCH" | "PUT", payload: unknown): RequestInit {
   return {
     method,
     body: JSON.stringify(payload),
@@ -399,6 +508,18 @@ export async function publishCertDrillAdminQuestionServer(questionId: string): P
   return certdrillAdminRequest<CertDrillAdminQuestion>(`/questions/${questionId}/publish`, { method: "POST" });
 }
 
+export async function updateCertDrillAdminQuestionStatusesServer(
+  payload: CertDrillAdminQuestionBulkStatusInput,
+): Promise<CertDrillAdminQuestion[]> {
+  return certdrillAdminRequest<CertDrillAdminQuestion[]>("/questions/status", jsonRequestInit("PATCH", payload));
+}
+
+export async function updateCertDrillAdminQuestionDeliveryPurposesServer(
+  payload: CertDrillAdminQuestionBulkDeliveryPurposeInput,
+): Promise<CertDrillAdminQuestion[]> {
+  return certdrillAdminRequest<CertDrillAdminQuestion[]>("/questions/delivery-purpose", jsonRequestInit("PATCH", payload));
+}
+
 export type CertDrillAdminQuestionImportPreviewInput = {
   certificationId: string;
   document: unknown;
@@ -453,6 +574,39 @@ export async function setCertDrillAdminExamFormActiveServer(examFormId: string, 
   return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}/activation`, jsonRequestInit("PATCH", { isActive }));
 }
 
+export async function listCertDrillAdminScenariosServer(certificationId: string): Promise<CertDrillAdminScenario[]> {
+  return certdrillAdminRequest<CertDrillAdminScenario[]>(`/certifications/${certificationId}/scenarios`);
+}
+
+export async function createCertDrillAdminScenarioServer(payload: CertDrillAdminScenarioInput): Promise<CertDrillAdminScenario> {
+  return certdrillAdminRequest<CertDrillAdminScenario>("/scenarios", jsonRequestInit("POST", payload));
+}
+
+export async function updateCertDrillAdminScenarioServer(scenarioId: string, payload: Omit<CertDrillAdminScenarioInput, "certificationId">): Promise<CertDrillAdminScenario> {
+  return certdrillAdminRequest<CertDrillAdminScenario>(`/scenarios/${scenarioId}`, jsonRequestInit("PATCH", payload));
+}
+
+export async function archiveCertDrillAdminScenarioServer(scenarioId: string): Promise<CertDrillAdminScenario> {
+  return certdrillAdminRequest<CertDrillAdminScenario>(`/scenarios/${scenarioId}/archive`, jsonRequestInit("POST", {}));
+}
+
+export async function validateCertDrillAdminScenarioServer(scenarioId: string): Promise<CertDrillAdminScenario> {
+  return certdrillAdminRequest<CertDrillAdminScenario>(`/scenarios/${scenarioId}/validate`, jsonRequestInit("POST", {}));
+}
+
+export async function publishCertDrillAdminScenarioServer(scenarioId: string): Promise<CertDrillAdminScenario> {
+  return certdrillAdminRequest<CertDrillAdminScenario>(`/scenarios/${scenarioId}/publish`, jsonRequestInit("POST", {}));
+}
+
+export async function updateCertDrillAdminScenarioStatusesServer(payload: CertDrillAdminScenarioBulkStatusInput): Promise<CertDrillAdminScenario[]> {
+  return certdrillAdminRequest<CertDrillAdminScenario[]>("/scenarios/status", jsonRequestInit("PATCH", payload));
+}
+
+export async function setCertDrillAdminExamFormScenariosServer(examFormId: string, scenarioIds: string[]): Promise<CertDrillAdminExamForm> {
+  return certdrillAdminRequest<CertDrillAdminExamForm>(`/exam-forms/${examFormId}/scenarios`, jsonRequestInit("PUT", { scenarioIds }));
+}
+
+
 export async function listCertDrillAdminResourcesServer(certificationId: string): Promise<CertDrillAdminResource[]> {
   return certdrillAdminRequest<CertDrillAdminResource[]>(`/certifications/${certificationId}/resources`);
 }
@@ -477,13 +631,13 @@ export async function ingestCertDrillAdminResourceServer(resourceId: string): Pr
   return certdrillAdminRequest<CertDrillAdminResource>(`/resources/${resourceId}/ingest`, jsonRequestInit("POST", {}));
 }
 
-export async function startCertDrillAdminBlueprintParseRunServer(
+export async function startCertDrillAdminCategoryDiscoveryServer(
   certificationId: string,
-  resourceId: string,
+  url: string,
 ): Promise<CertDrillBlueprintParseRun> {
   const result = await certdrillAdminRequest<CertDrillBlueprintParseRunApi>(
-    `/certifications/${certificationId}/blueprint-parse-runs`,
-    jsonRequestInit("POST", { resourceId }),
+    `/certifications/${certificationId}/category-discoveries`,
+    jsonRequestInit("POST", { url }),
   );
   return toCertDrillBlueprintParseRun(result);
 }
@@ -493,11 +647,41 @@ export async function getCertDrillAdminBlueprintParseRunServer(runId: string): P
   return toCertDrillBlueprintParseRun(result);
 }
 
-export async function createCertDrillAdminMockGenerationJobServer(
-  payload: CertDrillAdminMockGenerationInput,
-): Promise<CertDrillAdminMockGenerationJob> {
-  return certdrillAdminRequest<CertDrillAdminMockGenerationJob>("/generation-jobs/mock", jsonRequestInit("POST", payload));
+export async function startCertDrillAdminQuestionGenerationServer(
+  certificationId: string,
+  payload: CertDrillQuestionGenerationInput,
+): Promise<CertDrillQuestionGenerationJob> {
+  return certdrillAdminRequest<CertDrillQuestionGenerationJob>(
+    `/certifications/${certificationId}/question-generation-jobs`,
+    jsonRequestInit("POST", payload),
+  );
 }
+
+export async function getCertDrillAdminQuestionGenerationJobServer(jobId: string): Promise<CertDrillQuestionGenerationJob> {
+  return certdrillAdminRequest<CertDrillQuestionGenerationJob>(`/question-generation-jobs/${jobId}`);
+}
+
+export async function listCertDrillAdminQuestionGenerationJobsServer(certificationId: string): Promise<CertDrillQuestionGenerationJob[]> {
+  return certdrillAdminRequest<CertDrillQuestionGenerationJob[]>(`/certifications/${certificationId}/question-generation-jobs`);
+}
+export async function startCertDrillAdminScenarioGenerationServer(
+  certificationId: string,
+  payload: CertDrillScenarioGenerationInput,
+): Promise<CertDrillScenarioGenerationJob> {
+  return certdrillAdminRequest<CertDrillScenarioGenerationJob>(
+    `/certifications/${certificationId}/scenario-generation-jobs`,
+    jsonRequestInit("POST", payload),
+  );
+}
+
+export async function getCertDrillAdminScenarioGenerationJobServer(jobId: string): Promise<CertDrillScenarioGenerationJob> {
+  return certdrillAdminRequest<CertDrillScenarioGenerationJob>(`/scenario-generation-jobs/${jobId}`);
+}
+
+export async function listCertDrillAdminScenarioGenerationJobsServer(certificationId: string): Promise<CertDrillScenarioGenerationJob[]> {
+  return certdrillAdminRequest<CertDrillScenarioGenerationJob[]>(`/certifications/${certificationId}/scenario-generation-jobs`);
+}
+
 
 export async function listCertDrillAdminQuestionFeedbackServer(): Promise<CertDrillAdminQuestionFeedback[]> {
   return certdrillAdminRequest<CertDrillAdminQuestionFeedback[]>("/question-feedback");
@@ -508,4 +692,8 @@ export async function updateCertDrillAdminQuestionFeedbackServer(
   payload: CertDrillAdminQuestionFeedbackUpdateInput,
 ): Promise<CertDrillAdminQuestionFeedback> {
   return certdrillAdminRequest<CertDrillAdminQuestionFeedback>(`/question-feedback/${feedbackId}`, jsonRequestInit("PATCH", payload));
+}
+
+export async function resetCertDrillAdminUserProgressServer(userId: string): Promise<CertDrillAdminProgressResetResult> {
+  return certdrillAdminRequest<CertDrillAdminProgressResetResult>(`/users/${encodeURIComponent(userId)}/progress`, { method: "DELETE" });
 }

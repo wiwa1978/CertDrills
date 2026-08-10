@@ -20,6 +20,7 @@ import { PurchaseHistoryTable } from "@/components/layout/backend/admin/shared/p
 import { formatDate } from "@/lib/utils";
 import { StatCard } from "@/components/layout/backend/shared/stat-card";
 import { CreditCard, Wallet, TrendingDown, DollarSign } from "lucide-react";
+import { CertDrillProgressResetCard } from "@/modules/certdrill/progress-reset-card";
 
 interface UserDetailPageProps {
   params: Promise<{
@@ -58,6 +59,8 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
       <Suspense fallback={<UserInfoHeaderSkeleton />}>
         <UserInfoHeader user={user} />
       </Suspense>
+
+      <CertDrillProgressResetCard userId={user.id} userName={user.name} />
 
       {/* Credit Stats Cards */}
       <div className="mb-6">

@@ -282,4 +282,39 @@ describe("question form validation", () => {
 
     expect(result).toEqual({ valid: true, fieldErrors: {} });
   });
+  it("accepts published fill-in questions with normalized answer aliases", () => {
+    const result = validateQuestionForm(questionFormData({
+      categoryId,
+      stem: "Complete the service name: Azure ____",
+      questionType: "fill_blank",
+      status: "published",
+      acceptedAnswers: "Role-Based Access Control\nRBAC",
+      interactionExplanation: "RBAC scopes permissions through role assignments.",
+      interactionCitationUrls: "https://example.com/rbac",
+    }));
+
+    expect(result).toEqual({ valid: true, fieldErrors: {} });
+  });
+
+  it("rejects duplicate normalized fill-in aliases", () => {
+    const result = validateQuestionForm(questionFormData({
+      categoryId,
+      stem: "Complete the acronym",
+      questionType: "fill_blank",
+      status: "draft",
+      acceptedAnswers: "RBAC\n rbac ",
+    }));
+
+    expect(result.fieldErrors.acceptedAnswers).toContain("Accepted answers must be unique after case and whitespace normalization.");
+  });
+
+  it("accepts a published matching question with two grounded pairs", () => {
+    const formData = questionFormData({ categoryId, stem: "Match each control", questionType: "matching", status: "published" });
+    for (const value of ["RBAC", "Policy"]) formData.append("matchingPrompts", value);
+    for (const value of ["Role assignments", "Compliance evaluation"]) formData.append("matchingTargets", value);
+    for (const value of ["RBAC uses roles.", "Policy evaluates resources."]) formData.append("matchingExplanations", value);
+    for (const value of ["https://example.com/rbac", "https://example.com/policy"]) formData.append("matchingCitationUrls", value);
+
+    expect(validateQuestionForm(formData)).toEqual({ valid: true, fieldErrors: {} });
+  });
 });

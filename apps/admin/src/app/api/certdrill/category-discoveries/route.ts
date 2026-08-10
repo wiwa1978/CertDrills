@@ -1,14 +1,14 @@
 import { z } from "zod";
 
-import { startCertDrillAdminBlueprintParseRunServer } from "@/lib/api/certdrill.server";
+import { startCertDrillAdminCategoryDiscoveryServer } from "@/lib/api/certdrill.server";
 import {
   blueprintAnalysisHelperErrorResponse,
   blueprintAnalysisInvalidRequestResponse,
-} from "./responses";
+} from "../blueprint-parse-runs/responses";
 
-const startBlueprintParseRunSchema = z.object({
+const startCategoryDiscoverySchema = z.object({
   certificationId: z.string().uuid(),
-  resourceId: z.string().uuid(),
+  url: z.string().url(),
 }).strict();
 
 export async function POST(request: Request) {
@@ -20,15 +20,15 @@ export async function POST(request: Request) {
     return blueprintAnalysisInvalidRequestResponse();
   }
 
-  const parsedBody = startBlueprintParseRunSchema.safeParse(body);
+  const parsedBody = startCategoryDiscoverySchema.safeParse(body);
   if (!parsedBody.success) {
     return blueprintAnalysisInvalidRequestResponse();
   }
 
   try {
-    const data = await startCertDrillAdminBlueprintParseRunServer(
+    const data = await startCertDrillAdminCategoryDiscoveryServer(
       parsedBody.data.certificationId,
-      parsedBody.data.resourceId,
+      parsedBody.data.url,
     );
 
     return Response.json({ success: true as const, data }, { status: 201 });

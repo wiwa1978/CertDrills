@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { certdrillQuestionInteractionSchema, certdrillQuestionTypeSchema } from "@platform/contracts";
 
 import { isSafeCitationUrl } from "./validation";
 
@@ -21,9 +22,12 @@ export const questionCreateSchema = z.object({
   certificationId: z.string().uuid(),
   categoryId: z.string().uuid(),
   stem: z.string().min(1),
+  questionType: certdrillQuestionTypeSchema.optional(),
+  interactionJson: certdrillQuestionInteractionSchema.nullable().optional(),
   mediaAssets: z.array(mediaAssetSchema).optional(),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   status: z.enum(["draft", "published", "archived"]).optional(),
+  deliveryPurpose: z.enum(["practice", "assessment", "both"]).optional(),
   createdBy: z.enum(["ai", "admin"]).optional(),
   sourceResourceId: z.string().uuid().nullable().optional(),
   generationJobId: z.string().uuid().nullable().optional(),

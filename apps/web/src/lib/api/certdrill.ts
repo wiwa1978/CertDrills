@@ -1,5 +1,7 @@
 import type {
   AnswerCertDrillQuestionRequest,
+  AnswerCertDrillScenarioRequest,
+  AnswerCertDrillScenarioResponse,
   AnswerCertDrillQuestionResponse,
   CreateCertDrillExamAttemptRequest,
   CreateCertDrillExamAttemptResponse,
@@ -34,6 +36,14 @@ export async function answerCertDrillQuestion(attemptId: string, input: AnswerCe
       method: "POST",
       body: JSON.stringify(input),
     }
+  );
+  return unwrapResult(result);
+}
+
+export async function answerCertDrillScenario(attemptId: string, input: AnswerCertDrillScenarioRequest) {
+  const result = await apiRequest<ApiResult<AnswerCertDrillScenarioResponse>>(
+    `/api/certdrill/exams/${encodeURIComponent(attemptId)}/scenarios`,
+    { method: "POST", body: JSON.stringify(input) },
   );
   return unwrapResult(result);
 }

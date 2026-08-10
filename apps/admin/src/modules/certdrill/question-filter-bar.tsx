@@ -36,7 +36,10 @@ export function QuestionFilterBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentQueryString = searchParams.toString();
-  const [search, setSearch] = useState(filters.questionSearch ?? "");
+  const serverSearch = filters.questionSearch ?? "";
+  const [searchState, setSearchState] = useState({ serverSearch, value: serverSearch });
+  const search = searchState.serverSearch === serverSearch ? searchState.value : serverSearch;
+  const setSearch = (value: string) => setSearchState({ serverSearch, value });
   const currentQueryParamsRef = useRef(new URLSearchParams(searchParams.toString()));
   const synchronizedQueryStringRef = useRef(currentQueryString);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,8 +67,9 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     params.delete("questionPage");
-    // One-shot import confirmation flag: it must not survive later question table navigation.
+    // One-shot import and generation confirmations must not survive later table navigation.
     params.delete("imported");
+    params.delete("generated");
     if (trimmedValue) {
       params.set(name, trimmedValue);
     } else {
@@ -78,7 +82,6 @@ export function QuestionFilterBar({
   }, [pathname, router]);
 
   useEffect(() => {
-    const serverSearch = filters.questionSearch ?? "";
     const matchingNavigationIndex = pendingSearchNavigationsRef.current
       .findIndex((navigation) => navigation.value === serverSearch);
 
@@ -93,11 +96,9 @@ export function QuestionFilterBar({
     hasLocalSearchChangeRef.current = false;
     searchNavigationVersionRef.current += 1;
     cancelSearchDebounce();
-    setSearch(serverSearch);
-  }, [cancelSearchDebounce, filters.questionSearch]);
+  }, [cancelSearchDebounce, serverSearch]);
 
   useEffect(() => {
-    const serverSearch = filters.questionSearch ?? "";
     if (search === serverSearch) {
       hasLocalSearchChangeRef.current = false;
       return;
@@ -123,7 +124,7 @@ export function QuestionFilterBar({
       clearTimeout(timeout);
       if (searchDebounceRef.current === timeout) searchDebounceRef.current = null;
     };
-  }, [filters.questionSearch, replaceFilter, search]);
+  }, [replaceFilter, search, serverSearch]);
 
   function clearFilters() {
     const params = new URLSearchParams(currentQueryParamsRef.current);
@@ -141,8 +142,9 @@ export function QuestionFilterBar({
 
     params.set("tab", "questions");
     params.delete("questionPage");
-    // One-shot import confirmation flag: it must not survive later question table navigation.
+    // One-shot import and generation confirmations must not survive later table navigation.
     params.delete("imported");
+    params.delete("generated");
     questionFilterNames.forEach((name) => params.delete(name));
     params.delete("categoryId");
     currentQueryParamsRef.current = params;
@@ -174,7 +176,7 @@ export function QuestionFilterBar({
         >
           <option value="">All categories</option>
           {categories.map((category) => (
-            <option key={category.id} value={category.id}>{category.code} - {category.name}</option>
+            <option key={category.id} value={category.id}>{category.name}</option>
           ))}
         </select>
       </div>

@@ -72,47 +72,45 @@ export function StartPage({ certification, categories }: StartPageProps) {
         </div>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ChoicePanel title="Practice" description="Use drills with immediate answer feedback and optional confidence tracking.">
-          <ChoiceButton active={selectedMode === "quick_drill"} onClick={() => setSelectedMode("quick_drill")} title="Quick Drill">
-            A short mixed set from the published question pool.
-          </ChoiceButton>
-          <ChoiceButton active={selectedMode === "category_drill"} disabled={flatCategories.length === 0} onClick={() => setSelectedMode("category_drill")} title="Category Drill">
-            Focus on one blueprint category.
-          </ChoiceButton>
-          {selectedMode === "category_drill" ? (
-            <CategorySelect categories={flatCategories} value={categoryId} onChange={setCategoryId} />
-          ) : null}
-          <ChoiceButton active={selectedMode === "missed_review"} onClick={() => setSelectedMode("missed_review")} title="Missed Questions Review">
-            Revisit questions you previously answered incorrectly.
-          </ChoiceButton>
-          <ChoiceButton active={selectedMode === "weak_areas"} onClick={() => setSelectedMode("weak_areas")} title="Weak Areas Drill">
-            Target categories where your recent scores need work.
-          </ChoiceButton>
-        </ChoicePanel>
+      <div className="space-y-5">
+        <StageRow stage="Step 1" title="Learn and explore" description="Choose how you want to build familiarity with the exam content.">
+          <ModeCard active={selectedMode === "quick_drill"} onClick={() => setSelectedMode("quick_drill")} title="Quick Drill" description="Explore a short mixed set that prioritizes questions you have not seen before." />
+          <ModeCard active={selectedMode === "category_drill"} disabled={flatCategories.length === 0} onClick={() => setSelectedMode("category_drill")} title="Category Drill" description="Build depth in one blueprint category, starting with unseen questions.">
+            {selectedMode === "category_drill" ? <CategorySelect categories={flatCategories} value={categoryId} onChange={setCategoryId} /> : null}
+          </ModeCard>
+        </StageRow>
 
-        <ChoicePanel title="Exam" description="Run without immediate feedback and submit at the end or when time expires.">
-          <ChoiceButton active={selectedMode === "exam_simulation"} onClick={() => setSelectedMode("exam_simulation")} title="Exam Simulation">
-            Blueprint-weighted timed exam using the certification defaults.
-          </ChoiceButton>
-          {examForms.length > 0 ? examForms.map((form) => (
-            <ChoiceButton
-              key={form.id}
-              active={selectedMode === "exam_form" && examFormId === form.id}
-              onClick={() => {
-                setSelectedMode("exam_form");
-                setExamFormId(form.id);
-              }}
-              title={form.name}
-            >
-              {form.questionCount} questions · {form.durationMinutes} minutes{form.description ? ` · ${form.description}` : ""}
-            </ChoiceButton>
-          )) : (
-            <p className="rounded border border-border bg-muted p-4 text-sm text-muted-foreground">
-              Exam Form sets will appear here when they are published.
-            </p>
-          )}
-        </ChoicePanel>
+        <StageRow stage="Step 2" title="Strengthen knowledge" description="Repair known gaps or focus practice where it will help most.">
+          <ModeCard active={selectedMode === "missed_review"} onClick={() => setSelectedMode("missed_review")} title="Repair knowledge" description="Revisit due incorrect or low-confidence answers until you demonstrate mastery." />
+          <ModeCard active={selectedMode === "weak_areas"} onClick={() => setSelectedMode("weak_areas")} title="Improve coverage" description="Practice unseen and least-recently-seen questions from your recent weak categories." />
+        </StageRow>
+
+        <StageRow stage="Step 3" title="Exam readiness" description="Measure readiness with a generated simulation or a fixed final exam.">
+          <ModeCard active={selectedMode === "exam_simulation"} onClick={() => setSelectedMode("exam_simulation")} title="Exam Simulation" description={`Take a timed, blueprint-weighted exam with ${certification.examSimulationQuestionCount ?? certification.questionCountDefault} fresh questions and ${certification.examSimulationScenarioCount ?? 0} scored scenarios.`} />
+          <section className="rounded border border-border bg-background/60 p-4">
+            <h3 className="font-semibold text-foreground">Final Exam</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Take a reserved, fixed exam form for a clean final rehearsal.</p>
+            <div className="mt-4 space-y-3">
+              {examForms.length > 0 ? examForms.map((form) => (
+                <ChoiceButton
+                  key={form.id}
+                  active={selectedMode === "exam_form" && examFormId === form.id}
+                  onClick={() => {
+                    setSelectedMode("exam_form");
+                    setExamFormId(form.id);
+                  }}
+                  title={form.name}
+                >
+                  {form.questionCount} questions · {form.scenarioCount ?? 0} scenarios · {form.durationMinutes} minutes{form.description ? ` · ${form.description}` : ""}
+                </ChoiceButton>
+              )) : (
+                <p className="rounded border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Final exam sets will appear here when they are published.
+                </p>
+              )}
+            </div>
+          </section>
+        </StageRow>
       </div>
 
       <label className="mt-5 flex items-start gap-3 rounded border border-border bg-card p-4 text-sm text-muted-foreground">
@@ -155,13 +153,30 @@ function CategorySelect({ categories, onChange, value }: { categories: CertDrill
   );
 }
 
-function ChoicePanel({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function StageRow({ stage, title, description, children }: { stage: string; title: string; description: string; children: React.ReactNode }) {
   return (
     <section className="rounded border border-border bg-card p-5">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      <div className="mt-5 space-y-3">{children}</div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,2fr)] lg:items-start">
+        <header>
+          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{stage}</p>
+          <h2 className="mt-2 text-lg font-semibold text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </header>
+        <div className="grid gap-3 md:grid-cols-2">{children}</div>
+      </div>
     </section>
+  );
+}
+
+function ModeCard({ active, children, description, disabled, onClick, title }: { active: boolean; children?: React.ReactNode; description: string; disabled?: boolean; onClick: () => void; title: string }) {
+  return (
+    <div className={`rounded border transition ${active ? "border-primary bg-primary/10" : "border-border bg-background/60 hover:border-primary"} ${disabled ? "opacity-50" : ""}`}>
+      <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className="w-full p-4 text-left disabled:cursor-not-allowed">
+        <span className="block font-semibold text-foreground">{title}</span>
+        <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+      </button>
+      {children ? <div className="border-t border-border p-4">{children}</div> : null}
+    </div>
   );
 }
 

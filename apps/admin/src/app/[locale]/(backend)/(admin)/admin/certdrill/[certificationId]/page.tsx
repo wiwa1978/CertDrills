@@ -21,7 +21,7 @@ export default async function AdminCertDrillCertificationPage({
   searchParams: Promise<Record<string, SearchParamValue>>;
 }) {
   const [{ certificationId }, query] = await Promise.all([params, searchParams]);
-  const { categoryId, resourceId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab, imported } = query;
+  const { categoryId, questionSearch, questionStatus, questionDifficulty, questionCategoryId, questionSort, questionPage, feedbackStatus, tab, imported, generated, scenariosGenerated } = query;
   const certifications = await getCertDrillCertificationsServer();
 
   return (
@@ -30,7 +30,6 @@ export default async function AdminCertDrillCertificationPage({
         certifications={certifications}
         selectedCertificationId={certificationId}
         selectedCategoryId={firstSearchParamString(categoryId)}
-        selectedResourceId={firstSearchParamString(resourceId)}
         questionSearch={firstSearchParamString(questionSearch)}
         questionStatus={firstSearchParamString(questionStatus)}
         questionDifficulty={firstSearchParamString(questionDifficulty)}
@@ -41,6 +40,8 @@ export default async function AdminCertDrillCertificationPage({
         selectedTab={firstSearchParamString(tab)}
         questionTableQuery={query}
         importedQuestionCount={parsePositiveIntegerSearchParam(imported)}
+        generatedQuestionCount={parsePositiveIntegerSearchParam(generated)}
+        generatedScenarioCount={parsePositiveIntegerSearchParam(scenariosGenerated)}
       />
     </Container>
   );

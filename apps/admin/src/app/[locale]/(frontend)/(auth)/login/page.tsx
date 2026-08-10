@@ -27,6 +27,7 @@ import { authClient, twoFactor } from "@/lib/auth-client";
 import { authConfig } from "@/config/auth";
 import { signInSchema } from "@/schemas";
 import { getAdminStatus } from "@/lib/services/admin";
+import { unexpectedLoginErrorKey } from "@/modules/auth/login-transport-error";
 
 const DEFAULT_REDIRECT = "/admin/overview";
 
@@ -68,6 +69,30 @@ function LoginPageContent() {
     return error.message || tErrors("default");
   };
 
+  const showUnexpectedLoginError = (error: unknown) => {
+    console.error("[admin-login] Authentication request failed", error);
+    passwordForm.setError("root", {
+      message: tErrors(unexpectedLoginErrorKey(error)),
+    });
+  };
+
+  async function verifyTotpCode(code: string) {
+    try {
+      const verify = await twoFactor.verifyTotp({ code });
+      if (verify.error) {
+        passwordForm.setError("totpCode", {
+          message: "Enter a valid 6-digit authentication code",
+        });
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      showUnexpectedLoginError(error);
+      return false;
+    }
+  }
+
   const passwordForm = useForm<AdminLoginInput>({
     resolver: zodResolver(adminLoginSchema),
     defaultValues: {
@@ -95,11 +120,19 @@ function LoginPageContent() {
   }
 
   async function onCredentialsSubmit(values: AdminLoginInput) {
-    const { data, error } = await authClient.signIn.email({
-      email: values.email,
-      password: values.password,
-      ...(authConfig.rememberMeEnabled && { rememberMe: values.rememberMe }),
-    });
+    let response;
+    try {
+      response = await authClient.signIn.email({
+        email: values.email,
+        password: values.password,
+        ...(authConfig.rememberMeEnabled && { rememberMe: values.rememberMe }),
+      });
+    } catch (error) {
+      showUnexpectedLoginError(error);
+      passwordForm.resetField("password");
+      return;
+    }
+    const { data, error } = response;
 
     if (error) {
       passwordForm.setError("root", { message: getErrorMessage(error) });
@@ -110,13 +143,7 @@ function LoginPageContent() {
     const signInNeedsTotp = Boolean((data as { twoFactorRedirect?: boolean } | null | undefined)?.twoFactorRedirect);
     if (signInNeedsTotp) {
       if (values.totpCode) {
-        const verify = await twoFactor.verifyTotp({ code: values.totpCode });
-        if (verify.error) {
-          passwordForm.setError("totpCode", {
-            message: "Enter a valid 6-digit authentication code",
-          });
-          return;
-        }
+        if (!(await verifyTotpCode(values.totpCode))) return;
 
         const status = await enforceAdminAccess();
         if (!status.allowed) {
@@ -157,13 +184,7 @@ function LoginPageContent() {
       return;
     }
 
-    const verify = await twoFactor.verifyTotp({ code: values.totpCode });
-    if (verify.error) {
-      passwordForm.setError("totpCode", {
-        message: "Enter a valid 6-digit authentication code",
-      });
-      return;
-    }
+    if (!(await verifyTotpCode(values.totpCode))) return;
 
     const status = await enforceAdminAccess();
     if (!status.allowed) {
@@ -194,7 +215,7 @@ function LoginPageContent() {
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
               <div className="rounded-lg border bg-card p-6 space-y-4">
                 {passwordForm.formState.errors.root && (
-                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {passwordForm.formState.errors.root.message}
                   </div>
                 )}

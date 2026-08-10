@@ -1,8 +1,9 @@
 import type { CertDrillBlueprintParseRun } from "@/lib/api/certdrill.server";
 
-const START_BLUEPRINT_ANALYSIS_ERROR_MESSAGE = "Blueprint analysis request failed.";
-const GET_BLUEPRINT_ANALYSIS_ERROR_MESSAGE = "Blueprint analysis status check failed.";
-const INVALID_BLUEPRINT_ANALYSIS_RESPONSE_MESSAGE = "Blueprint analysis response was invalid.";
+const START_CATEGORY_DISCOVERY_ERROR_MESSAGE = "Category discovery request failed.";
+const GET_CATEGORY_DISCOVERY_ERROR_MESSAGE = "Category discovery status check failed.";
+const INVALID_CATEGORY_DISCOVERY_RESPONSE_MESSAGE = "Category discovery response was invalid.";
+const CATEGORY_DISCOVERIES_PATH = "/api/certdrill/category-discoveries";
 const BLUEPRINT_PARSE_RUNS_PATH = "/api/certdrill/blueprint-parse-runs";
 
 type BlueprintAnalysisEnvelope<T> = {
@@ -49,7 +50,7 @@ function envelopeError(response: Response, envelope: BlueprintAnalysisEnvelope<u
   }
 
   if (response.ok) {
-    return new Error(INVALID_BLUEPRINT_ANALYSIS_RESPONSE_MESSAGE);
+    return new Error(INVALID_CATEGORY_DISCOVERY_RESPONSE_MESSAGE);
   }
 
   return new Error(fallback);
@@ -80,12 +81,12 @@ async function requestBlueprintAnalysisRun(
   return envelope.data;
 }
 
-export async function startBlueprintAnalysis(
+export async function startCategoryDiscovery(
   certificationId: string,
-  resourceId: string,
+  url: string,
 ): Promise<CertDrillBlueprintParseRun> {
   return requestBlueprintAnalysisRun(
-    BLUEPRINT_PARSE_RUNS_PATH,
+    CATEGORY_DISCOVERIES_PATH,
     {
       method: "POST",
       headers: {
@@ -94,10 +95,10 @@ export async function startBlueprintAnalysis(
       },
       body: JSON.stringify({
         certificationId,
-        resourceId,
+        url,
       }),
     },
-    START_BLUEPRINT_ANALYSIS_ERROR_MESSAGE,
+    START_CATEGORY_DISCOVERY_ERROR_MESSAGE,
   );
 }
 
@@ -111,6 +112,6 @@ export async function getBlueprintAnalysisRun(
         accept: "application/json",
       },
     },
-    GET_BLUEPRINT_ANALYSIS_ERROR_MESSAGE,
+    GET_CATEGORY_DISCOVERY_ERROR_MESSAGE,
   );
 }

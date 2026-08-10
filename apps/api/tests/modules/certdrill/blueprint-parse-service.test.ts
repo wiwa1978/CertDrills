@@ -1,3 +1,4 @@
+import { getTableName, type Table } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { BlueprintParserError } from "../../../src/modules/certdrill/blueprint-parser";
@@ -227,6 +228,74 @@ describe("Blueprint parse service", () => {
     expect(state.runs.find((entry) => entry.id === run.id)?.proposalJson).toEqual(proposal({ confidence: "high" }));
   });
 
+  it("creates missing categories while preserving matching manual categories", async () => {
+    const parser = createParser();
+    const { db, state } = createBlueprintParseDb({
+      certifications: [certificationRow()],
+      resources: [resourceRow()],
+      categories: [{
+        id: "category-existing",
+        certificationId: ids.cert,
+        parentCategoryId: null,
+        code: "d1",
+        name: "Manually adjusted domain",
+        weightPct: 50,
+        sortOrder: 0,
+      }],
+    });
+    const service = createBlueprintParseService({ db, parser, now: () => fixedNow });
+    const run = await service.start({ certificationId: ids.cert, resourceId: ids.resource });
+
+    await expect(service.processPending()).resolves.toEqual({ checked: 1, completed: 1, failed: 0 });
+
+    expect(state.categories).toHaveLength(2);
+    expect(state.categories.find((category) => category.code === "d1")).toMatchObject({
+      name: "Manually adjusted domain",
+      weightPct: 50,
+    });
+    expect(state.categories.find((category) => category.code === "D2")).toMatchObject({
+      certificationId: ids.cert,
+      parentCategoryId: null,
+      name: "Domain 2",
+      weightPct: 50,
+      weightMinPct: 50,
+      weightMaxPct: 50,
+      sortOrder: 1,
+    });
+    expect(state.runs.find((entry) => entry.id === run.id)?.status).toBe("completed");
+  });
+
+  it("persists percentage ranges without inventing an exact midpoint", async () => {
+    const rangedProposal = {
+      confidence: "high" as const,
+      warnings: [],
+      categories: [{
+        code: "DOMAIN-01",
+        name: "Identity",
+        parentCode: null,
+        weightPct: null,
+        weightMinPct: 20,
+        weightMaxPct: 25,
+        sortOrder: 0,
+        evidence: [],
+      }],
+    };
+    const parser = createParser({ parseResult: { rawOutput: "{}", proposal: rangedProposal as never } });
+    const { db, state } = createBlueprintParseDb({ certifications: [certificationRow()], resources: [resourceRow()] });
+    const service = createBlueprintParseService({ db, parser, now: () => fixedNow });
+    await service.start({ certificationId: ids.cert, resourceId: ids.resource });
+
+    await expect(service.processPending()).resolves.toEqual({ checked: 1, completed: 1, failed: 0 });
+    expect(state.categories).toEqual([
+      expect.objectContaining({
+        code: "DOMAIN-01",
+        weightPct: null,
+        weightMinPct: 20,
+        weightMaxPct: 25,
+      }),
+    ]);
+  });
+
   it("persists parser raw output when a typed parser error includes diagnostics", async () => {
     const parser = createParser({
       parseError: new BlueprintParserError(
@@ -447,6 +516,7 @@ function runRow(overrides: Record<string, unknown> = {}) {
 function createBlueprintParseDb(input: {
   certifications?: Array<Record<string, unknown>>;
   resources?: Array<Record<string, unknown>>;
+  categories?: Array<Record<string, unknown>>;
   runs?: Array<Record<string, unknown>>;
   lostClaimRunIds?: string[];
 }) {
@@ -454,6 +524,7 @@ function createBlueprintParseDb(input: {
     certifications: [...(input.certifications ?? [])],
     resources: [...(input.resources ?? [])],
     runs: [...(input.runs ?? [])],
+    categories: [...(input.categories ?? [])],
   };
   const updates: Array<{ table: string; values: Record<string, unknown> }> = [];
   let runSequence = 0;
@@ -467,34 +538,57 @@ function createBlueprintParseDb(input: {
       certdrillLearnResources: {
         findFirst: vi.fn(async (options?: { where?: unknown }) => firstMatch(state.resources, options?.where)),
       },
+      certdrillExamCategories: {
+        findMany: vi.fn(async (options?: { where?: unknown }) => manyMatches(state.categories, options)),
+      },
       certdrillBlueprintParseRuns: {
         findFirst: vi.fn(async (options?: { where?: unknown }) => firstMatch(state.runs, options?.where)),
         findMany: vi.fn(async (options?: { where?: unknown; orderBy?: unknown[]; limit?: number }) =>
           manyMatches(state.runs, options)),
       },
     },
-    insert: () => ({
-      values: (values: Record<string, unknown>) => ({
-        returning: vi.fn(async () => {
-          runSequence += 1;
-          const createdAt = new Date(`2026-08-06T12:00:0${runSequence}.000Z`);
-          const row = {
-            id: `run-${runSequence}`,
-            proposalJson: null,
-            rawOutput: null,
-            confidence: null,
-            warningsJson: [],
-            errorMessage: null,
-            startedAt: null,
-            completedAt: null,
-            createdAt,
-            updatedAt: createdAt,
-            ...values,
+    insert: (table: Table) => ({
+      values: (values: Record<string, unknown> | Array<Record<string, unknown>>) => {
+        const rows = Array.isArray(values) ? values : [values];
+        const tableName = getTableName(table);
+
+        if (tableName === "certdrill_exam_categories") {
+          const createdRows = rows.map((row, index) => ({ id: `category-${state.categories.length + index + 1}`, ...row }));
+          const returning = vi.fn(async () => {
+            for (const row of createdRows) {
+              const duplicate = state.categories.some((category) => category.certificationId === row.certificationId && category.code === row.code);
+              if (!duplicate) state.categories.push(row);
+            }
+            return createdRows.map(cloneRow);
+          });
+          return {
+            returning,
+            onConflictDoNothing: vi.fn(() => ({ returning })),
           };
-          state.runs.push(row);
-          return [cloneRow(row)];
-        }),
-      }),
+        }
+
+        return {
+          returning: vi.fn(async () => {
+            runSequence += 1;
+            const createdAt = new Date(`2026-08-06T12:00:0${runSequence}.000Z`);
+            const row = {
+              id: `run-${runSequence}`,
+              proposalJson: null,
+              rawOutput: null,
+              confidence: null,
+              warningsJson: [],
+              errorMessage: null,
+              startedAt: null,
+              completedAt: null,
+              createdAt,
+              updatedAt: createdAt,
+              ...rows[0],
+            };
+            state.runs.push(row);
+            return [cloneRow(row)];
+          }),
+        };
+      },
     }),
     update: () => ({
       set: (values: Record<string, unknown>) => ({

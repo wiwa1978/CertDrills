@@ -2,9 +2,16 @@ type WeightInput = { id: string; weightPct: string | number | null };
 type WeightedInput = { id: string; weightPct: string | number };
 
 type MediaAssetInput = { url: string; mimeType?: string; mime_type?: string };
+type QuestionInteractionInput =
+  | { type: "fill_blank"; acceptedAnswers: string[]; explanation: string; citationUrls: string[] }
+  | { type: "matching"; pairs: Array<{ promptId: string; targetId: string; prompt: string; target: string; explanation: string; citationUrls: string[] }> }
+  | null;
+
 
 type QuestionValidationInput = {
   mediaAssets: MediaAssetInput[];
+  questionType?: "single_choice" | "fill_blank" | "matching";
+  interactionJson?: QuestionInteractionInput;
   options: Array<{
     isCorrect: boolean;
     explanation: string;
@@ -90,43 +97,48 @@ function getUrlPathname(url: string) {
 
 export function validateQuestionForPublish(input: QuestionValidationInput): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  const correctCount = input.options.filter((option) => option.isCorrect).length;
+  const questionType = input.questionType ?? "single_choice";
 
-  if (input.options.length < 2) {
-    errors.push("Published questions must have at least two answer options.");
-  }
+  if (questionType === "single_choice") {
+    const correctCount = input.options.filter((option) => option.isCorrect).length;
+    if (input.options.length < 2) errors.push("Published questions must have at least two answer options.");
+    if (input.options.length > 10) errors.push("Published questions must have at most ten answer options.");
+    if (correctCount !== 1) errors.push("Exactly one answer option must be correct.");
 
-  if (input.options.length > 10) {
-    errors.push("Published questions must have at most ten answer options.");
-  }
-
-  if (correctCount !== 1) {
-    errors.push("Exactly one answer option must be correct.");
-  }
-
-  input.options.forEach((option, index) => {
-    const optionNumber = index + 1;
-
-    if (!option.explanation.trim()) {
-      errors.push(`Option ${optionNumber} must have a non-empty explanation.`);
-    }
-
-    if (option.citationUrls.length === 0) {
-      errors.push(`Option ${optionNumber} must have at least one citation URL.`);
-    }
-
-    option.citationUrls.forEach((url, citationIndex) => {
-      if (!isSafeCitationUrl(url)) {
-        errors.push(`Option ${optionNumber} citation URL ${citationIndex + 1} must use http, https, or mailto.`);
-      }
+    input.options.forEach((option, index) => {
+      const optionNumber = index + 1;
+      if (!option.explanation.trim()) errors.push(`Option ${optionNumber} must have a non-empty explanation.`);
+      validateCitationUrls(option.citationUrls, `Option ${optionNumber}`, errors);
+      option.mediaAssets.forEach((asset, assetIndex) => {
+        if (!isPngOrJpeg(asset)) errors.push(`Option ${optionNumber} media asset ${assetIndex + 1} must be image/png or image/jpeg.`);
+      });
     });
-
-    option.mediaAssets.forEach((asset, assetIndex) => {
-      if (!isPngOrJpeg(asset)) {
-        errors.push(`Option ${optionNumber} media asset ${assetIndex + 1} must be image/png or image/jpeg.`);
-      }
-    });
-  });
+  } else if (questionType === "fill_blank") {
+    const interaction = input.interactionJson?.type === "fill_blank" ? input.interactionJson : null;
+    if (!interaction) {
+      errors.push("Fill-in-the-gap questions require accepted answers.");
+    } else {
+      const normalized = interaction.acceptedAnswers.map(normalizeAcceptedAnswer);
+      if (normalized.length === 0 || normalized.some((answer) => !answer)) errors.push("Fill-in-the-gap questions require at least one non-empty accepted answer.");
+      if (new Set(normalized).size !== normalized.length) errors.push("Accepted answers must be unique after case and whitespace normalization.");
+      if (!interaction.explanation.trim()) errors.push("Fill-in-the-gap questions require an explanation.");
+      validateCitationUrls(interaction.citationUrls, "Fill-in-the-gap answer", errors);
+    }
+  } else {
+    const interaction = input.interactionJson?.type === "matching" ? input.interactionJson : null;
+    if (!interaction || interaction.pairs.length < 2) {
+      errors.push("Matching questions require at least two pairs.");
+    } else {
+      if (interaction.pairs.length > 10) errors.push("Matching questions may contain at most ten pairs.");
+      if (new Set(interaction.pairs.map((pair) => pair.promptId)).size !== interaction.pairs.length || new Set(interaction.pairs.map((pair) => pair.targetId)).size !== interaction.pairs.length) errors.push("Matching pair identifiers must be unique.");
+      interaction.pairs.forEach((pair, index) => {
+        const pairNumber = index + 1;
+        if (!pair.prompt.trim() || !pair.target.trim()) errors.push(`Matching pair ${pairNumber} requires both prompt and target text.`);
+        if (!pair.explanation.trim()) errors.push(`Matching pair ${pairNumber} requires an explanation.`);
+        validateCitationUrls(pair.citationUrls, `Matching pair ${pairNumber}`, errors);
+      });
+    }
+  }
 
   input.mediaAssets.forEach((asset, index) => {
     if (!isPngOrJpeg(asset)) {
@@ -135,6 +147,17 @@ export function validateQuestionForPublish(input: QuestionValidationInput): { va
   });
 
   return { valid: errors.length === 0, errors };
+}
+
+function normalizeAcceptedAnswer(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function validateCitationUrls(urls: string[], label: string, errors: string[]) {
+  if (urls.length === 0) errors.push(`${label} must have at least one citation URL.`);
+  urls.forEach((url, index) => {
+    if (!isSafeCitationUrl(url)) errors.push(`${label} citation URL ${index + 1} must use http, https, or mailto.`);
+  });
 }
 
 export function isSafeCitationUrl(url: string) {

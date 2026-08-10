@@ -1,15 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import type { CertDrillDifficulty } from "@platform/contracts";
 
 import {
   createCertDrillAdminCategoryServer,
   createCertDrillAdminCertificationServer,
-  createCertDrillAdminMockGenerationJobServer,
   createCertDrillAdminQuestionServer,
-  createCertDrillAdminResourceServer,
-  ingestCertDrillAdminResourceServer,
   archiveCertDrillAdminCategoryServer,
   archiveCertDrillAdminCertificationServer,
   publishCertDrillAdminQuestionServer,
@@ -17,12 +15,13 @@ import {
   updateCertDrillAdminCertificationServer,
   updateCertDrillAdminQuestionFeedbackServer,
   updateCertDrillAdminQuestionServer,
-  updateCertDrillAdminResourceServer,
+  updateCertDrillAdminQuestionStatusesServer,
+  updateCertDrillAdminQuestionDeliveryPurposesServer,
   type CertDrillAdminCertificationUpdateInput,
   type CertDrillAdminQuestionOptionInput,
+  type CertDrillAdminQuestionInteraction,
+  type CertDrillAdminQuestionType,
   type CertDrillAdminQuestionUpdateInput,
-  type CertDrillAdminResourceInput,
-  type CertDrillAdminResourceUpdateInput,
 } from "@/lib/api/certdrill.server";
 import {
   parseQuestionAnswerFields,
@@ -107,18 +106,6 @@ function submittedBoolean(formData: FormData, name: string) {
   return undefined;
 }
 
-function csvList(formData: FormData, name: string) {
-  return requiredString(formData, name)
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function submittedCsvList(formData: FormData, name: string) {
-  if (!formData.has(name)) return undefined;
-  const values = csvList(formData, name);
-  return values.length > 0 ? values : undefined;
-}
 
 function uniqueFormValues(values: FormDataEntryValue[]) {
   return [...new Set(values
@@ -142,6 +129,11 @@ function questionStatusValue(formData: FormData) {
   return value === "draft" || value === "published" || value === "archived" ? value : undefined;
 }
 
+function questionDeliveryPurposeValue(formData: FormData) {
+  const value = optionalString(formData, "deliveryPurpose");
+  return value === "practice" || value === "assessment" || value === "both" ? value : undefined;
+}
+
 function submittedDifficultyValue(formData: FormData): CertDrillDifficulty | undefined {
   if (!formData.has("difficulty")) return undefined;
   return difficultyValue(formData);
@@ -152,50 +144,61 @@ function submittedQuestionStatusValue(formData: FormData) {
   return questionStatusValue(formData);
 }
 
+function submittedQuestionDeliveryPurposeValue(formData: FormData) {
+  if (!formData.has("deliveryPurpose")) return undefined;
+  return questionDeliveryPurposeValue(formData);
+}
+
 function feedbackStatusValue(formData: FormData) {
   const value = optionalString(formData, "status");
   return value === "reviewed" || value === "resolved" ? value : undefined;
 }
 
-function resourceSourceTypeValue(formData: FormData): CertDrillAdminResourceInput["sourceType"] {
-  const value = optionalString(formData, "sourceType");
-  if (value === "unit" || value === "study-guide" || value === "exam-blueprint" || value === "doc") {
-    return value;
+function questionTypeValue(formData: FormData): CertDrillAdminQuestionType {
+  const value = optionalString(formData, "questionType");
+  return value === "fill_blank" || value === "matching" ? value : "single_choice";
+}
+
+function lines(formData: FormData, name: string) {
+  return (optionalString(formData, name) ?? "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+}
+
+function values(formData: FormData, name: string) {
+  return formData.getAll(name).map((value) => typeof value === "string" ? value.trim() : "");
+}
+
+function questionInteraction(formData: FormData, questionType: CertDrillAdminQuestionType): CertDrillAdminQuestionInteraction | null {
+  if (questionType === "single_choice") return null;
+  if (questionType === "fill_blank") {
+    return {
+      type: "fill_blank",
+      acceptedAnswers: lines(formData, "acceptedAnswers"),
+      explanation: optionalString(formData, "interactionExplanation") ?? "",
+      citationUrls: lines(formData, "interactionCitationUrls"),
+    };
   }
-  return "module";
+
+  const ids = values(formData, "matchingPairIds");
+  const prompts = values(formData, "matchingPrompts");
+  const targets = values(formData, "matchingTargets");
+  const explanations = values(formData, "matchingExplanations");
+  const citationGroups = values(formData, "matchingCitationUrls");
+  return {
+    type: "matching",
+    pairs: prompts.map((prompt, index) => {
+      const [promptId, targetId] = (ids[index] ?? "").split(":");
+      return {
+        promptId: promptId || randomUUID(),
+        targetId: targetId || randomUUID(),
+        prompt,
+        target: targets[index] ?? "",
+        explanation: explanations[index] ?? "",
+        citationUrls: (citationGroups[index] ?? "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+      };
+    }),
+  };
 }
 
-function submittedResourceSourceTypeValue(formData: FormData): CertDrillAdminResourceInput["sourceType"] | undefined {
-  if (!formData.has("sourceType")) return undefined;
-  const value = optionalString(formData, "sourceType");
-  if (value === "module" || value === "unit" || value === "study-guide" || value === "exam-blueprint" || value === "doc") {
-    return value;
-  }
-  return undefined;
-}
-
-function resourceContentModeValue(formData: FormData): CertDrillAdminResourceInput["contentMode"] {
-  return optionalString(formData, "contentMode") === "outline_blueprint" ? "outline_blueprint" : "deep_content";
-}
-
-function submittedResourceContentModeValue(formData: FormData): CertDrillAdminResourceInput["contentMode"] | undefined {
-  if (!formData.has("contentMode")) return undefined;
-  const value = optionalString(formData, "contentMode");
-  if (value === "deep_content" || value === "outline_blueprint") return value;
-  return undefined;
-}
-
-function resourceStatusValue(formData: FormData): CertDrillAdminResourceInput["status"] {
-  const value = optionalString(formData, "status");
-  return value === "ingested" || value === "failed" ? value : "pending";
-}
-
-function submittedResourceStatusValue(formData: FormData): CertDrillAdminResourceInput["status"] | undefined {
-  if (!formData.has("status")) return undefined;
-  const value = optionalString(formData, "status");
-  if (value === "pending" || value === "ingested" || value === "failed") return value;
-  return undefined;
-}
 
 function questionOptions(formData: FormData): CertDrillAdminQuestionOptionInput[] {
   const parsed = parseQuestionAnswerFields(formData);
@@ -225,6 +228,7 @@ export async function createCertDrillCertificationAction(formData: FormData) {
     quickDrillQuestionCount: optionalNumber(formData, "quickDrillQuestionCount"),
     categoryDrillQuestionCount: optionalNumber(formData, "categoryDrillQuestionCount"),
     examSimulationQuestionCount: nullableNumber(formData, "examSimulationQuestionCount"),
+    examSimulationScenarioCount: optionalNumber(formData, "examSimulationScenarioCount"),
     examSimulationDurationMinutes: optionalNumber(formData, "examSimulationDurationMinutes"),
     passThresholdPct: optionalNumber(formData, "passThresholdPct"),
     isActive: checkboxValue(formData, "isActive"),
@@ -246,6 +250,7 @@ export async function updateCertDrillCertificationAction(formData: FormData) {
     quickDrillQuestionCount: submittedNumber(formData, "quickDrillQuestionCount"),
     categoryDrillQuestionCount: submittedNumber(formData, "categoryDrillQuestionCount"),
     examSimulationQuestionCount: submittedNullableNumber(formData, "examSimulationQuestionCount"),
+    examSimulationScenarioCount: submittedNumber(formData, "examSimulationScenarioCount"),
     examSimulationDurationMinutes: submittedNumber(formData, "examSimulationDurationMinutes"),
     passThresholdPct: submittedNumber(formData, "passThresholdPct"),
     isActive: submittedBoolean(formData, "isActive"),
@@ -308,15 +313,19 @@ export async function createCertDrillQuestionAction(
   }
 
   try {
+    const questionType = questionTypeValue(formData);
     await createCertDrillAdminQuestionServer({
       certificationId: requiredString(formData, "certificationId"),
       categoryId: requiredString(formData, "categoryId"),
       stem: requiredString(formData, "stem"),
+      questionType,
+      interactionJson: questionInteraction(formData, questionType),
       difficulty: difficultyValue(formData),
       status: questionStatusValue(formData) ?? "draft",
+      deliveryPurpose: questionDeliveryPurposeValue(formData) ?? "both",
       createdBy: "admin",
       sourceResourceId: nullableString(formData, "sourceResourceId"),
-      options: questionOptions(formData),
+      options: questionType === "single_choice" ? questionOptions(formData) : [],
     });
     revalidateCertDrillAdminPage();
     return { status: "success", fieldErrors: {}, message: "Question created." };
@@ -339,13 +348,17 @@ export async function updateCertDrillQuestionAction(
     return { status: "error", fieldErrors: {}, formError: "Question ID is required." };
   }
 
+  const questionType = questionTypeValue(formData);
   const payload = compact({
     categoryId: submittedString(formData, "categoryId"),
     stem: submittedString(formData, "stem"),
+    questionType,
+    interactionJson: questionInteraction(formData, questionType),
     difficulty: submittedDifficultyValue(formData),
     status: submittedQuestionStatusValue(formData),
+    deliveryPurpose: submittedQuestionDeliveryPurposeValue(formData),
     sourceResourceId: submittedNullableString(formData, "sourceResourceId"),
-    options: submittedQuestionOptions(formData),
+    options: questionType === "single_choice" ? submittedQuestionOptions(formData) : [],
   }) as CertDrillAdminQuestionUpdateInput;
 
   try {
@@ -362,6 +375,36 @@ export async function publishCertDrillQuestionAction(formData: FormData) {
   revalidateCertDrillAdminPage();
 }
 
+async function updateSelectedQuestionStatus(formData: FormData, status: "draft" | "published") {
+  const questionIds = uniqueFormValues(formData.getAll("questionIds"));
+  if (questionIds.length === 0) return;
+  await updateCertDrillAdminQuestionStatusesServer({ questionIds, status });
+  revalidateCertDrillAdminPage();
+}
+
+export async function publishSelectedCertDrillQuestionsAction(formData: FormData) {
+  await updateSelectedQuestionStatus(formData, "published");
+}
+
+export async function unpublishSelectedCertDrillQuestionsAction(formData: FormData) {
+  await updateSelectedQuestionStatus(formData, "draft");
+}
+
+async function updateSelectedQuestionDeliveryPurpose(formData: FormData, deliveryPurpose: "practice" | "assessment") {
+  const questionIds = uniqueFormValues(formData.getAll("questionIds"));
+  if (questionIds.length === 0) return;
+  await updateCertDrillAdminQuestionDeliveryPurposesServer({ questionIds, deliveryPurpose });
+  revalidateCertDrillAdminPage();
+}
+
+export async function setSelectedCertDrillQuestionsPracticeAction(formData: FormData) {
+  await updateSelectedQuestionDeliveryPurpose(formData, "practice");
+}
+
+export async function setSelectedCertDrillQuestionsAssessmentAction(formData: FormData) {
+  await updateSelectedQuestionDeliveryPurpose(formData, "assessment");
+}
+
 export async function archiveCertDrillQuestionAction(formData: FormData) {
   const questionId = requiredString(formData, "questionId");
   if (!questionId) return;
@@ -369,61 +412,7 @@ export async function archiveCertDrillQuestionAction(formData: FormData) {
   revalidateCertDrillAdminPage();
 }
 
-export async function createCertDrillResourceAction(formData: FormData) {
-  await createCertDrillAdminResourceServer({
-    certificationId: requiredString(formData, "certificationId"),
-    categoryId: nullableString(formData, "categoryId"),
-    url: requiredString(formData, "url"),
-    title: requiredString(formData, "title"),
-    sourceType: resourceSourceTypeValue(formData),
-    contentMode: resourceContentModeValue(formData),
-    rawContent: nullableString(formData, "rawContent"),
-    status: resourceStatusValue(formData),
-  });
-  revalidateCertDrillAdminPage();
-}
 
-export async function updateCertDrillResourceAction(formData: FormData) {
-  const resourceId = requiredString(formData, "resourceId");
-  const payload = compact({
-    certificationId: submittedString(formData, "certificationId"),
-    categoryId: submittedNullableString(formData, "categoryId"),
-    url: submittedString(formData, "url"),
-    title: submittedString(formData, "title"),
-    sourceType: submittedResourceSourceTypeValue(formData),
-    contentMode: submittedResourceContentModeValue(formData),
-    rawContent: submittedString(formData, "rawContent"),
-    status: submittedResourceStatusValue(formData),
-  }) as CertDrillAdminResourceUpdateInput;
-
-  await updateCertDrillAdminResourceServer(resourceId, payload);
-  revalidateCertDrillAdminPage();
-}
-
-export async function ingestCertDrillResourceAction(formData: FormData) {
-  const resourceId = requiredString(formData, "resourceId");
-  if (!resourceId) {
-    throw new Error("Resource ID is required.");
-  }
-
-  try {
-    await ingestCertDrillAdminResourceServer(resourceId);
-  } finally {
-    revalidateCertDrillAdminPage();
-  }
-}
-
-export async function createCertDrillMockGenerationAction(formData: FormData) {
-  await createCertDrillAdminMockGenerationJobServer({
-    certificationId: requiredString(formData, "certificationId"),
-    categoryId: requiredString(formData, "categoryId"),
-    prompt: requiredString(formData, "prompt"),
-    topic: nullableString(formData, "topic"),
-    requestedCount: optionalNumber(formData, "requestedCount"),
-    resourceIds: csvList(formData, "resourceIds"),
-  });
-  revalidateCertDrillAdminPage();
-}
 
 export async function updateCertDrillQuestionFeedbackAction(formData: FormData) {
   const feedbackId = requiredString(formData, "feedbackId");

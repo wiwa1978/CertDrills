@@ -23,6 +23,8 @@ const ids = {
   otherGenerationJob: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   replacementQuestion: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
   otherExamForm: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+  scenario: "12121212-1212-4212-8212-121212121212",
+  user: "13131313-1313-4313-8313-131313131313",
 };
 
 describe("CertDrill admin service", () => {
@@ -101,38 +103,85 @@ describe("CertDrill admin service", () => {
     expect(confirm).toHaveBeenCalledWith(confirmInput);
   });
 
-  it("delegates blueprint parse lifecycle calls to the focused parse service", async () => {
+  it("delegates blueprint parse status calls to the focused parse service", async () => {
     const { db } = createAdminDb({});
-    const start = vi.fn().mockResolvedValue({ id: "run-1", status: "pending" });
+    const start = vi.fn();
     const get = vi.fn().mockResolvedValue({ id: "run-1", status: "completed" });
     const list = vi.fn().mockResolvedValue([{ id: "run-1", status: "completed" }]);
     const processPending = vi.fn().mockResolvedValue({ checked: 2, completed: 1, failed: 1 });
-    const service = createCertDrillAdminService({
-      db,
-      blueprintParse: { start, get, list, processPending },
-    } as never);
+    const service = createCertDrillAdminService({ db, blueprintParse: { start, get, list, processPending } } as never);
 
-    await expect(service.startBlueprintParseRun({ certificationId: ids.cert, resourceId: ids.resource })).resolves.toEqual({
-      id: "run-1",
-      status: "pending",
-    });
-    await expect(service.getBlueprintParseRun("run-1")).resolves.toEqual({
-      id: "run-1",
-      status: "completed",
-    });
-    await expect(service.listBlueprintParseRuns(ids.cert)).resolves.toEqual([
-      { id: "run-1", status: "completed" },
-    ]);
-    await expect(service.processPendingBlueprintParseRuns(2)).resolves.toEqual({
-      checked: 2,
-      completed: 1,
-      failed: 1,
-    });
+    await expect(service.getBlueprintParseRun("run-1")).resolves.toEqual({ id: "run-1", status: "completed" });
+    await expect(service.listBlueprintParseRuns(ids.cert)).resolves.toEqual([{ id: "run-1", status: "completed" }]);
+    await expect(service.processPendingBlueprintParseRuns(2)).resolves.toEqual({ checked: 2, completed: 1, failed: 1 });
 
-    expect(start).toHaveBeenCalledWith({ certificationId: ids.cert, resourceId: ids.resource });
+    expect(start).not.toHaveBeenCalled();
     expect(get).toHaveBeenCalledWith("run-1");
     expect(list).toHaveBeenCalledWith(ids.cert);
     expect(processPending).toHaveBeenCalledWith(2);
+  });
+
+  it("reuses and refreshes an existing study-guide resource before starting category discovery", async () => {
+    const url = "https://learn.example/aws-study-guide";
+    const resource = { id: ids.resource, certificationId: ids.cert, url, title: "AWS study guide", sourceType: "study-guide", contentMode: "outline_blueprint", status: "ingested" };
+    const { db, inserts, updates } = createAdminDb({
+      certifications: [{ id: ids.cert, code: "AWS-SAA-C03" }],
+      resources: [resource],
+      returningByTable: { certdrill_learn_resources: [resource] },
+    });
+    const ingest = vi.fn().mockResolvedValue({
+      finalUrl: url,
+      title: "AWS certification study guide",
+      rawContent: "Domain 1 (50%)",
+      contentType: "text/html",
+      ingestedAt: new Date("2026-08-09T10:00:00.000Z"),
+    });
+    const start = vi.fn().mockResolvedValue({ id: "run-1", status: "pending" });
+    const service = createCertDrillAdminService({
+      db,
+      resourceIngestor: { ingest },
+      blueprintParse: { start, get: vi.fn(), list: vi.fn(), processPending: vi.fn() },
+    } as never);
+
+    await expect(service.startCategoryDiscovery({ certificationId: ids.cert, url })).resolves.toEqual({ id: "run-1", status: "pending" });
+
+    expect(inserts.some((entry) => entry.table === "certdrill_learn_resources")).toBe(false);
+    expect(ingest).toHaveBeenCalledWith(url);
+    expect(updates.find((entry) => entry.table === "certdrill_learn_resources")?.values).toMatchObject({
+      title: "AWS certification study guide",
+      rawContent: "Domain 1 (50%)",
+      status: "ingested",
+    });
+    expect(start).toHaveBeenCalledWith({ certificationId: ids.cert, resourceId: ids.resource });
+  });
+
+  it("creates the hidden study-guide resource when the URL is not already registered", async () => {
+    const url = "https://learn.example/new-study-guide";
+    const resource = { id: ids.resource, certificationId: ids.cert, url, title: "AWS-SAA-C03 study guide", sourceType: "study-guide", contentMode: "outline_blueprint", status: "pending" };
+    const { db, inserts } = createAdminDb({
+      certifications: [{ id: ids.cert, code: "AWS-SAA-C03" }],
+      resources: [resource],
+      returningByTable: { certdrill_learn_resources: [resource] },
+    });
+    db.query.certdrillLearnResources.findFirst.mockResolvedValueOnce(null).mockResolvedValue(resource);
+    const start = vi.fn().mockResolvedValue({ id: "run-1", status: "pending" });
+    const service = createCertDrillAdminService({
+      db,
+      resourceIngestor: { ingest: vi.fn().mockResolvedValue({ finalUrl: url, title: null, rawContent: "Domain 1 (100%)", contentType: "text/html", ingestedAt: new Date() }) },
+      blueprintParse: { start, get: vi.fn(), list: vi.fn(), processPending: vi.fn() },
+    } as never);
+
+    await service.startCategoryDiscovery({ certificationId: ids.cert, url });
+
+    expect(inserts.find((entry) => entry.table === "certdrill_learn_resources")?.values).toMatchObject({
+      certificationId: ids.cert,
+      url,
+      title: "AWS-SAA-C03 study guide",
+      sourceType: "study-guide",
+      contentMode: "outline_blueprint",
+      status: "pending",
+    });
+    expect(start).toHaveBeenCalledWith({ certificationId: ids.cert, resourceId: ids.resource });
   });
 
   it("creates, lists, and updates certifications", async () => {
@@ -213,8 +262,18 @@ describe("CertDrill admin service", () => {
     ]);
     await expect(service.updateCategory(ids.category, { weightPct: "40.00", name: "Domain 2 updated" })).resolves.toEqual({ id: ids.category, code: "D2" });
 
-    expect(inserts.find((entry) => entry.table === "certdrill_exam_categories")?.values).toMatchObject({ code: "D2", weightPct: "40.00" });
-    expect(updates.find((entry) => entry.table === "certdrill_exam_categories")?.values).toMatchObject({ name: "Domain 2 updated", weightPct: "40.00" });
+    expect(inserts.find((entry) => entry.table === "certdrill_exam_categories")?.values).toMatchObject({
+      code: "D2",
+      weightPct: "40.00",
+      weightMinPct: "40.00",
+      weightMaxPct: "40.00",
+    });
+    expect(updates.find((entry) => entry.table === "certdrill_exam_categories")?.values).toMatchObject({
+      name: "Domain 2 updated",
+      weightPct: "40.00",
+      weightMinPct: "40.00",
+      weightMaxPct: "40.00",
+    });
   });
 
   it("allows incremental category weights below 100 and rejects totals above 100", async () => {
@@ -430,6 +489,27 @@ describe("CertDrill admin service", () => {
     expect(db.execute.mock.invocationCallOrder[0]).toBeLessThan(db.query.certdrillExamForms.findMany.mock.invocationCallOrder[0]!);
   });
 
+  it("keeps generated exam forms disjoint from existing form assignments", async () => {
+    const existingForm = generatedExamForm();
+    const questions = [
+      ...publishedQuestions,
+      { id: ids.replacementQuestion, certificationId: ids.cert, categoryId: ids.category, status: "published" as const },
+      { id: ids.otherResource, certificationId: ids.cert, categoryId: ids.siblingCategory, status: "published" as const },
+    ];
+    const { db, inserts } = createAdminDb({ categories: weightedCategories, questions, examForms: [existingForm] });
+
+    await createCertDrillAdminService({ db, rng: () => 0.5 }).createExamForm({
+      certificationId: ids.cert,
+      name: "Form B",
+      durationMinutes: 120,
+      targetQuestionCount: 2,
+    });
+
+    expect(inserts.find((entry) => entry.table === "certdrill_exam_forms")?.values).toMatchObject({
+      questionIds: expect.arrayContaining([ids.replacementQuestion, ids.otherResource]),
+    });
+  });
+
   it("does not insert a form when capacity is insufficient", async () => {
     const { db, inserts } = createAdminDb({ categories: weightedCategories, questions: publishedQuestions.slice(0, 1) });
     const service = createCertDrillAdminService({ db, rng: () => 0.5 });
@@ -529,6 +609,15 @@ describe("CertDrill admin service", () => {
     expect(updates).toEqual([]);
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(db.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks moving an active-form question to practice-only delivery", async () => {
+    const { db, updates } = createAdminDb({ questionById: createQuestion({ status: "published" }), activeExamFormsContainingQuestion: [{ id: ids.examForm, name: "Form A" }] });
+
+    await expect(createCertDrillAdminService({ db }).updateQuestion(ids.question, { deliveryPurpose: "practice" })).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE",
+    });
+    expect(updates).toEqual([]);
   });
 
   it("creates, lists, and updates resource placeholders", async () => {
@@ -808,41 +897,88 @@ describe("CertDrill admin service", () => {
     expect(updates).toEqual([]);
   });
 
-  it("creates a mock generation job and deterministic draft questions", async () => {
-    const { db, inserts, transactions } = createAdminDb({
-      categories: [{ id: ids.category, certificationId: ids.cert }],
-      categoryById: { id: ids.category, certificationId: ids.cert },
-      resources: [{ id: ids.resource, certificationId: ids.cert }],
+
+  it("publishes selected questions in one transaction after validating every question", async () => {
+    const firstQuestion = createQuestion({ id: ids.question, status: "draft" });
+    const secondQuestion = createQuestion({ id: ids.otherQuestion, status: "draft" });
+    const { db, updates, transactions } = createAdminDb({
+      questions: [firstQuestion, secondQuestion],
       returningByTable: {
-        certdrill_question_generation_jobs: [{ id: ids.generationJob, status: "completed" }],
-        certdrill_questions: [{ id: ids.question, status: "draft" }],
+        certdrill_questions: [
+          { ...firstQuestion, status: "published" },
+          { ...secondQuestion, status: "published" },
+        ],
       },
     });
     const service = createCertDrillAdminService({ db });
 
-    await expect(service.createMockGenerationJob({
-      certificationId: ids.cert,
-      categoryId: ids.category,
-      prompt: "Cover IAM least privilege",
-      topic: "IAM",
-      requestedCount: 2,
-      resourceIds: [ids.resource],
-    })).resolves.toEqual({ job: { id: ids.generationJob, status: "completed" }, generatedQuestions: [{ id: ids.question, status: "draft" }, { id: ids.question, status: "draft" }] });
-
-    expect(inserts.find((entry) => entry.table === "certdrill_question_generation_jobs")?.values).toMatchObject({
-      certificationId: ids.cert,
-      categoryId: ids.category,
-      requestedCount: 2,
-      provider: "mock",
-      status: "completed",
-      generatedCount: 2,
-    });
-    expect(inserts.filter((entry) => entry.table === "certdrill_questions")).toEqual([
-      expect.objectContaining({ values: expect.objectContaining({ stem: "Mock IAM question 1: Cover IAM least privilege", status: "draft", createdBy: "ai", generationJobId: ids.generationJob }) }),
-      expect.objectContaining({ values: expect.objectContaining({ stem: "Mock IAM question 2: Cover IAM least privilege", status: "draft", createdBy: "ai", generationJobId: ids.generationJob }) }),
+    await expect(service.updateQuestionStatuses({
+      questionIds: [ids.question, ids.otherQuestion],
+      status: "published",
+    })).resolves.toEqual([
+      expect.objectContaining({ id: ids.question, status: "published" }),
+      expect.objectContaining({ id: ids.otherQuestion, status: "published" }),
     ]);
-    expect(inserts.filter((entry) => entry.table === "certdrill_answer_options")).toHaveLength(8);
+
+    expect(updates).toEqual([
+      expect.objectContaining({
+        table: "certdrill_questions",
+        values: expect.objectContaining({ status: "published", updatedAt: expect.any(Date) }),
+      }),
+    ]);
     expect(transactions).toHaveLength(1);
+  });
+
+  it("rejects bulk unpublish atomically when a selected question is in an active exam form", async () => {
+    const { db, updates } = createAdminDb({
+      questions: [
+        createQuestion({ id: ids.question, status: "published" }),
+        createQuestion({ id: ids.otherQuestion, status: "published" }),
+      ],
+      activeExamFormsContainingQuestion: [{ id: ids.examForm, name: "Active Form" }],
+    });
+    const service = createCertDrillAdminService({ db });
+
+    await expect(service.updateQuestionStatuses({
+      questionIds: [ids.question, ids.otherQuestion],
+      status: "draft",
+    })).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE",
+      message: "Question is assigned to active exam form: Active Form. Deactivate or regenerate them first.",
+    });
+
+    expect(updates).toEqual([]);
+  });
+
+  it("reassigns selected questions to assessment in one transaction", async () => {
+    const questions = [createQuestion({ id: ids.question }), createQuestion({ id: ids.otherQuestion })];
+    const { db, updates, transactions } = createAdminDb({
+      questions,
+      returningByTable: { certdrill_questions: questions.map((question) => ({ ...question, deliveryPurpose: "assessment" })) },
+    });
+
+    await expect(createCertDrillAdminService({ db }).updateQuestionDeliveryPurposes({
+      questionIds: [ids.question, ids.otherQuestion],
+      deliveryPurpose: "assessment",
+    })).resolves.toEqual([
+      expect.objectContaining({ id: ids.question, deliveryPurpose: "assessment" }),
+      expect.objectContaining({ id: ids.otherQuestion, deliveryPurpose: "assessment" }),
+    ]);
+    expect(updates.at(-1)?.values).toMatchObject({ deliveryPurpose: "assessment", updatedAt: expect.any(Date) });
+    expect(transactions).toHaveLength(1);
+  });
+
+  it("rejects bulk practice reassignment when a selected question is reserved", async () => {
+    const { db, updates } = createAdminDb({
+      questions: [createQuestion({ id: ids.question }), createQuestion({ id: ids.otherQuestion })],
+      activeExamFormsContainingQuestion: [{ id: ids.examForm, name: "Active Form" }],
+    });
+
+    await expect(createCertDrillAdminService({ db }).updateQuestionDeliveryPurposes({
+      questionIds: [ids.question, ids.otherQuestion],
+      deliveryPurpose: "practice",
+    })).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE" });
+    expect(updates).toEqual([]);
   });
 
   it("updates question feedback status to reviewed and resolved", async () => {
@@ -874,27 +1010,191 @@ describe("CertDrill admin service", () => {
     expect(resolvedDb.updates.find((entry) => entry.table === "certdrill_question_feedback")?.values).toMatchObject({ status: "resolved", updatedAt: expect.any(Date) });
   });
 
-  it("rejects mock generation resource ids outside the certification", async () => {
-    const { db, inserts } = createAdminDb({
+  it("creates and ingests new source URLs before queueing grounded generation", async () => {
+    const createdResource = {
+      id: ids.resource,
+      certificationId: ids.cert,
+      categoryId: ids.category,
+      url: "https://docs.example.com/identity",
+      title: "AZ-104 source (docs.example.com)",
+      sourceType: "doc" as const,
+      contentMode: "deep_content" as const,
+      rawContent: null,
+      ingestedAt: null,
+      status: "pending" as const,
+      ingestError: null,
+    };
+    const { db, inserts, updates } = createAdminDb({
+      certifications: [{ id: ids.cert, code: "AZ-104" }],
       categoryById: { id: ids.category, certificationId: ids.cert },
-      resources: [{ id: ids.resource, certificationId: ids.cert }],
+      returningByTable: { certdrill_learn_resources: [createdResource] },
+    });
+    db.query.certdrillLearnResources.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(createdResource);
+    const resourceIngestor = {
+      ingest: vi.fn().mockResolvedValue({
+        finalUrl: createdResource.url,
+        title: "Identity documentation",
+        rawContent: "Grounded identity content",
+        contentType: "text/html" as const,
+        ingestedAt: new Date("2026-08-09T12:00:00.000Z"),
+      }),
+    };
+    const questionGeneration = {
+      start: vi.fn().mockResolvedValue({ id: ids.generationJob, status: "pending" }),
+      get: vi.fn(),
+      list: vi.fn(),
+      processPending: vi.fn(),
+    };
+    const service = createCertDrillAdminService({ db, resourceIngestor, questionGeneration });
+    const config = { focus: "Identity", systemInstructions: "Use detailed answer choices.", instructions: null, questionTypes: ["single_choice"] as const, difficultyMix: { easy: 20, medium: 60, hard: 20 }, deliveryPurpose: "practice" as const };
+
+    await expect(service.startQuestionGeneration({
+      certificationId: ids.cert,
+      categoryId: null,
+      resourceIds: [],
+      sourceUrls: [createdResource.url],
+      requestedCount: 5,
+      config,
+    })).resolves.toEqual({ id: ids.generationJob, status: "pending" });
+
+    expect(inserts.find((entry) => entry.table === "certdrill_learn_resources")?.values).toMatchObject({
+      certificationId: ids.cert,
+      categoryId: null,
+      url: createdResource.url,
+      sourceType: "doc",
+      contentMode: "deep_content",
+      status: "pending",
+    });
+    expect(resourceIngestor.ingest).toHaveBeenCalledWith(createdResource.url);
+    expect(updates.find((entry) => entry.table === "certdrill_learn_resources")?.values).toMatchObject({
+      rawContent: "Grounded identity content",
+      status: "ingested",
+      ingestError: null,
+    });
+    expect(questionGeneration.start).toHaveBeenCalledWith({
+      certificationId: ids.cert,
+      categoryId: null,
+      resourceIds: [ids.resource],
+      requestedCount: 5,
+      config,
+    });
+  });
+
+  it("creates, lists, updates, validates, publishes, and archives scenario definitions", async () => {
+    const contentJson = {
+      initialNodeKey: "start",
+      nodes: [{
+        key: "start",
+        title: "Start",
+        situation: "Choose a response.",
+        evidence: ["Signal"],
+        options: [
+          { key: "a", title: "A", description: "Action A", consequence: "Outcome A", nextNodeKey: null },
+          { key: "b", title: "B", description: "Action B", consequence: "Outcome B", nextNodeKey: null },
+        ],
+      }],
+    };
+    const scenario = { id: ids.scenario, certificationId: ids.cert, title: "Incident", description: null, difficulty: "medium", estimatedMinutes: 15, status: "draft" as const, contentJson };
+    const validated = { ...scenario, status: "validated" as const, validatedAt: new Date() };
+    const { db, inserts, updates, deletes } = createAdminDb({
+      certifications: [{ id: ids.cert }],
+      scenarios: [scenario],
+      scenarioAssignments: [],
+      returningByTable: { certdrill_scenarios: [scenario] },
+    });
+    const service = createCertDrillAdminService({ db });
+    const input = { certificationId: ids.cert, title: scenario.title, description: null, difficulty: "medium" as const, estimatedMinutes: 15, contentJson };
+
+    await expect(service.createScenario(input)).resolves.toMatchObject({ id: ids.scenario, status: "draft", examFormIds: [] });
+    await expect(service.listScenarios(ids.cert)).resolves.toEqual([{ ...scenario, examFormIds: [] }]);
+    const { certificationId: _certificationId, ...updateInput } = input;
+    await expect(service.updateScenario(ids.scenario, updateInput)).resolves.toMatchObject({ id: ids.scenario });
+    db.update = (table: Table) => ({ set: (values: Record<string, unknown>) => ({ where: () => ({ returning: async () => [{ ...validated, ...values }] }) }) });
+    await expect(service.validateScenario(ids.scenario)).resolves.toMatchObject({ id: ids.scenario, status: "validated" });
+    await expect(service.publishScenario(ids.scenario)).resolves.toMatchObject({ id: ids.scenario, status: "published" });
+    await expect(service.updateScenarioStatuses({ scenarioIds: [ids.scenario], status: "draft" })).resolves.toEqual([
+      expect.objectContaining({ id: ids.scenario, status: "draft" }),
+    ]);
+
+    await expect(service.archiveScenario(ids.scenario)).resolves.toMatchObject({ id: ids.scenario, status: "archived" });
+    expect(inserts.some((entry) => entry.table === "certdrill_scenarios")).toBe(true);
+    expect(updates.some((entry) => entry.table === "certdrill_scenarios" && entry.values.status === "draft")).toBe(true);
+    expect(deletes).toContain("certdrill_exam_form_scenarios");
+  });
+
+  it("assigns only published same-certification scenarios to an inactive exam form", async () => {
+    const scenario = { id: ids.scenario, certificationId: ids.cert, status: "published", contentJson: { initialNodeKey: "start", nodes: [] } };
+    const form = generatedExamForm({ isActive: false });
+    const { db, inserts, deletes, transactions } = createAdminDb({ examForms: [form], scenarios: [scenario], scenarioAssignments: [] });
+    const service = createCertDrillAdminService({ db });
+
+    await expect(service.setExamFormScenarios(ids.examForm, [ids.scenario])).resolves.toMatchObject({ id: ids.examForm, scenarioIds: [ids.scenario] });
+    expect(deletes).toContain("certdrill_exam_form_scenarios");
+    expect(inserts.find((entry) => entry.table === "certdrill_exam_form_scenarios")?.values).toMatchObject({ examFormId: ids.examForm, scenarioId: ids.scenario, sortOrder: 0 });
+    expect(transactions).toHaveLength(1);
+  });
+
+  it("blocks unpublishing scenarios assigned to active exam forms", async () => {
+    const scenario = { id: ids.scenario, certificationId: ids.cert, status: "published", contentJson: { initialNodeKey: "start", nodes: [] } };
+    const form = generatedExamForm({ isActive: true, name: "Live assessment" });
+    const { db, updates, deletes } = createAdminDb({
+      examForms: [form],
+      scenarios: [scenario],
+      scenarioAssignments: [{ scenarioId: ids.scenario, examFormId: ids.examForm }],
+    });
+    const service = createCertDrillAdminService({ db });
+    await expect(service.archiveScenario(ids.scenario)).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_SCENARIO_IN_ACTIVE_FORM",
+      message: expect.stringContaining("Deactivate assigned exam forms"),
+    });
+
+    await expect(service.updateScenarioStatuses({ scenarioIds: [ids.scenario], status: "draft" })).rejects.toMatchObject({
+      code: "CERTDRILL_ADMIN_SCENARIO_IN_ACTIVE_FORM",
+      message: expect.stringContaining("Deactivate assigned exam forms"),
+    });
+    expect(updates).toEqual([]);
+    expect(deletes).toEqual([]);
+  });
+
+  it("rejects invalid scenario graphs during validation", async () => {
+    const scenario = {
+      id: ids.scenario,
+      certificationId: ids.cert,
+      status: "draft" as const,
+      contentJson: {
+        initialNodeKey: "missing",
+        nodes: [{ key: "start", title: "Start", situation: "Choose.", evidence: [], options: [
+          { key: "a", title: "A", description: "A", consequence: "A", nextNodeKey: null },
+          { key: "b", title: "B", description: "B", consequence: "B", nextNodeKey: null },
+        ] }],
+      },
+    };
+    const { db, updates } = createAdminDb({ scenarios: [scenario] });
+    const service = createCertDrillAdminService({ db });
+
+    await expect(service.validateScenario(ids.scenario)).rejects.toMatchObject({ code: "CERTDRILL_ADMIN_SCENARIO_INVALID", details: [expect.stringContaining("does not exist")] });
+    expect(updates).toEqual([]);
+  });
+
+  it("transactionally resets attempts and missed-question review state for a user", async () => {
+    const { db, deletes, transactions } = createAdminDb({
+      returningByTable: {
+        certdrill_exam_attempts: [{ id: "attempt-1" }, { id: "attempt-2" }],
+        certdrill_review_queue: [{ id: "review-1" }],
+      },
     });
     const service = createCertDrillAdminService({ db });
 
-    await expect(service.createMockGenerationJob({
-      certificationId: ids.cert,
-      categoryId: ids.category,
-      prompt: "Cover IAM least privilege",
-      topic: "IAM",
-      requestedCount: 1,
-      resourceIds: [ids.resource, ids.otherResource],
-    })).rejects.toMatchObject({
-      code: "CERTDRILL_ADMIN_CROSS_CERT_REFERENCE",
-      message: "Generation resource IDs must belong to the certification",
+    await expect(service.resetUserProgress(ids.user)).resolves.toEqual({
+      deletedAttemptCount: 2,
+      deletedReviewItemCount: 1,
     });
-
-    expect(inserts).toEqual([]);
+    expect(deletes).toEqual(expect.arrayContaining(["certdrill_exam_attempts", "certdrill_review_queue"]));
+    expect(transactions).toHaveLength(1);
   });
+
 });
 
 type InsertEntry = { table: string; values: Record<string, unknown> };
@@ -911,6 +1211,8 @@ function createAdminDb(input: {
   resources?: unknown[];
   generationJobs?: unknown[];
   questionFeedback?: unknown[];
+  scenarios?: unknown[];
+  scenarioAssignments?: unknown[];
   queryRowsByTable?: Record<string, unknown[]>;
   returningByTable?: Record<string, unknown[]>;
   activeExamFormsContainingQuestion?: unknown[];
@@ -933,6 +1235,8 @@ function createAdminDb(input: {
       certdrillLearnResources: { findMany: findMany("certdrill_learn_resources", input.resources), findFirst: vi.fn().mockResolvedValue(input.resources?.[0] ?? null) },
       certdrillQuestionGenerationJobs: { findMany: findMany("certdrill_question_generation_jobs", input.generationJobs), findFirst: vi.fn().mockResolvedValue(input.generationJobs?.[0] ?? null) },
       certdrillQuestionFeedback: { findMany: findMany("certdrill_question_feedback", input.questionFeedback), findFirst: vi.fn().mockResolvedValue(input.questionFeedback?.[0] ?? null) },
+      certdrillScenarios: { findMany: findMany("certdrill_scenarios", input.scenarios), findFirst: vi.fn().mockResolvedValue(input.scenarios?.[0] ?? null) },
+      certdrillExamFormScenarios: { findMany: findMany("certdrill_exam_form_scenarios", input.scenarioAssignments), findFirst: vi.fn().mockResolvedValue(input.scenarioAssignments?.[0] ?? null) },
     },
     insert: (table: Table) => ({
       values: (values: Record<string, unknown> | Record<string, unknown>[]) => {
@@ -964,8 +1268,13 @@ function createAdminDb(input: {
       },
     }),
     delete: (table: Table) => {
-      deletes.push(getTableName(table));
-      return { where: vi.fn().mockResolvedValue(undefined) };
+      const tableName = getTableName(table);
+      deletes.push(tableName);
+      return {
+        where: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue(input.returningByTable?.[tableName] ?? []),
+        })),
+      };
     },
     transaction: vi.fn(async (callback: (tx: unknown) => unknown) => {
       transactions.push(true);

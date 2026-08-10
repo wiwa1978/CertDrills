@@ -32,17 +32,18 @@ export function QuestionActionsMenu({
   archiveAction: (formData: FormData) => void | Promise<void>;
 }) {
   const questionStatus = status ?? "draft";
+  const triggerId = `question-actions-${questionId}`;
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label={`Actions for ${questionId}`} onClick={stopPropagation}>
+          <Button id={triggerId} type="button" variant="ghost" size="icon" aria-label={`Actions for ${questionId}`} onClick={stopPropagation}>
             <MoreHorizontal className="size-4" />
             <span className="sr-only">Actions</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={stopPropagation}>
+        <DropdownMenuContent aria-labelledby={triggerId} align="end" onClick={stopPropagation}>
           <DropdownMenuItem asChild>
             {edit}
           </DropdownMenuItem>

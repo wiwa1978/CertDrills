@@ -51,6 +51,7 @@ import {
   type QuestionAnswerTab,
 } from "./question-form-navigation";
 import { QuestionFormShell } from "./question-form-shell";
+import { QuestionInteractionFields } from "./question-interaction-fields";
 import type { QuestionFormActionState } from "./question-form-state";
 
 type QuestionFormAction = (
@@ -138,11 +139,15 @@ function StatefulQuestionForm({
     () => selectedQuestion?.categoryId ?? "",
   );
   const [stem, setStem] = useState(() => selectedQuestion?.stem ?? "");
+  const [questionType, setQuestionType] = useState(() => selectedQuestion?.questionType ?? "single_choice");
   const [difficulty, setDifficulty] = useState<string>(
     () => selectedQuestion?.difficulty ?? "medium",
   );
   const [status, setStatus] = useState<string>(
     () => selectedQuestion?.status ?? "draft",
+  );
+  const [deliveryPurpose, setDeliveryPurpose] = useState<string>(
+    () => selectedQuestion?.deliveryPurpose ?? "both",
   );
   const answerKeysRef = useRef(answerState.answers.map((answer) => answer.key));
   // Keep event handlers synchronized before effects run.
@@ -154,8 +159,10 @@ function StatefulQuestionForm({
     setFieldToFocus(undefined);
     setCategoryId("");
     setStem("");
+    setQuestionType("single_choice");
     setDifficulty("medium");
     setStatus("draft");
+    setDeliveryPurpose("both");
   }, []);
 
   const activateField = useCallback((
@@ -255,10 +262,14 @@ function StatefulQuestionForm({
           setCategoryId={setCategoryId}
           stem={stem}
           setStem={setStem}
+          questionType={questionType}
+          setQuestionType={setQuestionType}
           difficulty={difficulty}
           setDifficulty={setDifficulty}
           status={status}
           setStatus={setStatus}
+          deliveryPurpose={deliveryPurpose}
+          setDeliveryPurpose={setDeliveryPurpose}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           answerState={answerState}
@@ -285,10 +296,14 @@ function QuestionFormContents({
   setCategoryId,
   stem,
   setStem,
+  questionType,
+  setQuestionType,
   difficulty,
   setDifficulty,
   status,
   setStatus,
+  deliveryPurpose,
+  setDeliveryPurpose,
   activeTab,
   setActiveTab,
   answerState,
@@ -309,10 +324,14 @@ function QuestionFormContents({
   setCategoryId: (value: string) => void;
   stem: string;
   setStem: (value: string) => void;
+  questionType: "single_choice" | "fill_blank" | "matching";
+  setQuestionType: (value: "single_choice" | "fill_blank" | "matching") => void;
   difficulty: string;
   setDifficulty: (value: string) => void;
   status: string;
   setStatus: (value: string) => void;
+  deliveryPurpose: string;
+  setDeliveryPurpose: (value: string) => void;
   activeTab: QuestionAnswerTab;
   setActiveTab: (tab: QuestionAnswerTab) => void;
   answerState: QuestionAnswerEditorState;
@@ -386,7 +405,19 @@ function QuestionFormContents({
             helperText="Question stem is required. Markdown is supported."
             errorMessages={fieldErrors(state, "stem")}
           />
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <QuestionSelect
+              id={`${idPrefix}-question-type`}
+              name="questionType"
+              label="Interaction"
+              value={questionType}
+              onChange={(event) => setQuestionType(event.currentTarget.value as "single_choice" | "fill_blank" | "matching")}
+              errorMessages={fieldErrors(state, "questionType")}
+            >
+              <option value="single_choice">Single choice</option>
+              <option value="fill_blank">Fill in the gap</option>
+              <option value="matching">Drag and drop matching</option>
+            </QuestionSelect>
             <QuestionSelect
               id={`${idPrefix}-difficulty`}
               name="difficulty"
@@ -409,23 +440,44 @@ function QuestionFormContents({
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </QuestionSelect>
+            <QuestionSelect
+              id={`${idPrefix}-delivery-purpose`}
+              name="deliveryPurpose"
+              label="Available for"
+              value={deliveryPurpose}
+              onChange={(event) => setDeliveryPurpose(event.currentTarget.value)}
+            >
+              <option value="both">Practice and assessment</option>
+              <option value="practice">Practice only</option>
+              <option value="assessment">Assessment only</option>
+            </QuestionSelect>
           </div>
         </CardContent>
       </Card>
 
-      <AnswerTabs
-        state={state}
-        idPrefix={idPrefix}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        answerState={answerState}
-        setAnswerState={setAnswerState}
-        handleAddAnswer={handleAddAnswer}
-        handleRemoveRequest={handleRemoveRequest}
-        handleConfirmRemoval={handleConfirmRemoval}
-        handleCancelRemoval={handleCancelRemoval}
-        activateField={activateField}
-      />
+      {questionType === "single_choice" ? (
+        <AnswerTabs
+          state={state}
+          idPrefix={idPrefix}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          answerState={answerState}
+          setAnswerState={setAnswerState}
+          handleAddAnswer={handleAddAnswer}
+          handleRemoveRequest={handleRemoveRequest}
+          handleConfirmRemoval={handleConfirmRemoval}
+          handleCancelRemoval={handleCancelRemoval}
+          activateField={activateField}
+        />
+      ) : (
+        <QuestionInteractionFields
+          key={`${selectedQuestion?.id ?? "new"}-${questionType}`}
+          idPrefix={idPrefix}
+          questionType={questionType}
+          interaction={selectedQuestion?.questionType === questionType ? selectedQuestion.interactionJson : null}
+          errors={fieldErrors(state, questionType === "fill_blank" ? "acceptedAnswers" : "matchingPairs")}
+        />
+      )}
     </div>
   );
 }

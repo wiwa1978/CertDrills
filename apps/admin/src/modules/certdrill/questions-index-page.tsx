@@ -2,7 +2,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listCertDrillAdminQuestionIndexServer } from "@/lib/api/certdrill.server";
 
-import { archiveCertDrillQuestionAction, publishCertDrillQuestionAction } from "./admin-actions";
+import {
+  archiveCertDrillQuestionAction,
+  publishCertDrillQuestionAction,
+  publishSelectedCertDrillQuestionsAction,
+  unpublishSelectedCertDrillQuestionsAction,
+  setSelectedCertDrillQuestionsPracticeAction,
+  setSelectedCertDrillQuestionsAssessmentAction,
+} from "./admin-actions";
 import { QuestionsIndexFilterBar } from "./questions-index-filter-bar";
 import {
   buildQuestionsIndexHref,
@@ -63,6 +70,10 @@ export async function QuestionsIndexPage({ searchParams }: QuestionsIndexPagePro
               nextHref={nextHref}
               publishAction={publishCertDrillQuestionAction}
               archiveAction={archiveCertDrillQuestionAction}
+              bulkPublishAction={publishSelectedCertDrillQuestionsAction}
+              bulkUnpublishAction={unpublishSelectedCertDrillQuestionsAction}
+              bulkPracticeAction={setSelectedCertDrillQuestionsPracticeAction}
+              bulkAssessmentAction={setSelectedCertDrillQuestionsAssessmentAction}
             />
           ) : <EmptyState>No questions match the current filters.</EmptyState>}
         </CardContent>

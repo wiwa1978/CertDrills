@@ -30,13 +30,42 @@ export type CertDrillTestVariant =
 export type CertDrillConfidence = "guessed" | "somewhat_sure" | "confident";
 export type CertDrillAttemptStatus = "in_progress" | "completed" | "abandoned";
 export type CertDrillQuestionStatus = "draft" | "published" | "archived";
+export type CertDrillQuestionDeliveryPurpose = "practice" | "assessment" | "both";
 export type CertDrillDifficulty = "easy" | "medium" | "hard";
+export type CertDrillQuestionType = "single_choice" | "fill_blank" | "matching";
+export type CertDrillQuestionInteraction =
+  | { type: "fill_blank"; acceptedAnswers: string[]; explanation: string; citationUrls: string[] }
+  | { type: "matching"; pairs: Array<{ promptId: string; targetId: string; prompt: string; target: string; explanation: string; citationUrls: string[] }>; targetOrder?: string[] }
+  | null;
+export type CertDrillQuestionResponse =
+  | { type: "single_choice"; selectedOptionId: string }
+  | { type: "fill_blank"; text: string }
+  | { type: "matching"; matches: Array<{ promptId: string; targetId: string }> };
 export type CertDrillResourceStatus = "pending" | "ingested" | "failed";
 export type CertDrillContentMode = "deep_content" | "outline_blueprint";
 export type CertDrillSourceType = "module" | "unit" | "study-guide" | "exam-blueprint" | "doc";
 export type CertDrillBlueprintParseStatus = "pending" | "running" | "completed" | "failed";
 export type CertDrillBlueprintConfidence = "high" | "medium" | "low";
 export type CertDrillJobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+export type CertDrillScenarioStatus = "draft" | "validated" | "published" | "archived";
+export type CertDrillScenarioContent = {
+  initialNodeKey: string;
+  nodes: Array<{
+    key: string;
+    title: string;
+    situation: string;
+    evidence: string[];
+    options: Array<{
+      key: string;
+      title: string;
+      description: string;
+      consequence: string;
+      points?: number;
+      nextNodeKey: string | null;
+    }>;
+  }>;
+};
+export type CertDrillScenarioDecision = { nodeKey: string; optionKey: string };
 export type CertDrillReviewQueueReason = "incorrect" | "low_confidence" | "incorrect_low_confidence";
 export type CertDrillReviewQueueStatus = "active" | "completed" | "dismissed";
 export type CertDrillExamFormAllocation = {
@@ -81,6 +110,7 @@ export const certdrillCertifications = pgTable(
     quickDrillQuestionCount: integer("quick_drill_question_count").default(10).notNull(),
     categoryDrillQuestionCount: integer("category_drill_question_count").default(10).notNull(),
     examSimulationQuestionCount: integer("exam_simulation_question_count"),
+    examSimulationScenarioCount: integer("exam_simulation_scenario_count").default(0).notNull(),
     examSimulationDurationMinutes: integer("exam_simulation_duration_minutes").default(120).notNull(),
     passThresholdPct: integer("pass_threshold_pct").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -94,6 +124,7 @@ export const certdrillCertifications = pgTable(
     index("certdrill_certifications_enabled_at_idx").on(table.enabledAt),
     index("certdrill_certifications_archived_at_idx").on(table.archivedAt),
     index("certdrill_certifications_vendor_id_idx").on(table.vendorId),
+    check("certdrill_certifications_exam_simulation_scenario_count_nonnegative", sql`${table.examSimulationScenarioCount} >= 0`),
   ],
 );
 
@@ -111,6 +142,8 @@ export const certdrillExamCategories = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     weightPct: decimal("weight_pct", { precision: 5, scale: 2 }),
+    weightMinPct: decimal("weight_min_pct", { precision: 5, scale: 2 }),
+    weightMaxPct: decimal("weight_max_pct", { precision: 5, scale: 2 }),
     drillQuestionCount: integer("drill_question_count"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").default(0).notNull(),
@@ -230,6 +263,16 @@ export const certdrillQuestionGenerationJobs = pgTable(
     providerRunUrl: text("provider_run_url"),
     status: text("status").$type<Exclude<CertDrillJobStatus, "cancelled">>().default("pending").notNull(),
     modelUsed: text("model_used"),
+    configurationJson: jsonb("configuration_json").$type<{
+      focus: string | null;
+      systemInstructions: string | null;
+      instructions: string | null;
+      difficultyMix: { easy: number; medium: number; hard: number };
+      questionTypes: CertDrillQuestionType[];
+      deliveryPurpose: "practice" | "assessment";
+    }>().notNull(),
+    resourceChecksumsJson: jsonb("resource_checksums_json").$type<Record<string, string>>().notNull(),
+    rawOutput: text("raw_output"),
     generatedCount: integer("generated_count"),
     errorMessage: text("error_message"),
     startedAt: timestamp("started_at", { withTimezone: true }),
@@ -258,10 +301,13 @@ export const certdrillQuestions = pgTable(
     generationJobId: uuid("generation_job_id").references(() => certdrillQuestionGenerationJobs.id, {
       onDelete: "set null",
     }),
+    questionType: text("question_type").$type<CertDrillQuestionType>().default("single_choice").notNull(),
+    interactionJson: jsonb("interaction_json").$type<CertDrillQuestionInteraction>(),
     stem: text("stem").notNull(),
     mediaAssets: jsonb("media_assets").default(sql`'[]'::jsonb`).notNull(),
     difficulty: text("difficulty").$type<CertDrillDifficulty>().notNull(),
     status: text("status").$type<CertDrillQuestionStatus>().default("draft").notNull(),
+    deliveryPurpose: text("delivery_purpose").$type<CertDrillQuestionDeliveryPurpose>().default("both").notNull(),
     createdBy: text("created_by").$type<"ai" | "admin">().notNull(),
     createdAt,
     updatedAt,
@@ -270,6 +316,7 @@ export const certdrillQuestions = pgTable(
     index("certdrill_questions_certification_status_idx").on(table.certificationId, table.status),
     index("certdrill_questions_category_id_idx").on(table.categoryId),
     index("certdrill_questions_generation_job_id_idx").on(table.generationJobId),
+    index("certdrill_questions_delivery_purpose_idx").on(table.certificationId, table.status, table.deliveryPurpose),
   ],
 );
 
@@ -290,6 +337,64 @@ export const certdrillAnswerOptions = pgTable(
     updatedAt,
   },
   (table) => [index("certdrill_answer_options_question_id_idx").on(table.questionId)],
+);
+
+export const certdrillScenarioGenerationJobs = pgTable(
+  "certdrill_scenario_generation_jobs",
+  {
+    id,
+    certificationId: uuid("certification_id").references(() => certdrillCertifications.id, { onDelete: "cascade" }).notNull(),
+    resourceIds: uuid("resource_ids").array().notNull(),
+    requestedCount: integer("requested_count").notNull(),
+    difficulty: text("difficulty").$type<CertDrillDifficulty>().notNull(),
+    focus: text("focus"),
+    instructions: text("instructions"),
+    provider: text("provider").notNull(),
+    modelUsed: text("model_used").notNull(),
+    status: text("status").$type<Exclude<CertDrillJobStatus, "cancelled">>().default("pending").notNull(),
+    resourceChecksumsJson: jsonb("resource_checksums_json").$type<Record<string, string>>().notNull(),
+    rawOutput: text("raw_output"),
+    generatedCount: integer("generated_count"),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("certdrill_scenario_generation_jobs_certification_id_idx").on(table.certificationId),
+    index("certdrill_scenario_generation_jobs_status_idx").on(table.status),
+    check("certdrill_scenario_generation_jobs_requested_count_positive", sql`${table.requestedCount} > 0`),
+  ],
+);
+
+export const certdrillScenarios = pgTable(
+  "certdrill_scenarios",
+  {
+    id,
+    certificationId: uuid("certification_id")
+      .references(() => certdrillCertifications.id, { onDelete: "cascade" })
+      .notNull(),
+    sourceResourceIds: uuid("source_resource_ids").array().default(sql`ARRAY[]::uuid[]`).notNull(),
+    generationJobId: uuid("generation_job_id").references(() => certdrillScenarioGenerationJobs.id, { onDelete: "set null" }),
+    createdBy: text("created_by").$type<"ai" | "admin">().default("admin").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    difficulty: text("difficulty").$type<CertDrillDifficulty>().notNull(),
+    estimatedMinutes: integer("estimated_minutes").notNull(),
+    status: text("status").$type<CertDrillScenarioStatus>().default("draft").notNull(),
+    contentJson: jsonb("content_json").$type<CertDrillScenarioContent>().notNull(),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("certdrill_scenarios_certification_id_idx").on(table.certificationId),
+    index("certdrill_scenarios_generation_job_id_idx").on(table.generationJobId),
+    index("certdrill_scenarios_status_idx").on(table.status),
+    check("certdrill_scenarios_estimated_minutes_positive", sql`${table.estimatedMinutes} > 0`),
+    check("certdrill_scenarios_status_check", sql`${table.status} IN ('draft', 'validated', 'published', 'archived')`),
+  ],
 );
 
 export const certdrillExamForms = pgTable(
@@ -325,6 +430,28 @@ export const certdrillExamForms = pgTable(
   ],
 );
 
+export const certdrillExamFormScenarios = pgTable(
+  "certdrill_exam_form_scenarios",
+  {
+    id,
+    examFormId: uuid("exam_form_id")
+      .references(() => certdrillExamForms.id, { onDelete: "cascade" })
+      .notNull(),
+    scenarioId: uuid("scenario_id")
+      .references(() => certdrillScenarios.id, { onDelete: "cascade" })
+      .notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("certdrill_exam_form_scenarios_form_scenario_idx").on(table.examFormId, table.scenarioId),
+    index("certdrill_exam_form_scenarios_form_id_idx").on(table.examFormId),
+    index("certdrill_exam_form_scenarios_scenario_id_idx").on(table.scenarioId),
+  ],
+);
+
+
 export const certdrillExamAttempts = pgTable(
   "certdrill_exam_attempts",
   {
@@ -343,6 +470,7 @@ export const certdrillExamAttempts = pgTable(
     confidenceEnabled: boolean("confidence_enabled").default(false).notNull(),
     categoryIds: uuid("category_ids").array(),
     questionIds: uuid("question_ids").array().notNull(),
+    scenarioIds: uuid("scenario_ids").array().default(sql`ARRAY[]::uuid[]`).notNull(),
     snapshotVersion: integer("snapshot_version").default(1).notNull(),
     questionSnapshotJson: jsonb("question_snapshot_json").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
@@ -374,7 +502,8 @@ export const certdrillExamAttemptAnswers = pgTable(
       .references(() => certdrillExamAttempts.id, { onDelete: "cascade" })
       .notNull(),
     questionId: uuid("question_id").notNull(),
-    selectedOptionId: uuid("selected_option_id").notNull(),
+    selectedOptionId: uuid("selected_option_id"),
+    responseJson: jsonb("response_json").$type<CertDrillQuestionResponse>().notNull(),
     isCorrect: boolean("is_correct").notNull(),
     confidence: text("confidence").$type<CertDrillConfidence>(),
     answeredAt: timestamp("answered_at", { withTimezone: true }).defaultNow().notNull(),
@@ -384,6 +513,28 @@ export const certdrillExamAttemptAnswers = pgTable(
   (table) => [
     index("certdrill_exam_attempt_answers_attempt_id_idx").on(table.examAttemptId),
     uniqueIndex("certdrill_exam_attempt_answers_attempt_question_idx").on(table.examAttemptId, table.questionId),
+  ],
+);
+
+export const certdrillExamAttemptScenarioResponses = pgTable(
+  "certdrill_exam_attempt_scenario_responses",
+  {
+    id,
+    examAttemptId: uuid("exam_attempt_id").references(() => certdrillExamAttempts.id, { onDelete: "cascade" }).notNull(),
+    scenarioId: uuid("scenario_id").references(() => certdrillScenarios.id, { onDelete: "restrict" }).notNull(),
+    decisionsJson: jsonb("decisions_json").$type<CertDrillScenarioDecision[]>().notNull(),
+    earnedPoints: integer("earned_points").notNull(),
+    maxPoints: integer("max_points").notNull(),
+    scorePct: decimal("score_pct", { precision: 5, scale: 2 }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("certdrill_exam_attempt_scenario_responses_attempt_scenario_unique").on(table.examAttemptId, table.scenarioId),
+    index("certdrill_exam_attempt_scenario_responses_attempt_id_idx").on(table.examAttemptId),
+    check("certdrill_exam_attempt_scenario_responses_points_nonnegative", sql`${table.earnedPoints} >= 0 AND ${table.maxPoints} > 0`),
+    check("certdrill_exam_attempt_scenario_responses_score_range", sql`${table.scorePct} >= 0 AND ${table.scorePct} <= 100`),
   ],
 );
 
@@ -472,6 +623,7 @@ export const certdrillCertificationsRelations = relations(certdrillCertification
   attempts: many(certdrillExamAttempts),
   examForms: many(certdrillExamForms),
   reviewQueue: many(certdrillReviewQueue),
+  scenarios: many(certdrillScenarios),
 }));
 
 export const certdrillExamCategoriesRelations = relations(certdrillExamCategories, ({ one, many }) => ({
@@ -515,6 +667,26 @@ export const certdrillExamFormsRelations = relations(certdrillExamForms, ({ one,
     references: [certdrillCertifications.id],
   }),
   attempts: many(certdrillExamAttempts),
+  scenarioAssignments: many(certdrillExamFormScenarios),
+}));
+
+export const certdrillScenariosRelations = relations(certdrillScenarios, ({ one, many }) => ({
+  certification: one(certdrillCertifications, {
+    fields: [certdrillScenarios.certificationId],
+    references: [certdrillCertifications.id],
+  }),
+  examFormAssignments: many(certdrillExamFormScenarios),
+}));
+
+export const certdrillExamFormScenariosRelations = relations(certdrillExamFormScenarios, ({ one }) => ({
+  examForm: one(certdrillExamForms, {
+    fields: [certdrillExamFormScenarios.examFormId],
+    references: [certdrillExamForms.id],
+  }),
+  scenario: one(certdrillScenarios, {
+    fields: [certdrillExamFormScenarios.scenarioId],
+    references: [certdrillScenarios.id],
+  }),
 }));
 
 export const certdrillExamAttemptsRelations = relations(certdrillExamAttempts, ({ one, many }) => ({
@@ -528,6 +700,7 @@ export const certdrillExamAttemptsRelations = relations(certdrillExamAttempts, (
     references: [certdrillExamForms.id],
   }),
   answers: many(certdrillExamAttemptAnswers),
+  scenarioResponses: many(certdrillExamAttemptScenarioResponses),
   questionFeedback: many(certdrillQuestionFeedback),
 }));
 
@@ -535,6 +708,17 @@ export const certdrillExamAttemptAnswersRelations = relations(certdrillExamAttem
   attempt: one(certdrillExamAttempts, {
     fields: [certdrillExamAttemptAnswers.examAttemptId],
     references: [certdrillExamAttempts.id],
+  }),
+}));
+
+export const certdrillExamAttemptScenarioResponsesRelations = relations(certdrillExamAttemptScenarioResponses, ({ one }) => ({
+  attempt: one(certdrillExamAttempts, {
+    fields: [certdrillExamAttemptScenarioResponses.examAttemptId],
+    references: [certdrillExamAttempts.id],
+  }),
+  scenario: one(certdrillScenarios, {
+    fields: [certdrillExamAttemptScenarioResponses.scenarioId],
+    references: [certdrillScenarios.id],
   }),
 }));
 

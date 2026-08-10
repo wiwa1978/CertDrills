@@ -253,6 +253,9 @@ describe("Foundry blueprint parser", () => {
     expect(systemPrompt).toContain("Only return headings");
     expect(systemPrompt).toContain("immediately associated");
     expect(systemPrompt).toContain("percentage or percentage range");
+    expect(systemPrompt).toContain("official category or domain identifier");
+    expect(systemPrompt).toContain("DOMAIN-01");
+    expect(systemPrompt).toContain("Never use UUIDs as category codes");
     expect(systemPrompt).toContain("weightMinPct");
     expect(systemPrompt).toContain("weightMaxPct");
     expect(systemPrompt).toContain("never choose or calculate a midpoint");

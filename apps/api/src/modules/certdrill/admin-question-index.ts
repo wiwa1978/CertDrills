@@ -7,6 +7,7 @@ import {
   certdrillQuestions,
   type CertDrillDifficulty,
   type CertDrillQuestionStatus,
+  type CertDrillQuestionDeliveryPurpose,
 } from "@platform/platform-db";
 
 export const ADMIN_QUESTION_INDEX_PAGE_SIZE = 50;
@@ -71,6 +72,7 @@ export type AdminQuestionIndexQuestionRecord = {
   questionId: string;
   stem: string;
   status: CertDrillQuestionStatus;
+  deliveryPurpose: CertDrillQuestionDeliveryPurpose;
   difficulty: CertDrillDifficulty;
   certificationId: string;
   certificationCode: string;
@@ -247,6 +249,7 @@ export function createDrizzleAdminQuestionIndexRepository(
         questionId: certdrillQuestions.id,
         stem: certdrillQuestions.stem,
         status: certdrillQuestions.status,
+        deliveryPurpose: certdrillQuestions.deliveryPurpose,
         difficulty: certdrillQuestions.difficulty,
         certificationId: certdrillCertifications.id,
         certificationCode: certdrillCertifications.code,

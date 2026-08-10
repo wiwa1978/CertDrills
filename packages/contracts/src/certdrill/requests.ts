@@ -108,10 +108,39 @@ function selectionModeForTestVariant(testVariant: CertDrillTestVariant): CertDri
   return testVariant === "category_drill" ? "category_focus" : "weighted_random";
 }
 
-export const answerCertDrillQuestionRequestSchema = z.object({
-  questionId: z.string().uuid(),
-  selectedOptionId: z.string().uuid(),
-  confidence: certdrillConfidenceSchema.optional(),
+const typedAnswerQuestionSchema = z.discriminatedUnion("type", [
+  z.object({
+    questionId: z.string().uuid(),
+    type: z.literal("single_choice"),
+    selectedOptionId: z.string().uuid(),
+    confidence: certdrillConfidenceSchema.optional(),
+  }),
+  z.object({
+    questionId: z.string().uuid(),
+    type: z.literal("fill_blank"),
+    text: z.string().trim().min(1).max(500),
+    confidence: certdrillConfidenceSchema.optional(),
+  }),
+  z.object({
+    questionId: z.string().uuid(),
+    type: z.literal("matching"),
+    matches: z.array(z.object({ promptId: z.string().uuid(), targetId: z.string().uuid() })).min(2).max(10),
+    confidence: certdrillConfidenceSchema.optional(),
+  }),
+]);
+
+export const answerCertDrillQuestionRequestSchema = z.preprocess((value) => (
+  value && typeof value === "object" && !("type" in value)
+    ? { ...value, type: "single_choice" }
+    : value
+), typedAnswerQuestionSchema);
+
+export const answerCertDrillScenarioRequestSchema = z.object({
+  scenarioId: z.string().uuid(),
+  decisions: z.array(z.object({
+    nodeKey: z.string().min(1),
+    optionKey: z.string().min(1),
+  })).min(1).max(20),
 });
 
 export const createCertDrillQuestionFeedbackRequestSchema = z.object({
@@ -125,5 +154,9 @@ export const createCertDrillQuestionFeedbackRequestSchema = z.object({
 export type CreateCertDrillExamAttemptRequestInput = z.input<typeof createCertDrillExamAttemptRequestSchema>;
 export type CreateCertDrillExamAttemptRequest = CreateCertDrillExamAttemptRequestInput;
 export type CreateCertDrillExamAttemptParsed = z.output<typeof createCertDrillExamAttemptRequestSchema>;
-export type AnswerCertDrillQuestionRequest = z.infer<typeof answerCertDrillQuestionRequestSchema>;
+export type AnswerCertDrillQuestionRequest =
+  | { questionId: string; type?: "single_choice"; selectedOptionId: string; confidence?: z.infer<typeof certdrillConfidenceSchema> }
+  | { questionId: string; type: "fill_blank"; text: string; confidence?: z.infer<typeof certdrillConfidenceSchema> }
+  | { questionId: string; type: "matching"; matches: Array<{ promptId: string; targetId: string }>; confidence?: z.infer<typeof certdrillConfidenceSchema> };
+export type AnswerCertDrillScenarioRequest = z.infer<typeof answerCertDrillScenarioRequestSchema>;
 export type CreateCertDrillQuestionFeedbackRequest = z.infer<typeof createCertDrillQuestionFeedbackRequestSchema>;

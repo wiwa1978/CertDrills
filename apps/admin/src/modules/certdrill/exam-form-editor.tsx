@@ -10,23 +10,24 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link as LocalizedLink } from "@/i18n/navigation";
-import type { CertDrillAdminCategory, CertDrillAdminCertification, CertDrillAdminExamForm, CertDrillAdminQuestion } from "@/lib/api/certdrill.server";
+import type { CertDrillAdminCategory, CertDrillAdminCertification, CertDrillAdminExamForm, CertDrillAdminQuestion, CertDrillAdminScenario } from "@/lib/api/certdrill.server";
 import { initialExamFormActionState } from "./exam-form-action-error";
-import { regenerateCertDrillExamFormAction, replaceCertDrillExamFormQuestionAction, setCertDrillExamFormActiveAction, updateCertDrillExamFormMetadataAction } from "./exam-form-actions";
+import { regenerateCertDrillExamFormAction, replaceCertDrillExamFormQuestionAction, setCertDrillExamFormActiveAction, setCertDrillExamFormScenariosAction, updateCertDrillExamFormMetadataAction } from "./exam-form-actions";
 import { examFormListHref } from "./exam-form-href";
+import { activeRootCategoryId } from "./exam-form-distribution";
 
-export function ExamFormEditor({ certification, categories, questions, examForm }: { certification: CertDrillAdminCertification; categories: CertDrillAdminCategory[]; questions: CertDrillAdminQuestion[]; examForm: CertDrillAdminExamForm }) {
+export function ExamFormEditor({ certification, categories, questions, scenarios, examForm }: { certification: CertDrillAdminCertification; categories: CertDrillAdminCategory[]; questions: CertDrillAdminQuestion[]; scenarios: CertDrillAdminScenario[]; examForm: CertDrillAdminExamForm }) {
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const questionsById = new Map(questions.map((question) => [question.id, question]));
-  const rootId = (categoryId: string) => { let current = categoriesById.get(categoryId); const seen = new Set<string>(); while (current) { if (current.archivedAt || seen.has(current.id)) return null; seen.add(current.id); if (!current.parentCategoryId) return current.id; current = categoriesById.get(current.parentCategoryId); } return null; };
   const assignedQuestionsByTopLevelCategory = new Map<string, CertDrillAdminQuestion[]>();
-  for (const id of examForm.questionIds) { const question = questionsById.get(id); const root = question ? rootId(question.categoryId) : null; if (question && root) assignedQuestionsByTopLevelCategory.set(root, [...(assignedQuestionsByTopLevelCategory.get(root) ?? []), question]); }
+  for (const id of examForm.questionIds) { const question = questionsById.get(id); const root = question ? activeRootCategoryId(question.categoryId, categoriesById) : null; if (question && root) assignedQuestionsByTopLevelCategory.set(root, [...(assignedQuestionsByTopLevelCategory.get(root) ?? []), question]); }
   return <div className="space-y-6">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><Badge variant="secondary">Exam form editor</Badge><h1 className="mt-3 text-3xl font-bold tracking-tight">{examForm.name}</h1><p className="mt-2 text-muted-foreground">{certification.code} · {examForm.targetQuestionCount} questions · {examForm.durationMinutes} minutes</p></div><Button asChild variant="outline"><LocalizedLink href={examFormListHref(certification.id)}>Back to Exam Forms</LocalizedLink></Button></div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><Badge variant="secondary">Final mock exam editor</Badge><h1 className="mt-3 text-3xl font-bold tracking-tight">{examForm.name}</h1><p className="mt-2 text-muted-foreground">{certification.code} · {examForm.targetQuestionCount} questions · {examForm.scenarioIds.length} scenarios · {examForm.durationMinutes} minutes</p></div><Button asChild variant="outline"><LocalizedLink href={examFormListHref(certification.id)}>Back to Exam Forms</LocalizedLink></Button></div>
     {examForm.description ? <Card><CardHeader><CardTitle>Description</CardTitle></CardHeader><CardContent className="whitespace-pre-wrap text-sm text-muted-foreground">{examForm.description}</CardContent></Card> : null}
     <div className="grid gap-4 xl:grid-cols-[2fr_1fr]"><MetadataCard certificationId={certification.id} examForm={examForm} /><AssignmentActions certificationId={certification.id} examForm={examForm} /></div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{examForm.allocationSnapshot.map((allocation) => <Card key={allocation.categoryId}><CardHeader className="pb-2"><CardDescription>{allocation.categoryName}</CardDescription><CardTitle>{allocation.assignedCount} questions</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{allocation.weightPct}% weight · {((allocation.assignedCount / examForm.targetQuestionCount) * 100).toFixed(2)}% of form</CardContent></Card>)}</div>
-    <Card><CardHeader><CardTitle>Assigned questions</CardTitle><CardDescription>Questions are grouped for review without changing their persisted order.</CardDescription></CardHeader><CardContent><Tabs defaultValue={examForm.allocationSnapshot[0]?.categoryId}>{<TabsList className="mb-4 flex h-auto flex-wrap justify-start">{examForm.allocationSnapshot.map((allocation) => <TabsTrigger key={allocation.categoryId} value={allocation.categoryId}>{allocation.categoryName}</TabsTrigger>)}</TabsList>}{examForm.allocationSnapshot.map((allocation) => <TabsContent key={allocation.categoryId} value={allocation.categoryId}><QuestionTable questions={assignedQuestionsByTopLevelCategory.get(allocation.categoryId) ?? []} categoriesById={categoriesById} alternatives={questions.filter((question) => question.status === "published" && rootId(question.categoryId) === allocation.categoryId && !examForm.questionIds.includes(question.id))} certificationId={certification.id} examForm={examForm} /></TabsContent>)}</Tabs></CardContent></Card>
+    <Card><CardHeader><CardTitle>Assigned questions</CardTitle><CardDescription>Questions are grouped for review without changing their persisted order.</CardDescription></CardHeader><CardContent><Tabs defaultValue={examForm.allocationSnapshot[0]?.categoryId}>{<TabsList className="mb-4 flex h-auto flex-wrap justify-start">{examForm.allocationSnapshot.map((allocation) => <TabsTrigger key={allocation.categoryId} value={allocation.categoryId}>{allocation.categoryName}</TabsTrigger>)}</TabsList>}{examForm.allocationSnapshot.map((allocation) => <TabsContent key={allocation.categoryId} value={allocation.categoryId}><QuestionTable questions={assignedQuestionsByTopLevelCategory.get(allocation.categoryId) ?? []} categoriesById={categoriesById} alternatives={questions.filter((question) => question.status === "published" && activeRootCategoryId(question.categoryId, categoriesById) === allocation.categoryId && !examForm.questionIds.includes(question.id))} certificationId={certification.id} examForm={examForm} /></TabsContent>)}</Tabs></CardContent></Card>
+    <ScenarioAssignmentCard certificationId={certification.id} examForm={examForm} scenarios={scenarios} />
   </div>;
 }
 
@@ -39,6 +40,34 @@ function AssignmentActions({ certificationId, examForm }: { certificationId: str
   const [regenState, regenerate, regenPending] = useActionState(regenerateCertDrillExamFormAction, initialExamFormActionState);
   const [activeState, activate, activePending] = useActionState(setCertDrillExamFormActiveAction, initialExamFormActionState);
   return <Card><CardHeader><CardTitle>Assignment</CardTitle><CardDescription><Badge variant={examForm.isActive ? "default" : "secondary"}>{examForm.isActive ? "Active" : "Inactive"}</Badge></CardDescription></CardHeader><CardContent className="space-y-5"><form action={regenerate} onSubmit={(event) => { if (!window.confirm(event.currentTarget.targetQuestionCount.value === String(examForm.targetQuestionCount) ? "Regenerating replaces all assigned questions and discards manual swaps. Continue?" : "Changing the question count replaces all assigned questions. Continue?")) event.preventDefault(); }} className="space-y-3"><Hidden certificationId={certificationId} examForm={examForm} version /><Label htmlFor="target-count">Target question count</Label><Input id="target-count" name="targetQuestionCount" type="number" min="1" defaultValue={examForm.targetQuestionCount} /><p className="text-xs text-muted-foreground">Changing the question count replaces all assigned questions.</p>{regenState.formError ? <p className="text-sm text-destructive">{regenState.formError}</p> : null}<Button type="submit" variant="outline" disabled={regenPending}>Regenerate Questions</Button></form><form action={activate}><Hidden certificationId={certificationId} examForm={examForm} /><input type="hidden" name="isActive" value={String(!examForm.isActive)} />{activeState.formError ? <p className="mb-2 text-sm text-destructive">{activeState.formError}</p> : null}<Button disabled={activePending} variant={examForm.isActive ? "outline" : "default"}>{examForm.isActive ? "Deactivate" : "Activate"}</Button></form></CardContent></Card>;
+}
+
+function ScenarioAssignmentCard({ certificationId, examForm, scenarios }: { certificationId: string; examForm: CertDrillAdminExamForm; scenarios: CertDrillAdminScenario[] }) {
+  const [state, action, pending] = useActionState(setCertDrillExamFormScenariosAction, initialExamFormActionState);
+  const published = scenarios.filter((scenario) => scenario.status === "published");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Scenarios in this Final Mock Exam</CardTitle>
+        <CardDescription>Select the fixed published scenarios delivered after the questions. Exam Simulation uses the certification-level scenario count instead. Deactivate this form before changing assignments.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={action} className="space-y-4">
+          <Hidden certificationId={certificationId} examForm={examForm} />
+          {state.formError ? <p role="alert" className="text-sm text-destructive">{state.formError}</p> : null}
+          <fieldset className="grid gap-2 md:grid-cols-2" disabled={examForm.isActive || pending}>
+            {published.length > 0 ? published.map((scenario) => (
+              <label key={scenario.id} className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                <input type="checkbox" name="scenarioIds" value={scenario.id} defaultChecked={examForm.scenarioIds.includes(scenario.id)} />
+                <span><span className="block font-medium">{scenario.title}</span><span className="text-xs text-muted-foreground">{scenario.difficulty} · {scenario.estimatedMinutes} minutes</span></span>
+              </label>
+            )) : <p className="text-sm text-muted-foreground">Publish scenarios before assigning them to a Final Mock Exam.</p>}
+          </fieldset>
+          <Button type="submit" disabled={examForm.isActive || pending}>{pending ? "Saving…" : "Save scenario assignments"}</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 
 function QuestionTable({ questions, categoriesById, alternatives, certificationId, examForm }: { questions: CertDrillAdminQuestion[]; categoriesById: Map<string, CertDrillAdminCategory>; alternatives: CertDrillAdminQuestion[]; certificationId: string; examForm: CertDrillAdminExamForm }) {

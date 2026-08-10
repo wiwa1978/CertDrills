@@ -8,6 +8,7 @@ export type RegisteredJob = {
   name: string;
   intervalSeconds: number;
   handler: JobHandler;
+  lockTimeoutSeconds?: number;
 };
 
 type JobsRunnerDeps = {
@@ -15,6 +16,8 @@ type JobsRunnerDeps = {
   jobs: RegisteredJob[];
   runnerId?: string;
 };
+
+const DEFAULT_LOCK_TIMEOUT_SECONDS = 3_600;
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -37,8 +40,21 @@ export function createJobsRunner(deps: JobsRunnerDeps) {
     }
   }
 
+  async function releaseStaleLocks() {
+    const now = new Date();
+    for (const job of deps.jobs) {
+      const timeoutSeconds = job.lockTimeoutSeconds ?? DEFAULT_LOCK_TIMEOUT_SECONDS;
+      const staleBefore = new Date(now.getTime() - timeoutSeconds * 1_000);
+      await deps.db
+        .update(jobs)
+        .set({ status: "idle", lockedAt: null, lockedBy: null, nextRunAt: now, updatedAt: now })
+        .where(and(eq(jobs.name, job.name), eq(jobs.status, "running"), lte(jobs.lockedAt, staleBefore)));
+    }
+  }
+
   async function runDue(limit = 10) {
     await ensureRegistered();
+    await releaseStaleLocks();
     const due = await deps.db
       .select()
       .from(jobs)

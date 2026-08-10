@@ -13,6 +13,7 @@ type ResultsPageProps = {
 
 export function ResultsPage({ attempt, certification, review }: ResultsPageProps) {
   const correct = review.questions.filter((question) => question.isCorrect).length;
+  const scenarios = review.scenarios ?? [];
   const total = review.questions.length;
   const scorePct = attempt?.scorePct ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
   const passThreshold = certification?.passThresholdPct ?? 70;
@@ -36,9 +37,10 @@ export function ResultsPage({ attempt, certification, review }: ResultsPageProps
         <ActionButton href="/profile/attempts" variant="secondary">Attempt history</ActionButton>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <ResultStat label="Score" value={`${scorePct}%`} tone={passed ? "success" : "danger"} />
-        <ResultStat label="Correct" value={`${correct}/${total}`} />
+        <ResultStat label="Questions correct" value={`${correct}/${total}`} />
+        <ResultStat label="Scenarios" value={String(scenarios.length)} />
         <ResultStat label="Pass threshold" value={`${passThreshold}%`} />
       </div>
 
@@ -78,13 +80,13 @@ export function ResultsPage({ attempt, certification, review }: ResultsPageProps
             </div>
             <p className="text-sm leading-6 text-foreground">{question.stem}</p>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <ReviewOption label="Your answer" text={question.yourOption?.text ?? "No answer submitted"} tone={question.isCorrect ? "success" : "danger"} />
-              <ReviewOption label="Correct answer" text={question.correctOption.text} tone="success" />
+              <ReviewOption label="Your answer" text={question.yourAnswer ?? "No answer submitted"} tone={question.isCorrect ? "success" : "danger"} />
+              <ReviewOption label="Correct answer" text={question.correctAnswer} tone="success" />
             </div>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">{question.correctOption.explanation}</p>
-            {question.correctOption.citationUrls.length > 0 ? (
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">{question.explanation}</p>
+            {question.citationUrls.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
-                {question.correctOption.citationUrls.map((url) => (
+                {question.citationUrls.map((url) => (
                   <Link key={url} href={url} className="text-xs text-primary hover:opacity-80">
                     Citation
                   </Link>
@@ -94,6 +96,24 @@ export function ResultsPage({ attempt, certification, review }: ResultsPageProps
           </article>
         ))}
       </section>
+      {scenarios.length > 0 ? (
+        <section className="mt-8 space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">Scenario review</h2>
+          {scenarios.map((scenario, index) => (
+            <article key={scenario.id} className="rounded border border-border bg-card p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2"><CategoryTag tone={scenario.scorePct >= passThreshold ? "success" : "danger"}>{scenario.scorePct}%</CategoryTag><CategoryTag>Scenario {index + 1}</CategoryTag><CategoryTag>{scenario.difficulty}</CategoryTag></div>
+              <h3 className="font-semibold text-foreground">{scenario.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{scenario.earnedPoints} of {scenario.maxPoints} decision points</p>
+              <div className="mt-4 space-y-3">{scenario.decisions.map((decision) => {
+                const node = scenario.nodes.find((item) => item.key === decision.nodeKey);
+                const option = node?.options.find((item) => item.key === decision.optionKey);
+                return <div key={`${decision.nodeKey}-${decision.optionKey}`} className="rounded border border-border bg-muted p-3 text-sm"><p className="font-semibold text-foreground">{node?.title ?? decision.nodeKey}: {option?.title ?? decision.optionKey}</p>{option?.consequence ? <p className="mt-1 text-muted-foreground">{option.consequence}</p> : null}</div>;
+              })}</div>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
     </CertDrillShell>
   );
 }

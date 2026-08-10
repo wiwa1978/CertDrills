@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   answerCertDrillQuestionRequestSchema,
+  answerCertDrillScenarioRequestSchema,
   createCertDrillExamAttemptRequestSchema,
   createCertDrillQuestionFeedbackRequestSchema,
 } from "@platform/contracts";
@@ -17,7 +18,11 @@ import { CertDrillAdminServiceError, type createCertDrillAdminService } from "./
 import { BlueprintParseServiceError } from "./blueprint-parse-service";
 import { measureQuestionImportDocumentBytes, QUESTION_IMPORT_MAX_DOCUMENT_BYTES, QUESTION_IMPORT_MAX_RAW_BODY_BYTES, QUESTION_IMPORT_MAX_ROWS } from "./question-import";
 import { QuestionImportServiceError } from "./question-import-service";
+import { QuestionGenerationServiceError } from "./question-generation-service";
+import { ScenarioGenerationServiceError } from "./scenario-generation-service";
+import { questionDifficultyMixSchema } from "./question-generation-proposal";
 import { questionCreateSchema, questionUpdateSchema } from "./question-schemas";
+import { scenarioInputSchema } from "./scenario-validation";
 import { CertDrillServiceError, type createCertDrillService } from "./service";
 
 type CertDrillRoutesDeps = {
@@ -40,6 +45,7 @@ const certificationCreateSchema = z.object({
   quickDrillQuestionCount: z.number().int().positive().optional(),
   categoryDrillQuestionCount: z.number().int().positive().optional(),
   examSimulationQuestionCount: z.number().int().positive().nullable().optional(),
+  examSimulationScenarioCount: z.number().int().nonnegative().optional(),
   examSimulationDurationMinutes: z.number().int().positive().optional(),
   passThresholdPct: z.number().int().min(0).max(100).optional(),
   isActive: z.boolean().optional(),
@@ -69,10 +75,30 @@ const examFormMetadataSchema = z.object({ name: z.string().trim().min(1).optiona
 const examFormRegenerateSchema = z.object({ targetQuestionCount: z.number().int().positive(), expectedAssignmentVersion: z.number().int().positive() });
 const examFormReplaceSchema = z.object({ currentQuestionId: z.string().uuid(), replacementQuestionId: z.string().uuid(), expectedAssignmentVersion: z.number().int().positive() });
 const examFormActivationSchema = z.object({ isActive: z.boolean() });
+const scenarioUpdateSchema = scenarioInputSchema.omit({ certificationId: true });
+const examFormScenariosSchema = z.object({
+  scenarioIds: z.array(z.string().uuid()).max(20).refine((ids) => new Set(ids).size === ids.length, "Scenario IDs must be unique."),
+}).strict();
+const scenarioBulkStatusSchema = z.object({
+  scenarioIds: z.array(z.string().uuid()).min(1).max(100)
+    .refine((ids) => new Set(ids).size === ids.length, "Scenario IDs must be unique."),
+  status: z.enum(["draft", "published"]),
+}).strict();
 
 const questionFeedbackUpdateSchema = z.object({
   status: z.enum(["reviewed", "resolved"]),
 });
+const questionBulkStatusSchema = z.object({
+  questionIds: z.array(z.string().uuid()).min(1).max(100)
+    .refine((ids) => new Set(ids).size === ids.length, "Question IDs must be unique."),
+  status: z.enum(["draft", "published"]),
+}).strict();
+const questionBulkDeliveryPurposeSchema = z.object({
+  questionIds: z.array(z.string().uuid()).min(1).max(100)
+    .refine((ids) => new Set(ids).size === ids.length, "Question IDs must be unique."),
+  deliveryPurpose: z.enum(["practice", "assessment"]),
+}).strict();
+
 
 const resourceCreateSchema = z.object({
   certificationId: z.string().uuid(),
@@ -86,17 +112,43 @@ const resourceCreateSchema = z.object({
 });
 const resourceUpdateSchema = resourceCreateSchema.partial();
 
-const mockGenerationSchema = z.object({
-  certificationId: z.string().uuid(),
-  categoryId: z.string().uuid(),
-  prompt: z.string().min(1),
-  topic: z.string().nullable().optional(),
-  requestedCount: z.number().int().positive().max(25).optional(),
-  resourceIds: z.array(z.string().uuid()).optional(),
-});
-const blueprintParseRunCreateSchema = z.object({
-  resourceId: z.string().uuid(),
+const categoryDiscoveryCreateSchema = z.object({
+  url: z.string().url(),
 }).strict();
+const questionGenerationCreateSchema = z.object({
+  categoryId: z.string().uuid().nullable(),
+  resourceIds: z.array(z.string().uuid()).max(10),
+  sourceUrls: z.array(z.string().url()).max(10),
+  requestedCount: z.number().int().min(1).max(25),
+  focus: z.string().trim().max(500).nullable(),
+  systemInstructions: z.string().trim().max(4_000).nullable().default(null),
+  instructions: z.string().trim().max(2_000).nullable(),
+  questionTypes: z.array(z.enum(["single_choice", "fill_blank", "matching"])).min(1).max(3).default(["single_choice"]),
+  difficultyMix: questionDifficultyMixSchema,
+  deliveryPurpose: z.enum(["practice", "assessment"]),
+}).strict().superRefine((value, ctx) => {
+  if (value.resourceIds.length + value.sourceUrls.length === 0) {
+    ctx.addIssue({ code: "custom", message: "At least one source is required.", path: ["sourceUrls"] });
+  }
+  if (value.resourceIds.length + value.sourceUrls.length > 10) {
+    ctx.addIssue({ code: "custom", message: "At most 10 sources are allowed.", path: ["sourceUrls"] });
+  }
+});
+const scenarioGenerationCreateSchema = z.object({
+  resourceIds: z.array(z.string().uuid()).max(10),
+  sourceUrls: z.array(z.string().url()).max(10),
+  requestedCount: z.number().int().min(1).max(10),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  focus: z.string().trim().max(500).nullable(),
+  instructions: z.string().trim().max(2_000).nullable(),
+}).strict().superRefine((value, ctx) => {
+  if (value.resourceIds.length + value.sourceUrls.length === 0) {
+    ctx.addIssue({ code: "custom", message: "At least one source is required.", path: ["sourceUrls"] });
+  }
+  if (value.resourceIds.length + value.sourceUrls.length > 10) {
+    ctx.addIssue({ code: "custom", message: "At most 10 sources are allowed.", path: ["sourceUrls"] });
+  }
+});
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const certificationIdParamSchema = z.object({ certificationId: z.string().uuid() });
 const requiredDocumentSchema = z.custom<unknown>((value) => value !== undefined, {
@@ -228,6 +280,19 @@ function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
 
     return badRequest(c, error.message);
   }
+  if (error instanceof QuestionGenerationServiceError) {
+    if (error.code === "QUESTION_GENERATION_CERTIFICATION_NOT_FOUND" || error.code === "QUESTION_GENERATION_CATEGORY_NOT_FOUND" || error.code === "QUESTION_GENERATION_RESOURCE_NOT_FOUND") {
+      return notFound(c, error.message);
+    }
+    return badRequest(c, error.message);
+  }
+  if (error instanceof ScenarioGenerationServiceError) {
+    if (error.code === "SCENARIO_GENERATION_CERTIFICATION_NOT_FOUND" || error.code === "SCENARIO_GENERATION_RESOURCE_NOT_FOUND") {
+      return notFound(c, error.message);
+    }
+    return badRequest(c, error.message);
+  }
+
 
   if (error instanceof QuestionImportServiceError) {
     const status = error.code === "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT" ? 409 : 400;
@@ -235,9 +300,9 @@ function certDrillAdminErrorResponse(c: Context<AppEnv>, error: unknown) {
   }
 
   if (error instanceof CertDrillAdminServiceError) {
-    const status = error.code === "CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND"
+    const status = error.code === "CERTDRILL_ADMIN_CERTIFICATION_NOT_FOUND" || error.code === "CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND" || error.code === "CERTDRILL_ADMIN_SCENARIO_NOT_FOUND"
       ? 404
-      : error.code === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" || error.code === "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE"
+      : error.code === "CERTDRILL_ADMIN_EXAM_FORM_CONFLICT" || error.code === "CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE" || error.code === "CERTDRILL_ADMIN_SCENARIO_IN_ACTIVE_FORM"
         ? 409
         : 400;
     return certDrillAdminErrorJson(c, error.code, error.message, error.details, status);
@@ -484,6 +549,13 @@ export function createCertDrillUserRouter(deps: CertDrillRoutesDeps) {
     return withAuthUser(c, (userId) => deps.service.answerQuestion(userId, c.req.param("id"), parsedBody.data));
   });
 
+  router.post("/exams/:id/scenarios", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsedBody = parseJsonBody(answerCertDrillScenarioRequestSchema, body);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid scenario response payload", parsedBody.error);
+    return withAuthUser(c, (userId) => deps.service.answerScenario(userId, c.req.param("id"), parsedBody.data));
+  });
+
   router.post("/questions/:id/feedback", async (c) => {
     const body = await c.req.json().catch(() => null);
     const parsedBody = parseJsonBody(createCertDrillQuestionFeedbackRequestSchema, body);
@@ -511,6 +583,11 @@ export function createCertDrillUserRouter(deps: CertDrillRoutesDeps) {
 export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
   const router = new Hono<AppEnv>();
   router.get("/health", (c) => ok(c, { module: "certdrill", status: "ok" }));
+  router.delete("/users/:id/progress", (c) => {
+    const userId = adminUuidParam(c);
+    if (!userId) return validationError(c, "Invalid user id");
+    return withAdminAction(c, () => deps.service.resetUserProgress(userId));
+  });
 
   router.get("/certifications", (c) => withAdminAction(c, () => deps.service.listCertifications()));
   router.get("/vendors", (c) => withAdminAction(c, () => deps.service.listVendors()));
@@ -588,6 +665,16 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (parsedBody.kind === "invalid") return parsedValidationError(c, "Invalid question import payload", parsedBody.error);
     return withAdminAction(c, () => deps.service.importQuestions(parsedBody.data));
   });
+  router.patch("/questions/status", async (c) => {
+    const parsedBody = await adminJson(c, questionBulkStatusSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid bulk question status payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.updateQuestionStatuses(parsedBody.data));
+  });
+  router.patch("/questions/delivery-purpose", async (c) => {
+    const parsedBody = await adminJson(c, questionBulkDeliveryPurposeSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid bulk question purpose payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.updateQuestionDeliveryPurposes(parsedBody.data));
+  });
   router.patch("/questions/:id", async (c) => {
     const id = adminUuidParam(c);
     if (!id) return validationError(c, "Invalid question id");
@@ -606,6 +693,51 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (!certificationId) return validationError(c, "Invalid certification id");
     return withAdminAction(c, () => deps.service.listExamForms(certificationId));
   });
+  router.get("/certifications/:certificationId/scenarios", (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    return withAdminAction(c, () => deps.service.listScenarios(certificationId));
+  });
+  router.post("/scenarios", async (c) => {
+    const parsedBody = await adminJson(c, scenarioInputSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid scenario payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.createScenario(parsedBody.data), 201);
+  });
+  router.patch("/scenarios/status", async (c) => {
+    const parsedBody = await adminJson(c, scenarioBulkStatusSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid bulk scenario status payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.updateScenarioStatuses(parsedBody.data));
+  });
+  router.patch("/scenarios/:id", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid scenario id");
+    const parsedBody = await adminJson(c, scenarioUpdateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid scenario payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.updateScenario(id, parsedBody.data));
+  });
+  router.post("/scenarios/:id/archive", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid scenario id");
+    return withAdminAction(c, () => deps.service.archiveScenario(id));
+  });
+  router.post("/scenarios/:id/validate", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid scenario id");
+    return withAdminAction(c, () => deps.service.validateScenario(id));
+  });
+  router.post("/scenarios/:id/publish", (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid scenario id");
+    return withAdminAction(c, () => deps.service.publishScenario(id));
+  });
+  router.put("/exam-forms/:id/scenarios", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid exam form id");
+    const parsedBody = await adminJson(c, examFormScenariosSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid scenario assignment payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.setExamFormScenarios(id, parsedBody.data.scenarioIds));
+  });
+
   router.get("/exam-forms/:id", (c) => {
     const id = adminUuidParam(c);
     if (!id) return validationError(c, "Invalid exam form id");
@@ -650,12 +782,12 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     if (!certificationId) return validationError(c, "Invalid certification id");
     return withAdminAction(c, () => deps.service.listResources(certificationId));
   });
-  router.post("/certifications/:certificationId/blueprint-parse-runs", async (c) => {
+  router.post("/certifications/:certificationId/category-discoveries", async (c) => {
     const certificationId = adminCertificationIdParam(c);
     if (!certificationId) return validationError(c, "Invalid certification id");
-    const parsedBody = await adminJson(c, blueprintParseRunCreateSchema);
-    if (!parsedBody.success) return parsedValidationError(c, "Invalid blueprint parse run payload", parsedBody.error);
-    return withAdminAction(c, () => deps.service.startBlueprintParseRun({ certificationId, ...parsedBody.data }), 201);
+    const parsedBody = await adminJson(c, categoryDiscoveryCreateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid category discovery payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.startCategoryDiscovery({ certificationId, ...parsedBody.data }), 201);
   });
   router.get("/certifications/:certificationId/blueprint-parse-runs", (c) => {
     const certificationId = adminCertificationIdParam(c);
@@ -663,6 +795,7 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     return withAdminAction(c, () => deps.service.listBlueprintParseRuns(certificationId));
   });
   router.get("/blueprint-parse-runs/:id", async (c) => {
+
     const id = adminUuidParam(c);
     if (!id) return validationError(c, "Invalid blueprint parse run id");
 
@@ -673,6 +806,66 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
       }
 
       return ok(c, run);
+    } catch (error) {
+      return certDrillAdminErrorResponse(c, error);
+    }
+  });
+  router.post("/certifications/:certificationId/question-generation-jobs", async (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    const parsedBody = await adminJson(c, questionGenerationCreateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid question generation payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.startQuestionGeneration({
+      certificationId,
+      categoryId: parsedBody.data.categoryId,
+      resourceIds: parsedBody.data.resourceIds,
+      sourceUrls: parsedBody.data.sourceUrls,
+      requestedCount: parsedBody.data.requestedCount,
+      config: {
+        focus: parsedBody.data.focus,
+        systemInstructions: parsedBody.data.systemInstructions,
+        instructions: parsedBody.data.instructions,
+        questionTypes: parsedBody.data.questionTypes,
+        difficultyMix: parsedBody.data.difficultyMix,
+        deliveryPurpose: parsedBody.data.deliveryPurpose,
+      },
+    }), 201);
+  });
+  router.get("/certifications/:certificationId/question-generation-jobs", (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    return withAdminAction(c, () => deps.service.listQuestionGenerationJobs(certificationId));
+  });
+  router.get("/question-generation-jobs/:id", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid question generation job id");
+    try {
+      const job = await deps.service.getQuestionGenerationJob(id);
+      if (!job) return notFound(c, "Question generation job not found.");
+      return ok(c, job);
+    } catch (error) {
+      return certDrillAdminErrorResponse(c, error);
+    }
+  });
+  router.post("/certifications/:certificationId/scenario-generation-jobs", async (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    const parsedBody = await adminJson(c, scenarioGenerationCreateSchema);
+    if (!parsedBody.success) return parsedValidationError(c, "Invalid scenario generation payload", parsedBody.error);
+    return withAdminAction(c, () => deps.service.startScenarioGeneration({ certificationId, ...parsedBody.data }), 201);
+  });
+  router.get("/certifications/:certificationId/scenario-generation-jobs", (c) => {
+    const certificationId = adminCertificationIdParam(c);
+    if (!certificationId) return validationError(c, "Invalid certification id");
+    return withAdminAction(c, () => deps.service.listScenarioGenerationJobs(certificationId));
+  });
+  router.get("/scenario-generation-jobs/:id", async (c) => {
+    const id = adminUuidParam(c);
+    if (!id) return validationError(c, "Invalid scenario generation job id");
+    try {
+      const job = await deps.service.getScenarioGenerationJob(id);
+      if (!job) return notFound(c, "Scenario generation job not found.");
+      return ok(c, job);
     } catch (error) {
       return certDrillAdminErrorResponse(c, error);
     }
@@ -695,11 +888,6 @@ export function createCertDrillAdminRouter(deps: CertDrillAdminRoutesDeps) {
     return withAdminAction(c, () => deps.service.ingestResource(id));
   });
 
-  router.post("/generation-jobs/mock", async (c) => {
-    const parsedBody = await adminJson(c, mockGenerationSchema);
-    if (!parsedBody.success) return parsedValidationError(c, "Invalid generation payload", parsedBody.error);
-    return withAdminAction(c, () => deps.service.createMockGenerationJob(parsedBody.data));
-  });
 
   return router;
 }

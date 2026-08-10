@@ -7,6 +7,7 @@ import { Link as LocalizedLink } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/layout/backend/shared/stat-card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +19,12 @@ import {
   listCertDrillAdminCategoriesServer,
   listCertDrillAdminCertificationsServer,
   listCertDrillAdminExamFormsServer,
+  listCertDrillAdminQuestionGenerationJobsServer,
+  listCertDrillAdminScenarioGenerationJobsServer,
   listCertDrillAdminQuestionFeedbackServer,
   listCertDrillAdminQuestionsServer,
   listCertDrillAdminResourcesServer,
+  listCertDrillAdminScenariosServer,
   listCertDrillAdminVendorsServer,
   type CertDrillAdminCategory,
   type CertDrillAdminCertification,
@@ -28,32 +32,37 @@ import {
   type CertDrillAdminQuestionFeedback,
   type CertDrillAdminQuestion,
   type CertDrillAdminResource,
+  type CertDrillAdminScenario,
   type CertDrillAdminVendor,
   type CertDrillBlueprintParseRun,
+  type CertDrillQuestionGenerationJob,
+  type CertDrillScenarioGenerationJob,
 } from "@/lib/api/certdrill.server";
-import { BlueprintAnalysisControl } from "@/modules/certdrill/blueprint-analysis-control";
+import { CategoryDiscoveryControl } from "@/modules/certdrill/category-discovery-control";
+import { QuestionGenerationControl, QuestionGenerationStatusBanner } from "@/modules/certdrill/question-generation-control";
+import { ScenarioAdmin } from "@/modules/certdrill/scenario-admin";
+import { formatCategoryWeight } from "@/modules/certdrill/category-weight";
 import {
   createCertDrillCategoryAction,
   createCertDrillCertificationAction,
   archiveCertDrillCertificationAction,
   archiveCertDrillCategoryAction,
   archiveCertDrillQuestionAction,
-  createCertDrillMockGenerationAction,
   createCertDrillQuestionAction,
-  createCertDrillResourceAction,
-  ingestCertDrillResourceAction,
   publishCertDrillQuestionAction,
+  publishSelectedCertDrillQuestionsAction,
+  unpublishSelectedCertDrillQuestionsAction,
+  setSelectedCertDrillQuestionsPracticeAction,
+  setSelectedCertDrillQuestionsAssessmentAction,
   updateCertDrillQuestionFeedbackAction,
   updateCertDrillCategoryAction,
   updateCertDrillCertificationAction,
   updateCertDrillQuestionAction,
-  updateCertDrillResourceAction,
 } from "./admin-actions";
 import { getCertDrillCertificationsServer } from "@/lib/api/certdrill.server";
-import { questionEditorHref, questionEditorNewHref, questionImportHref } from "./question-editor-href";
-import { compactQuestionId } from "./question-id";
-import { QuestionActionsMenu } from "./question-actions-menu";
+import { questionEditorNewHref, questionImportHref } from "./question-editor-href";
 import { QuestionFilterBar } from "./question-filter-bar";
+import { QuestionTable } from "./question-table";
 import { QuestionForm } from "./question-form";
 import { ExamFormCreateDialog } from "./exam-form-create-dialog";
 import { ExamFormList } from "./exam-form-list";
@@ -68,7 +77,6 @@ type CertDrillAdminPageProps = {
   certifications: CertDrillCertificationListItem[];
   selectedCertificationId?: string;
   selectedCategoryId?: string;
-  selectedResourceId?: string;
   questionSearch?: string;
   questionStatus?: string;
   questionDifficulty?: string;
@@ -79,6 +87,8 @@ type CertDrillAdminPageProps = {
   selectedTab?: string;
   questionTableQuery?: QuestionTableQuery;
   importedQuestionCount?: number;
+  generatedQuestionCount?: number;
+  generatedScenarioCount?: number;
 };
 
 type CertificationOption = {
@@ -208,7 +218,6 @@ export async function CertDrillAdminPage({
   certifications,
   selectedCertificationId: requestedCertificationId,
   selectedCategoryId: requestedCategoryId,
-  selectedResourceId: requestedResourceId,
   questionSearch,
   questionStatus,
   questionDifficulty,
@@ -219,6 +228,8 @@ export async function CertDrillAdminPage({
   selectedTab,
   questionTableQuery,
   importedQuestionCount,
+  generatedQuestionCount,
+  generatedScenarioCount,
 }: CertDrillAdminPageProps) {
   const [adminCertifications, vendors] = await Promise.all([
     listCertDrillAdminCertificationsServer(),
@@ -236,31 +247,37 @@ export async function CertDrillAdminPage({
   let examForms: CertDrillAdminExamForm[] = [];
   let resources: CertDrillAdminResource[] = [];
   let blueprintParseRuns: CertDrillBlueprintParseRun[] = [];
+  let scenarios: CertDrillAdminScenario[] = [];
+  let questionGenerationJobs: CertDrillQuestionGenerationJob[] = [];
+  let scenarioGenerationJobs: CertDrillScenarioGenerationJob[] = [];
 
   if (selectedCertificationId) {
-    [categories, questions, examForms, resources, blueprintParseRuns] = await Promise.all([
+    [categories, questions, examForms, resources, blueprintParseRuns, questionGenerationJobs, scenarios, scenarioGenerationJobs] = await Promise.all([
       listCertDrillAdminCategoriesServer(selectedCertificationId),
       listCertDrillAdminQuestionsServer(selectedCertificationId),
       listCertDrillAdminExamFormsServer(selectedCertificationId),
       listCertDrillAdminResourcesServer(selectedCertificationId),
       listCertDrillAdminBlueprintParseRunsServer(selectedCertificationId),
+      listCertDrillAdminQuestionGenerationJobsServer(selectedCertificationId),
+      listCertDrillAdminScenariosServer(selectedCertificationId),
+      listCertDrillAdminScenarioGenerationJobsServer(selectedCertificationId),
     ]);
   }
 
   const selectedCategory = requestedCategoryId && requestedCategoryId !== "new"
     ? categories.find((category) => category.id === requestedCategoryId)
     : undefined;
-  const selectedResource = requestedResourceId && requestedResourceId !== "new"
-    ? resources.find((resource) => resource.id === requestedResourceId)
-    : undefined;
   const selectedCatalogCertification = selectedCertificationId ? certifications.find((certification) => certification.id === selectedCertificationId) : undefined;
   const publishedQuestions = selectedCatalogCertification?.publishedQuestionCount ?? questions.filter((question) => question.status === "published").length;
+  const questionTypeCounts = questions.reduce((counts, question) => {
+    counts[question.questionType ?? "single_choice"] += 1;
+    return counts;
+  }, { single_choice: 0, matching: 0, fill_blank: 0 });
   const draftQuestions = questions.filter((question) => (question.status ?? "draft") === "draft");
   const selectedQuestionIds = new Set(questions.map((question) => question.id));
   const questionFeedback = allQuestionFeedback.filter((feedback) => selectedQuestionIds.has(feedback.questionId));
   const normalizedFeedbackStatus = normalizeFeedbackStatus(feedbackStatus);
   const filteredQuestionFeedback = filterQuestionFeedback(questionFeedback, normalizedFeedbackStatus);
-  const certificationQuery = selectedCertificationId ? {} : undefined;
   const selectedCertificationHref = (params: CertDrillAdminHrefParams = {}) => selectedCertificationId ? certdrillAdminDetailHref(selectedCertificationId, params) : certdrillAdminOverviewHref();
   const questionFilters = normalizeQuestionFilters({
     questionSearch,
@@ -277,7 +294,6 @@ export async function CertDrillAdminPage({
   } = paginateQuestions(filteredQuestions, questionPage);
   const currentQuestionTableQuery = questionTableQuery ?? {
     categoryId: requestedCategoryId,
-    resourceId: requestedResourceId,
     questionSearch,
     questionStatus,
     questionDifficulty,
@@ -298,15 +314,18 @@ export async function CertDrillAdminPage({
     ? selectedCertificationHref(buildQuestionPageQuery(currentQuestionTableQuery, currentQuestionPage + 1))
     : undefined;
   const hasQuestionFilters = Object.values(questionFilters).some(Boolean);
-  const newestBlueprintRuns = newestBlueprintRunByResource(blueprintParseRuns);
+  const newestBlueprintRun = newestBlueprintParseRun(blueprintParseRuns);
+  const latestDiscoveryResource = (newestBlueprintRun ? resources.find((resource) => resource.id === newestBlueprintRun.resourceId) : undefined)
+    ?? latestOutlineResource(resources);
+  const categoryDiscoveryUrl = latestDiscoveryResource?.url ?? selectedAdminCertification?.blueprintSourceUrl ?? "";
   const defaultTab = selectedTab === "categories"
     || selectedTab === "questions"
+    || selectedTab === "scenarios"
     || selectedTab === "exam-forms"
-    || selectedTab === "resources"
-    || selectedTab === "generate"
     || selectedTab === "feedback"
     ? selectedTab
     : requestedCategoryId || hasQuestionFilters ? "questions" : "categories";
+  const tabIdPrefix = `certdrill-${selectedCertificationId ?? "unselected"}`;
 
   return (
     <div className="space-y-6">
@@ -351,7 +370,7 @@ export async function CertDrillAdminPage({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Dialog>
             <DialogTrigger asChild>
               <button type="button" className="rounded-xl text-left transition hover:ring-2 hover:ring-ring focus:outline-none focus:ring-2 focus:ring-ring">
@@ -392,19 +411,24 @@ export async function CertDrillAdminPage({
             <CardTitle className="text-3xl">{draftQuestions.length.toLocaleString()}</CardTitle>
           </CardHeader>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Scenarios</CardDescription>
+            <CardTitle className="text-3xl">{scenarios.length.toLocaleString()}</CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <Tabs key={defaultTab} defaultValue={defaultTab} className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="questions">Questions</TabsTrigger>
-          <TabsTrigger value="exam-forms">Exam Forms</TabsTrigger>
-          <TabsTrigger value="resources">Resources</TabsTrigger>
-          <TabsTrigger value="generate">Generate</TabsTrigger>
-          <TabsTrigger value="feedback">Feedback</TabsTrigger>
+          <TabsTrigger id={`${tabIdPrefix}-categories-trigger`} aria-controls={`${tabIdPrefix}-categories-content`} value="categories">Categories</TabsTrigger>
+          <TabsTrigger id={`${tabIdPrefix}-questions-trigger`} aria-controls={`${tabIdPrefix}-questions-content`} value="questions">Questions</TabsTrigger>
+          <TabsTrigger id={`${tabIdPrefix}-scenarios-trigger`} aria-controls={`${tabIdPrefix}-scenarios-content`} value="scenarios">Scenarios</TabsTrigger>
+          <TabsTrigger id={`${tabIdPrefix}-exam-forms-trigger`} aria-controls={`${tabIdPrefix}-exam-forms-content`} value="exam-forms">Exam Forms</TabsTrigger>
+          <TabsTrigger id={`${tabIdPrefix}-feedback-trigger`} aria-controls={`${tabIdPrefix}-feedback-content`} value="feedback">Feedback</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="categories" className="space-y-4">
+        <TabsContent id={`${tabIdPrefix}-categories-content`} aria-labelledby={`${tabIdPrefix}-categories-trigger`} value="categories" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -413,24 +437,31 @@ export async function CertDrillAdminPage({
                   <CardDescription>{selectedCertification ? `Categories belonging to ${selectedCertification.code}.` : "Select an existing certification before managing categories."}</CardDescription>
                 </div>
                 {selectedCertificationId ? (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button>Create category</Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-                      <DialogHeader>
-                        <DialogTitle>Create category</DialogTitle>
-                        <DialogDescription>Create an exam blueprint category for the selected certification.</DialogDescription>
-                      </DialogHeader>
-                      <CategoryForm
-                        action={createCertDrillCategoryAction}
-                        submitLabel="Create category"
-                        categories={categories}
-                        selectedCertificationId={selectedCertificationId}
-                        idPrefix="category-create"
-                      />
-                    </DialogContent>
-                  </Dialog>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CategoryDiscoveryControl
+                      certificationId={selectedCertificationId}
+                      defaultUrl={categoryDiscoveryUrl}
+                      initialRun={newestBlueprintRun}
+                    />
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline">Create category</Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+                        <DialogHeader>
+                          <DialogTitle>Create category</DialogTitle>
+                          <DialogDescription>Create an exam blueprint category for the selected certification.</DialogDescription>
+                        </DialogHeader>
+                        <CategoryForm
+                          action={createCertDrillCategoryAction}
+                          submitLabel="Create category"
+                          categories={categories}
+                          selectedCertificationId={selectedCertificationId}
+                          idPrefix="category-create"
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 ) : null}
               </div>
             </CardHeader>
@@ -438,7 +469,7 @@ export async function CertDrillAdminPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="questions" className="space-y-4">
+        <TabsContent id={`${tabIdPrefix}-questions-content`} aria-labelledby={`${tabIdPrefix}-questions-trigger`} value="questions" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -448,6 +479,12 @@ export async function CertDrillAdminPage({
                 </div>
                 {selectedCertificationId ? (
                   <div className="flex flex-wrap items-center gap-2">
+                    <QuestionGenerationControl
+                      certificationId={selectedCertificationId}
+                      categories={categories}
+                      resources={resources}
+                      defaultCategoryId={questionFilters.questionCategoryId}
+                    />
                     <Button asChild variant="secondary">
                       <LocalizedLink href={questionImportHref(selectedCertificationId)}>Import questions</LocalizedLink>
                     </Button>
@@ -459,18 +496,36 @@ export async function CertDrillAdminPage({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <QuestionGenerationStatusBanner initialJob={questionGenerationJobs[0]} />
+              {selectedCertificationId ? (
+                <section aria-label="Question counts" className="grid gap-4 sm:grid-cols-3">
+                  <StatCard title="Normal questions" value={questionTypeCounts.single_choice.toLocaleString()} description="Single-choice format" />
+                  <StatCard title="Drag and drop" value={questionTypeCounts.matching.toLocaleString()} description="Matching format" />
+                  <StatCard title="Fill in the gap" value={questionTypeCounts.fill_blank.toLocaleString()} description="Accepted-answer format" />
+                </section>
+              ) : null}
               {importedQuestionCount && importedQuestionCount > 0 ? (
                 <div role="status" className="rounded-md border border-green-600/40 bg-green-600/10 p-3 text-sm">
                   {`${importedQuestionCount} question${importedQuestionCount === 1 ? "" : "s"} imported as Draft.`}
                 </div>
               ) : null}
+              {generatedQuestionCount && generatedQuestionCount > 0 ? (
+                <div role="status" className="rounded-md border border-green-600/40 bg-green-600/10 p-3 text-sm">
+                  {`${generatedQuestionCount} question${generatedQuestionCount === 1 ? "" : "s"} generated as Draft.`}
+                </div>
+              ) : null}
               {selectedCertificationId ? <QuestionFilterBar categories={categories} filters={questionFilters} /> : null}
-              {pagedQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={pagedQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} sort={questionFilters.questionSort} stemSortHref={stemSortHref} page={currentQuestionPage} pageCount={questionPageCount} previousPageHref={previousPageHref} nextPageHref={nextPageHref} /> : <EmptyState>No questions yet.</EmptyState>}
+              {pagedQuestions.length > 0 && selectedCertificationId ? <QuestionTable certificationId={selectedCertificationId} questions={pagedQuestions} publishQuestionAction={publishCertDrillQuestionAction} publishAction={publishSelectedCertDrillQuestionsAction} unpublishAction={unpublishSelectedCertDrillQuestionsAction} practiceAction={setSelectedCertDrillQuestionsPracticeAction} assessmentAction={setSelectedCertDrillQuestionsAssessmentAction} archiveAction={archiveCertDrillQuestionAction} sort={questionFilters.questionSort} stemSortHref={stemSortHref} page={currentQuestionPage} pageCount={questionPageCount} previousPageHref={previousPageHref} nextPageHref={nextPageHref} /> : <EmptyState>No questions yet.</EmptyState>}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="exam-forms" className="space-y-4">
+        <TabsContent id={`${tabIdPrefix}-scenarios-content`} aria-labelledby={`${tabIdPrefix}-scenarios-trigger`} value="scenarios" className="space-y-4">
+          {generatedScenarioCount && generatedScenarioCount > 0 ? <div role="status" className="rounded-md border border-green-600/40 bg-green-600/10 p-3 text-sm">{`${generatedScenarioCount} scenario${generatedScenarioCount === 1 ? "" : "s"} generated as Draft.`}</div> : null}
+          {selectedCertificationId ? <ScenarioAdmin certificationId={selectedCertificationId} scenarios={scenarios} examForms={examForms} resources={resources} initialGenerationJob={scenarioGenerationJobs[0]} /> : <EmptyState>Select a certification before managing scenarios.</EmptyState>}
+        </TabsContent>
+
+        <TabsContent id={`${tabIdPrefix}-exam-forms-content`} aria-labelledby={`${tabIdPrefix}-exam-forms-trigger`} value="exam-forms" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -478,87 +533,13 @@ export async function CertDrillAdminPage({
                 {selectedCertificationId ? <ExamFormCreateDialog certificationId={selectedCertificationId} /> : null}
               </div>
             </CardHeader>
-            <CardContent>{selectedCertificationId && examForms.length > 0 ? <ExamFormList certificationId={selectedCertificationId} examForms={examForms} /> : <EmptyState>No exam forms yet.</EmptyState>}</CardContent>
+            <CardContent>{selectedCertificationId && examForms.length > 0 ? <ExamFormList certificationId={selectedCertificationId} examForms={examForms} questions={questions} categories={categories} /> : <EmptyState>No exam forms yet.</EmptyState>}</CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="resources" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create or update resource</CardTitle>
-              <CardDescription>{selectedCertification ? `Create a resource for ${selectedCertification.code} or patch the selected resource.` : "Select an existing certification before managing resources."}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <SelectionLinks
-                newLabel="New resource"
-                newHref={selectedCertificationHref({ ...certificationQuery, resourceId: "new" })}
-                disabled={!selectedCertificationId}
-              >
-                {resources.map((resource) => (
-                  <Button key={resource.id} asChild variant={resource.id === selectedResource?.id ? "default" : "outline"} size="sm">
-                    <Link href={selectedCertificationHref({ ...certificationQuery, resourceId: resource.id })}>{resource.title}</Link>
-                  </Button>
-                ))}
-              </SelectionLinks>
-              {selectedCertificationId ? (
-                <ResourceForm
-                  action={selectedResource ? updateCertDrillResourceAction : createCertDrillResourceAction}
-                  submitLabel={selectedResource ? "Update resource" : "Create resource"}
-                  categories={categories}
-                  selectedCertificationId={selectedCertificationId}
-                  selectedResource={selectedResource}
-                  idPrefix="resource"
-                />
-              ) : <EmptyState>Select or create a certification first.</EmptyState>}
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Resources</CardTitle>
-              <CardDescription>Resource list for URL/title/content mode placeholders.</CardDescription>
-            </CardHeader>
-            <CardContent>{selectedCertificationId && resources.length > 0 ? <ResourceTable certificationId={selectedCertificationId} resources={resources} newestBlueprintRuns={newestBlueprintRuns} /> : <EmptyState>No resources yet.</EmptyState>}</CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="generate" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Mock generation</CardTitle>
-              <CardDescription>Create deterministic draft questions from a prompt, topic, and selected category.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={createCertDrillMockGenerationAction} className="space-y-4">
-                <input type="hidden" name="certificationId" value={selectedCertificationId ?? ""} />
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Certification</Label>
-                    <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                      {selectedCertification ? `${selectedCertification.code} - ${selectedCertification.name}` : "Select a certification above"}
-                    </div>
-                  </div>
-                  <CategorySelect id="generate-category-id" name="categoryId" categories={categories} label="Category" />
-                  <TextField id="generate-topic" name="topic" label="Topic" placeholder="Identity governance" />
-                  <TextField id="generate-requested-count" name="requestedCount" label="Requested count" type="number" min="1" max="25" defaultValue="3" />
-                  <TextareaField id="generate-resource-ids" name="resourceIds" label="Resource IDs" placeholder="Comma-separated resource IDs" />
-                </div>
-                <TextareaField id="generate-prompt" name="prompt" label="Prompt" placeholder="Generate scenario questions for this objective." required />
-                <Button type="submit">Generate</Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Draft questions</CardTitle>
-              <CardDescription>Draft result list, including mock-generated questions ready for review.</CardDescription>
-            </CardHeader>
-            <CardContent>{draftQuestions.length > 0 && selectedCertificationId ? <QuestionTable questions={draftQuestions} questionHref={(question) => questionEditorHref(selectedCertificationId, question.id)} publishAction={publishCertDrillQuestionAction} archiveAction={archiveCertDrillQuestionAction} /> : <EmptyState>No draft questions yet.</EmptyState>}</CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="feedback" className="space-y-4">
+        <TabsContent id={`${tabIdPrefix}-feedback-content`} aria-labelledby={`${tabIdPrefix}-feedback-trigger`} value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Question feedback</CardTitle>
@@ -575,32 +556,31 @@ export async function CertDrillAdminPage({
   );
 }
 
-function newestBlueprintRunByResource(runs: CertDrillBlueprintParseRun[]) {
-  const newestRuns = new Map<string, CertDrillBlueprintParseRun>();
+function newestBlueprintParseRun(runs: CertDrillBlueprintParseRun[]) {
+  let newestRun: CertDrillBlueprintParseRun | undefined;
 
   for (const run of runs) {
-    const currentNewestRun = newestRuns.get(run.resourceId);
-
-    if (!currentNewestRun || isNewerBlueprintRun(run, currentNewestRun)) {
-      newestRuns.set(run.resourceId, run);
-    }
+    if (!newestRun || isNewerBlueprintRun(run, newestRun)) newestRun = run;
   }
 
-  return newestRuns;
+  return newestRun;
+}
+
+function latestOutlineResource(resources: CertDrillAdminResource[]) {
+  for (let index = resources.length - 1; index >= 0; index -= 1) {
+    const resource = resources[index];
+    if (resource?.contentMode === "outline_blueprint") return resource;
+  }
+
+  return undefined;
 }
 
 function isNewerBlueprintRun(candidate: CertDrillBlueprintParseRun, current: CertDrillBlueprintParseRun) {
   const createdAtComparison = candidate.createdAt.localeCompare(current.createdAt);
-
-  if (createdAtComparison !== 0) {
-    return createdAtComparison > 0;
-  }
+  if (createdAtComparison !== 0) return createdAtComparison > 0;
 
   const updatedAtComparison = candidate.updatedAt.localeCompare(current.updatedAt);
-
-  if (updatedAtComparison !== 0) {
-    return updatedAtComparison > 0;
-  }
+  if (updatedAtComparison !== 0) return updatedAtComparison > 0;
 
   return candidate.id.localeCompare(current.id) > 0;
 }
@@ -691,10 +671,6 @@ function normalizeFeedbackStatus(status?: string) {
   return status === "open" || status === "reviewed" || status === "resolved" ? status : undefined;
 }
 
-function formatAdminTimestamp(timestamp: string) {
-  const date = new Date(timestamp);
-  return Number.isNaN(date.valueOf()) ? timestamp : `${date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "")} UTC`;
-}
 
 function filterQuestionFeedback(feedback: CertDrillAdminQuestionFeedback[], status?: string) {
   return status ? feedback.filter((item) => item.status === status) : feedback;
@@ -775,6 +751,7 @@ function CertificationFormFields({ idPrefix, selectedCertification, vendors }: {
       <TextField id={`${idPrefix}-category-drill-question-count`} name="categoryDrillQuestionCount" label="Default Category Drill count" type="number" min="1" defaultValue={optionalNumberDefault(selectedCertification?.categoryDrillQuestionCount) ?? "10"} helperText="Must be 1 or greater." />
       {selectedCertification ? <CheckboxField id={`${idPrefix}-clear-exam-simulation-question-count`} name="examSimulationQuestionCount" value="__none__" label="Clear exam simulation count" /> : null}
       <TextField id={`${idPrefix}-exam-simulation-question-count`} name="examSimulationQuestionCount" label="Exam Simulation count" type="number" min="1" defaultValue={optionalNumberDefault(selectedCertification?.examSimulationQuestionCount)} helperText="Must be 1 or greater when set." />
+      <TextField id={`${idPrefix}-exam-simulation-scenario-count`} name="examSimulationScenarioCount" label="Exam Simulation scenario count" type="number" min="0" defaultValue={optionalNumberDefault(selectedCertification?.examSimulationScenarioCount) ?? "0"} helperText="Published scenarios sampled into each Exam Simulation. Use 0 for none." />
       <TextField id={`${idPrefix}-exam-simulation-duration-minutes`} name="examSimulationDurationMinutes" label="Exam Simulation duration" type="number" min="1" defaultValue={optionalNumberDefault(selectedCertification?.examSimulationDurationMinutes) ?? "120"} helperText="Must be 1 or greater." />
       <TextField id={`${idPrefix}-pass-threshold-pct`} name="passThresholdPct" label="Pass threshold percent" type="number" min="0" max="100" defaultValue={optionalNumberDefault(selectedCertification?.passThresholdPct) ?? "70"} helperText="Must be between 0 and 100." />
       {selectedCertification ? <CheckboxField id={`${idPrefix}-clear-enabled-at`} name="enabledAt" value="__none__" label="Clear enabled at" /> : null}
@@ -840,7 +817,7 @@ function CategoryFormFields({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <CategorySelect id={`${idPrefix}-parent-category-id`} name="parentCategoryId" categories={categories.filter((category) => category.id !== selectedCategory?.id)} label="Parent category" includeEmpty emptyLabel="None" clearLabel={selectedCategory ? "Clear parent category" : undefined} defaultValue={selectedCategory?.parentCategoryId ?? ""} />
-      <TextField id={`${idPrefix}-code`} name="code" label="Code" required placeholder="identity" defaultValue={selectedCategory?.code} helperText="Code is required and should be stable for reporting." />
+      <TextField id={`${idPrefix}-code`} name="code" label="Blueprint code" required placeholder="DOMAIN-01" defaultValue={selectedCategory?.code} helperText="Human-readable code used by blueprint imports and reporting. The category UUID is generated automatically." />
       <TextField id={`${idPrefix}-name`} name="name" label="Name" required placeholder="Manage identities" defaultValue={selectedCategory?.name} helperText="Name is required and should match the blueprint domain name." />
       <TextField id={`${idPrefix}-weight-pct`} name="weightPct" label="Weight percent" placeholder="25" defaultValue={optionalStringDefault(selectedCategory?.weightPct)} helperText="Weights must be numeric, use at most 2 decimals, and sibling totals cannot exceed 100." />
       <TextField id={`${idPrefix}-drill-question-count`} name="drillQuestionCount" label="Category Drill override" type="number" min="1" placeholder="Leave empty to use the certification default." defaultValue={optionalNumberDefault(selectedCategory?.drillQuestionCount)} helperText="Must be 1 or greater when set." />
@@ -849,65 +826,7 @@ function CategoryFormFields({
   );
 }
 
-function ResourceForm({
-  action,
-  submitLabel,
-  categories,
-  selectedCertificationId,
-  selectedResource,
-  idPrefix,
-}: {
-  action: (formData: FormData) => void | Promise<void>;
-  submitLabel: string;
-  categories: CertDrillAdminCategory[];
-  selectedCertificationId: string;
-  selectedResource?: CertDrillAdminResource;
-  idPrefix: string;
-}) {
-  return (
-    <form action={action} className="space-y-4">
-      <input type="hidden" name="certificationId" value={selectedCertificationId} />
-      {selectedResource ? <input type="hidden" name="resourceId" value={selectedResource.id} /> : null}
-      <ResourceFormFields categories={categories} selectedResource={selectedResource} idPrefix={idPrefix} />
-      <Button type="submit">{submitLabel}</Button>
-    </form>
-  );
-}
 
-function ResourceFormFields({
-  categories,
-  idPrefix,
-  selectedResource,
-}: {
-  categories: CertDrillAdminCategory[];
-  idPrefix: string;
-  selectedResource?: CertDrillAdminResource;
-}) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <CategorySelect id={`${idPrefix}-category-id`} name="categoryId" categories={categories} label="Category" includeEmpty emptyLabel="None" clearLabel={selectedResource ? "Clear category" : undefined} defaultValue={selectedResource?.categoryId ?? ""} />
-      <TextField id={`${idPrefix}-url`} name="url" label="URL" required type="url" placeholder="https://learn.microsoft.com/..." defaultValue={selectedResource?.url} helperText="Resource URL is required. URLs must start with http:// or https://." />
-      <TextField id={`${idPrefix}-title`} name="title" label="Title" required placeholder="Learn module title" defaultValue={selectedResource?.title} helperText="Title is required." />
-      <SelectField id={`${idPrefix}-source-type`} name="sourceType" label="Source type" defaultValue={selectedResource?.sourceType ?? "module"}>
-        <option value="module">Module</option>
-        <option value="unit">Unit</option>
-        <option value="study-guide">Study guide</option>
-        <option value="exam-blueprint">Exam blueprint</option>
-        <option value="doc">Doc</option>
-      </SelectField>
-      <SelectField id={`${idPrefix}-content-mode`} name="contentMode" label="Content mode" defaultValue={selectedResource?.contentMode ?? "deep_content"}>
-        <option value="deep_content">Deep content</option>
-        <option value="outline_blueprint">Outline blueprint</option>
-      </SelectField>
-      <SelectField id={`${idPrefix}-status`} name="status" label="Status" defaultValue={selectedResource?.status ?? "pending"}>
-        <option value="pending">Pending</option>
-        <option value="ingested">Ingested</option>
-        <option value="failed">Failed</option>
-      </SelectField>
-      <TextareaField id={`${idPrefix}-raw-content`} name="rawContent" label="Raw content placeholder" placeholder="Optional copied outline or notes" defaultValue={selectedResource?.rawContent ?? undefined} />
-    </div>
-  );
-}
 
 function CertificationSelect({ id, name, options, selectedCertificationId, includeEmpty = false }: { id: string; name: string; options: CertificationOption[]; selectedCertificationId?: string; includeEmpty?: boolean }) {
   return (
@@ -1167,10 +1086,9 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Code</TableHead>
+          <TableHead>Blueprint code</TableHead>
           <TableHead>Name</TableHead>
           <TableHead className="text-right">Weight</TableHead>
-          <TableHead className="text-right">Drill count</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -1187,8 +1105,7 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
                 {category.name}
               </Link>
             </TableCell>
-            <TableCell className="text-right">{category.weightPct ?? "-"}</TableCell>
-            <TableCell className="text-right">{category.drillQuestionCount ?? "-"}</TableCell>
+            <TableCell className="text-right">{formatCategoryWeight(category)}</TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-2">
                 <Dialog>
@@ -1228,159 +1145,7 @@ function CategoryTable({ categories, selectedCertificationHref }: { categories: 
   );
 }
 
-function QuestionTable({
-  questions,
-  questionHref,
-  publishAction,
-  archiveAction,
-  sort,
-  stemSortHref,
-  page,
-  pageCount,
-  previousPageHref,
-  nextPageHref,
-}: {
-  questions: CertDrillAdminQuestion[];
-  questionHref: (question: CertDrillAdminQuestion) => string;
-  publishAction: (formData: FormData) => void | Promise<void>;
-  archiveAction: (formData: FormData) => void | Promise<void>;
-  sort?: string;
-  stemSortHref?: string;
-  page?: number;
-  pageCount?: number;
-  previousPageHref?: string;
-  nextPageHref?: string;
-}) {
-  return (
-    <div className="space-y-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead aria-sort={sort === "stem-desc" ? "descending" : "ascending"}>
-              {stemSortHref ? (
-                <LocalizedLink href={stemSortHref} aria-label={sort === "stem-desc" ? "Sort Stem A-Z" : "Sort Stem Z-A"} className="hover:underline">
-                  Stem <span aria-hidden="true">{sort === "stem-desc" ? "↓" : "↑"}</span>
-                </LocalizedLink>
-              ) : <>Stem <span aria-hidden="true">{sort === "stem-desc" ? "↓" : "↑"}</span></>}
-            </TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Difficulty</TableHead>
-            <TableHead className="text-right">Options</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {questions.map((question) => {
-            const questionStatus = question.status ?? "draft";
 
-            return (
-              <TableRow key={question.id}>
-                <TableCell className="font-mono text-xs">
-                  <LocalizedLink href={questionHref(question)} className="hover:underline" aria-label={`Open question ${question.id}`}>{compactQuestionId(question.id)}</LocalizedLink>
-                </TableCell>
-                <TableCell className="max-w-xl whitespace-normal">
-                  <LocalizedLink href={questionHref(question)} className="hover:underline">{question.stem}</LocalizedLink>
-                </TableCell>
-                <TableCell><Badge variant="outline">{questionStatus}</Badge></TableCell>
-                <TableCell>{question.difficulty ?? "medium"}</TableCell>
-                <TableCell className="text-right">{(question.options ?? []).length.toLocaleString()}</TableCell>
-                <TableCell className="text-right">
-                  <QuestionActionsMenu
-                    questionId={question.id}
-                    status={questionStatus}
-                    edit={<LocalizedLink href={questionHref(question)}>Edit</LocalizedLink>}
-                    publishAction={publishAction}
-                    archiveAction={archiveAction}
-                  />
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      {page && pageCount ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">Page {page} of {pageCount}</p>
-          <div className="flex gap-2">
-            {previousPageHref ? (
-              <Button asChild variant="outline" size="sm">
-                <LocalizedLink href={previousPageHref}>Previous</LocalizedLink>
-              </Button>
-            ) : <Button variant="outline" size="sm" disabled>Previous</Button>}
-            {nextPageHref ? (
-              <Button asChild variant="outline" size="sm">
-                <LocalizedLink href={nextPageHref}>Next</LocalizedLink>
-              </Button>
-            ) : <Button variant="outline" size="sm" disabled>Next</Button>}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ResourceTable({
-  certificationId,
-  resources,
-  newestBlueprintRuns,
-}: {
-  certificationId: string;
-  resources: CertDrillAdminResource[];
-  newestBlueprintRuns: Map<string, CertDrillBlueprintParseRun>;
-}) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>ID</TableHead>
-          <TableHead>Title</TableHead>
-          <TableHead>URL</TableHead>
-          <TableHead>Content mode</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {resources.map((resource) => (
-          <TableRow key={resource.id}>
-            <TableCell className="font-mono text-xs">{resource.id}</TableCell>
-            <TableCell className="font-medium">{resource.title}</TableCell>
-            <TableCell className="max-w-sm truncate">{resource.url}</TableCell>
-            <TableCell>{resource.contentMode}</TableCell>
-            <TableCell>
-              <div className="space-y-1">
-                <Badge variant="outline">{resource.status ?? "pending"}</Badge>
-                {resource.ingestedAt ? <p className="text-xs text-muted-foreground">Snapshot: {formatAdminTimestamp(resource.ingestedAt)}</p> : null}
-                {resource.ingestError ? <p className="text-xs text-destructive whitespace-normal">Ingest error: {resource.ingestError}</p> : null}
-              </div>
-            </TableCell>
-            <TableCell>
-              <div className="flex flex-wrap items-center gap-2">
-                <form action={ingestCertDrillResourceAction}>
-                  <input type="hidden" name="resourceId" value={resource.id} />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`${resource.status === "ingested" ? "Refresh" : "Ingest"} resource ${resource.title}`}
-                  >
-                    {resource.status === "ingested" ? "Refresh" : "Ingest"}
-                  </Button>
-                </form>
-                <BlueprintAnalysisControl
-                  certificationId={certificationId}
-                  resource={resource}
-                  initialRun={newestBlueprintRuns.get(resource.id)}
-                />
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
 
 function FeedbackTable({ feedback }: { feedback: CertDrillAdminQuestionFeedback[] }) {
   return (

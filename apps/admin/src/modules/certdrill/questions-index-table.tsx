@@ -13,8 +13,15 @@ import type {
   CertDrillAdminQuestionIndexSort,
 } from "@/lib/api/certdrill.server";
 import { QuestionActionsMenu } from "./question-actions-menu";
+import {
+  QuestionBulkActionBar,
+  QuestionSelectionCheckbox,
+  useQuestionBulkSelection,
+} from "./question-bulk-selection";
 import { questionEditorHref } from "./question-editor-href";
 import { compactQuestionId } from "./question-id";
+import { QuestionStatusBadge } from "./question-status-badge";
+import { QuestionDeliveryPurposeBadge } from "./question-delivery-purpose-badge";
 
 type QuestionsIndexTableProps = {
   result?: Pick<CertDrillAdminQuestionIndexResult, "items" | "page" | "pageCount" | "pageSize" | "total">;
@@ -29,6 +36,10 @@ type QuestionsIndexTableProps = {
   nextHref?: string;
   publishAction: (formData: FormData) => void | Promise<void>;
   archiveAction: (formData: FormData) => void | Promise<void>;
+  bulkPublishAction: (formData: FormData) => void | Promise<void>;
+  bulkUnpublishAction: (formData: FormData) => void | Promise<void>;
+  bulkPracticeAction: (formData: FormData) => void | Promise<void>;
+  bulkAssessmentAction: (formData: FormData) => void | Promise<void>;
 };
 
 function stopRowToggle(event: MouseEvent<HTMLElement>) {
@@ -48,9 +59,15 @@ export function QuestionsIndexTable({
   nextHref,
   publishAction,
   archiveAction,
+  bulkPublishAction,
+  bulkUnpublishAction,
+  bulkPracticeAction,
+  bulkAssessmentAction,
 }: QuestionsIndexTableProps) {
   const [expandedQuestionId, setExpandedQuestionId] = useState<string>();
   const questionItems = items ?? result?.items ?? [];
+  const questionIds = questionItems.map((question) => question.questionId);
+  const selection = useQuestionBulkSelection(questionIds);
   const page = result?.page ?? explicitPage ?? 1;
   const pageCount = result?.pageCount ?? explicitPageCount ?? 1;
   const pageSize = result?.pageSize ?? explicitPageSize ?? questionItems.length;
@@ -66,9 +83,19 @@ export function QuestionsIndexTable({
 
   return (
     <div className="space-y-4">
+      <QuestionBulkActionBar
+        questionIds={questionIds}
+        selectedIds={selection.selectedIds}
+        setAllSelected={selection.setAllSelected}
+        publishAction={bulkPublishAction}
+        unpublishAction={bulkUnpublishAction}
+        practiceAction={bulkPracticeAction}
+        assessmentAction={bulkAssessmentAction}
+      />
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10"><span className="sr-only">Select</span></TableHead>
             <TableHead>Certification</TableHead>
             <TableHead>Category</TableHead>
             <TableHead aria-sort={sortHref ? (sort === "stem-desc" ? "descending" : "ascending") : "none"}>
@@ -81,6 +108,7 @@ export function QuestionsIndexTable({
               ) : <>Question <span aria-hidden="true">{sort === "stem-desc" ? "↓" : "↑"}</span></>}
             </TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Difficulty</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -97,6 +125,13 @@ export function QuestionsIndexTable({
                   className="cursor-pointer"
                   onClick={() => toggleExpandedQuestion(question.questionId)}
                 >
+                  <TableCell onClick={stopRowToggle}>
+                    <QuestionSelectionCheckbox
+                      questionId={question.questionId}
+                      selected={selection.selectedIds.includes(question.questionId)}
+                      setQuestionSelected={selection.setQuestionSelected}
+                    />
+                  </TableCell>
                   <TableCell className="whitespace-normal">
                     <div className="space-y-1">
                       <p className="font-medium">{question.certificationCode}</p>
@@ -141,7 +176,8 @@ export function QuestionsIndexTable({
                       </p>
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline">{question.status}</Badge></TableCell>
+                  <TableCell><QuestionStatusBadge status={question.status} /></TableCell>
+                  <TableCell><QuestionDeliveryPurposeBadge purpose={question.deliveryPurpose} /></TableCell>
                   <TableCell><Badge variant="secondary">{question.difficulty}</Badge></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end" onClick={stopRowToggle}>
@@ -164,7 +200,7 @@ export function QuestionsIndexTable({
                 </TableRow>
                 {isExpanded ? (
                   <TableRow key={`${question.questionId}-details`}>
-                    <TableCell colSpan={6} className="whitespace-normal bg-muted/20">
+                    <TableCell colSpan={8} className="whitespace-normal bg-muted/20">
                       <div id={detailsId} className="space-y-3 py-2">
                         {sortedOptions.length > 0 ? (
                           <ol className="space-y-3">

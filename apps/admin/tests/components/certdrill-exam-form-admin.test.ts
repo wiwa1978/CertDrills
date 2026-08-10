@@ -5,16 +5,21 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 const dialog = read("../../src/modules/certdrill/exam-form-create-dialog.tsx");
 const list = read("../../src/modules/certdrill/exam-form-list.tsx");
 const editor = read("../../src/modules/certdrill/exam-form-editor.tsx");
+const distribution = read("../../src/modules/certdrill/exam-form-distribution.ts");
 const route = read("../../src/app/[locale]/(backend)/(admin)/admin/certdrill/[certificationId]/exam-forms/[examFormId]/page.tsx");
 
 describe("CertDrill exam form admin", () => {
-  it("creates forms from focused metadata and lists canonical fields", () => {
+  it("lists form metadata, drill counts, and category distribution", () => {
     expect(dialog).toContain("Create Form");
     expect(dialog).toContain('name="targetQuestionCount"');
     expect(dialog).not.toContain('name="isActive"');
-    expect(list).toContain("Target questions");
-    expect(list).toContain("Duration");
-    expect(list).toContain("Status");
+    expect(list).toContain("assigned ·");
+    expect(list).toContain("target ·");
+    expect(list).toContain("scenarios ·");
+    expect(list).toContain("Normal questions");
+    expect(list).toContain("Drag and drop");
+    expect(list).toContain("Fill in the gap");
+    expect(list).toContain("Distribution per category");
     expect(list).toContain("examFormEditorHref");
     expect(list).toContain("Deactivate");
   });
@@ -39,6 +44,10 @@ describe("CertDrill exam form admin", () => {
     expect(editor).toContain("expectedAssignmentVersion");
     expect(editor).toContain("window.confirm");
     expect(editor).toContain("No eligible replacement is available.");
-    expect(editor).toContain("current.archivedAt");
+    expect(editor).toContain("activeRootCategoryId");
+    expect(distribution).toContain("current.archivedAt");
+    expect(editor).toContain("Scenarios in this Final Mock Exam");
+    expect(editor).toContain("Save scenario assignments");
+    expect(editor).toContain("scenarioIds");
   });
 });

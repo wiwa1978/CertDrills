@@ -1,29 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  CertDrillAdminResource,
-  CertDrillBlueprintCategoryProposal,
-  CertDrillBlueprintParseRun,
-} from "@/lib/api/certdrill.server";
-import {
-  blueprintAnalysisEligibility,
-  blueprintCategoryDepths,
-  createBlueprintRunPoller,
-  newestBlueprintRunByResource,
-} from "@/modules/certdrill/blueprint-analysis";
+import type { CertDrillBlueprintParseRun } from "@/lib/api/certdrill.server";
+import { createBlueprintRunPoller } from "@/modules/certdrill/blueprint-analysis";
 
-function createResource(overrides: Partial<CertDrillAdminResource> = {}): CertDrillAdminResource {
-  return {
-    id: "resource-1",
-    certificationId: "cert-1",
-    url: "https://example.com/blueprint",
-    title: "Blueprint resource",
-    sourceType: "study-guide",
-    contentMode: "outline_blueprint",
-    status: "ingested",
-    ...overrides,
-  };
-}
 
 function createRun(overrides: Partial<CertDrillBlueprintParseRun> = {}): CertDrillBlueprintParseRun {
   return {
@@ -46,19 +25,6 @@ function createRun(overrides: Partial<CertDrillBlueprintParseRun> = {}): CertDri
   };
 }
 
-function createCategory(
-  overrides: Partial<CertDrillBlueprintCategoryProposal> = {},
-): CertDrillBlueprintCategoryProposal {
-  return {
-    code: "D1",
-    name: "Domain 1",
-    parentCode: null,
-    weightPct: 50,
-    sortOrder: 0,
-    evidence: [],
-    ...overrides,
-  };
-}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -80,101 +46,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("blueprintAnalysisEligibility", () => {
-  it.each([
-    ["study-guide"],
-    ["exam-blueprint"],
-  ] as const)("accepts ingested outline resources for %s sources", (sourceType) => {
-    expect(blueprintAnalysisEligibility(createResource({ sourceType }))).toEqual({ eligible: true });
-  });
-
-  it("prioritizes the ingest reason before content mode or source checks", () => {
-    expect(blueprintAnalysisEligibility(createResource({
-      status: "pending",
-      contentMode: "deep_content",
-      sourceType: "module",
-    }))).toEqual({
-      eligible: false,
-      reason: "Ingest this resource before analysis.",
-    });
-  });
-
-  it("returns the content mode reason before the source reason", () => {
-    expect(blueprintAnalysisEligibility(createResource({
-      contentMode: "deep_content",
-      sourceType: "module",
-    }))).toEqual({
-      eligible: false,
-      reason: "Use outline blueprint content mode for analysis.",
-    });
-  });
-
-  it("returns the source reason for unsupported ingested outline resources", () => {
-    expect(blueprintAnalysisEligibility(createResource({ sourceType: "doc" }))).toEqual({
-      eligible: false,
-      reason: "Only study-guide and exam-blueprint resources can be analyzed.",
-    });
-  });
-});
-
-describe("newestBlueprintRunByResource", () => {
-  it("keeps the newest createdAt run for each resource", () => {
-    const newest = createRun({
-      id: "run-newest",
-      createdAt: "2026-08-07T12:00:00.000Z",
-      updatedAt: "2026-08-07T12:00:00.000Z",
-    });
-    const selected = newestBlueprintRunByResource([
-      createRun({ id: "resource-1-old" }),
-      createRun({ id: "resource-2-only", resourceId: "resource-2" }),
-      newest,
-    ]);
-
-    expect(selected.get("resource-1")).toEqual(newest);
-    expect(selected.get("resource-2")?.id).toBe("resource-2-only");
-  });
-
-  it("breaks createdAt ties by preferring the later array entry", () => {
-    const olderEntry = createRun({ id: "run-b" });
-    const laterEntry = createRun({ id: "run-a" });
-
-    expect(newestBlueprintRunByResource([olderEntry, laterEntry]).get("resource-1")).toEqual(laterEntry);
-  });
-});
-
-describe("blueprintCategoryDepths", () => {
-  it("maps normalized category codes to their hierarchy depth", () => {
-    const depths = blueprintCategoryDepths([
-      createCategory({ code: " d1 " }),
-      createCategory({ code: "d1.1", name: "Skill 1", parentCode: " d1 ", weightPct: null, sortOrder: 1 }),
-      createCategory({ code: "d1.1.a", name: "Detail", parentCode: "d1.1", weightPct: null, sortOrder: 2 }),
-    ]);
-
-    expect(depths.get("D1")).toBe(0);
-    expect(depths.get("D1.1")).toBe(1);
-    expect(depths.get("D1.1.A")).toBe(2);
-  });
-
-  it("falls back to depth 0 when a parent is missing", () => {
-    const depths = blueprintCategoryDepths([
-      createCategory({ code: "child", parentCode: "missing", weightPct: null }),
-    ]);
-
-    expect(depths.get("CHILD")).toBe(0);
-  });
-
-  it("terminates safely for cyclic parent chains", () => {
-    const depths = blueprintCategoryDepths([
-      createCategory({ code: "A", parentCode: "B", weightPct: null }),
-      createCategory({ code: "B", parentCode: "A", weightPct: null }),
-      createCategory({ code: "SELF", parentCode: "SELF", weightPct: null }),
-    ]);
-
-    expect(depths.get("A")).toBe(0);
-    expect(depths.get("B")).toBe(0);
-    expect(depths.get("SELF")).toBe(0);
-  });
-});
 
 describe("createBlueprintRunPoller", () => {
   it("fetches immediately on start and waits for each request to settle before scheduling the next one", async () => {

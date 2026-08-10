@@ -213,6 +213,7 @@
     },
     "errors": {
       "default": "Une erreur s'est produite. Veuillez réessayer.",
+      "NETWORK_ERROR": "Impossible de joindre le service d’authentification. Veuillez réessayer dans un instant.",
       "PASSWORD_COMPROMISED": "Ce mot de passe a été trouvé dans une fuite de données. Veuillez choisir un autre mot de passe.",
       "INVALID_EMAIL_OR_PASSWORD": "E-mail ou mot de passe invalide.",
       "USER_ALREADY_EXISTS": "Un compte avec cet e-mail existe déjà.",

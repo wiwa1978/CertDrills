@@ -6,7 +6,9 @@ import {
   buildPracticeFeedback,
   buildReview,
   scoreAttempt,
+  scoreScenario,
   toExamQuestionPayload,
+  toExamScenarioPayload,
 } from "../../../src/modules/certdrill/snapshot";
 
 const mediaAsset = {
@@ -20,6 +22,8 @@ const question = {
   id: "11111111-1111-4111-8111-111111111111",
   stem: "Original stem",
   mediaAssets: [mediaAsset],
+  questionType: "single_choice" as const,
+  interaction: null,
   difficulty: "medium" as const,
   category: { id: "22222222-2222-4222-8222-222222222222", code: "D1", name: "Domain 1" },
   options: [
@@ -55,9 +59,38 @@ const secondQuestion = {
   })),
 };
 
+const scenario = {
+  id: "99999999-9999-4999-8999-999999999999",
+  title: "Incident response",
+  description: "Choose a response path.",
+  difficulty: "hard" as const,
+  estimatedMinutes: 10,
+  initialNodeKey: "start",
+  nodes: [
+    { key: "start", title: "Start", situation: "An alert fires.", evidence: ["Signal"], options: [
+      { key: "contain", title: "Contain", description: "Contain first.", consequence: "Spread stops.", points: 100, nextNodeKey: "finish" },
+      { key: "wait", title: "Wait", description: "Wait for more.", consequence: "Spread continues.", points: 0, nextNodeKey: "finish" },
+    ] },
+    { key: "finish", title: "Finish", situation: "Close the incident.", evidence: [], options: [
+      { key: "review", title: "Review", description: "Review evidence.", consequence: "Lessons captured.", points: 100, nextNodeKey: null },
+      { key: "close", title: "Close", description: "Close immediately.", consequence: "Lessons missed.", points: 50, nextNodeKey: null },
+    ] },
+  ],
+};
+
 describe("CertDrill snapshots", () => {
   it("builds a durable attempt snapshot", () => {
     expect(buildAttemptSnapshot([question], { shuffleOptions: false })).toEqual({ version: 1, questions: [question] });
+  });
+
+  it("scores branching decisions and combines scenario credit with questions", () => {
+    const snapshot = buildAttemptSnapshot([question], [scenario], { shuffleOptions: false });
+    const decisions = [{ nodeKey: "start", optionKey: "wait" }, { nodeKey: "finish", optionKey: "close" }];
+    const scenarioScore = scoreScenario(snapshot, scenario.id, decisions);
+    expect(scenarioScore).toMatchObject({ earnedPoints: 50, maxPoints: 200, scorePct: 25 });
+    expect(scoreAttempt(snapshot, [{ questionId: question.id, selectedOptionId: question.options[0].id, isCorrect: true }], [{ scenarioId: scenario.id, decisionsJson: decisions, earnedPoints: 50, maxPoints: 200, scorePct: 25 }])).toMatchObject({ total: 2, scorePct: 62.5 });
+    expect(toExamScenarioPayload(snapshot)[0]?.nodes[0]?.options[0]).not.toHaveProperty("points");
+    expect(() => scoreScenario(snapshot, scenario.id, decisions.slice(0, 1))).toThrow("must reach an ending");
   });
 
   it("normalizes media assets to the contract shape before snapshot", () => {
@@ -121,6 +154,8 @@ describe("CertDrill snapshots", () => {
         id: question.id,
         stem: question.stem,
         mediaAssets: question.mediaAssets,
+        questionType: "single_choice",
+        interaction: null,
         category: question.category,
         options: [
           { id: question.options[0].id, text: question.options[0].text, mediaAssets: [] },
@@ -219,5 +254,61 @@ describe("CertDrill snapshots", () => {
       correctOption: { id: question.options[0].id },
       isCorrect: false,
     });
+  });
+  it("scores normalized fill-in answers without exposing accepted answers", () => {
+    const fillQuestion = {
+      ...question,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      questionType: "fill_blank" as const,
+      interaction: {
+        type: "fill_blank" as const,
+        acceptedAnswers: ["Role-Based Access Control", "RBAC"],
+        explanation: "RBAC scopes permissions through role assignments.",
+        citationUrls: ["https://docs.example.com/rbac"],
+      },
+      options: [],
+    };
+    const snapshot = buildAttemptSnapshot([fillQuestion]);
+
+    expect(toExamQuestionPayload(snapshot)[0]?.interaction).toEqual({ type: "fill_blank" });
+    expect(buildPracticeFeedback(snapshot, { questionId: fillQuestion.id, type: "fill_blank", text: "  role-based   ACCESS control " })).toMatchObject({
+      isCorrect: true,
+      questionType: "fill_blank",
+      correctAnswer: "Role-Based Access Control / RBAC",
+    });
+    expect(scoreAttempt(snapshot, [{ questionId: fillQuestion.id, selectedOptionId: null, responseJson: { type: "fill_blank", text: "rbac" }, isCorrect: false }])).toEqual({ correct: 1, total: 1, scorePct: 100 });
+  });
+
+  it("shuffles matching targets and requires a one-to-one correct assignment", () => {
+    const matchingQuestion = {
+      ...question,
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      questionType: "matching" as const,
+      interaction: {
+        type: "matching" as const,
+        pairs: [
+          { promptId: "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", targetId: "22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa", prompt: "RBAC", target: "Role assignments", explanation: "RBAC uses roles.", citationUrls: ["https://docs.example.com/rbac"] },
+          { promptId: "33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa", targetId: "44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa", prompt: "Policy", target: "Compliance evaluation", explanation: "Policy evaluates resources.", citationUrls: ["https://docs.example.com/policy"] },
+        ],
+      },
+      options: [],
+    };
+    const snapshot = buildAttemptSnapshot([matchingQuestion], { rng: () => 0 });
+    const payload = toExamQuestionPayload(snapshot)[0];
+    expect(payload?.interaction).toMatchObject({
+      type: "matching",
+      targets: [
+        { id: "44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { id: "22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      ],
+    });
+    expect(JSON.stringify(payload)).not.toContain("correctTargetId");
+
+    const correctMatches = matchingQuestion.interaction.pairs.map((pair) => ({ promptId: pair.promptId, targetId: pair.targetId }));
+    expect(buildPracticeFeedback(snapshot, { questionId: matchingQuestion.id, type: "matching", matches: correctMatches })).toMatchObject({ isCorrect: true, questionType: "matching" });
+    expect(buildPracticeFeedback(snapshot, { questionId: matchingQuestion.id, type: "matching", matches: [
+      { promptId: correctMatches[0]!.promptId, targetId: correctMatches[1]!.targetId },
+      { promptId: correctMatches[1]!.promptId, targetId: correctMatches[0]!.targetId },
+    ] })).toMatchObject({ isCorrect: false, questionType: "matching" });
   });
 });
