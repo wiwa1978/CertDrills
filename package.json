@@ -30,7 +30,7 @@
     "lint:strict": "bun run --cwd apps/web lint:strict && bun run --cwd apps/admin lint:strict",
     "test:ci": "bun run db:check && bun run audit:dependencies && bun run check:workflow-actions && bun run check:architecture && bun run typecheck:all && bun run lint:strict && bun run test:coverage",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
-    "db:migrate": "DRIZZLE_REQUIRE_MIGRATION_DATABASE_URL=1 drizzle-kit migrate --config drizzle.config.ts",
+    "db:migrate": "bun packages/platform-db/src/migrate.ts",
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:studio": "DRIZZLE_REQUIRE_DATABASE_URL=1 drizzle-kit studio --config drizzle.config.ts",
     "typecheck:api": "bun run --cwd apps/api typecheck",

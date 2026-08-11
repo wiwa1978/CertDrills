@@ -1,6 +1,20 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("web smoke", () => {
+  test("loads localized home with browser assets", async ({ page }) => {
+    const failedFrameworkRequests: string[] = [];
+    page.on("requestfailed", (request) => {
+      if (new URL(request.url()).pathname.startsWith("/_next/")) {
+        failedFrameworkRequests.push(request.url());
+      }
+    });
+
+    await page.goto("/nl");
+    await page.waitForLoadState("networkidle");
+
+    expect(failedFrameworkRequests).toEqual([]);
+  });
+
   test("loads localized login route", async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on("console", (message) => {

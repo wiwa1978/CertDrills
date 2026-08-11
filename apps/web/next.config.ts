@@ -28,7 +28,7 @@ const securityHeaders = [
       "font-src 'self' data:",
       `connect-src ${connectSrc.join(" ")}`,
       "form-action 'self'",
-      "upgrade-insecure-requests",
+      ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
     ].join("; "),
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },

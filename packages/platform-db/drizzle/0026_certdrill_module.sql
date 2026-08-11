@@ -1,4 +1,4 @@
-CREATE TABLE "certdrill_answer_options" (
+CREATE TABLE IF NOT EXISTS "certdrill_answer_options" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"question_id" uuid NOT NULL,
 	"text" text NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE "certdrill_answer_options" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_blueprint_parse_runs" (
+CREATE TABLE IF NOT EXISTS "certdrill_blueprint_parse_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"resource_id" uuid NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE "certdrill_blueprint_parse_runs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_certifications" (
+CREATE TABLE IF NOT EXISTS "certdrill_certifications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"code" text NOT NULL,
 	"name" text NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE "certdrill_certifications" (
 	CONSTRAINT "certdrill_certifications_exam_simulation_scenario_count_nonnegative" CHECK ("certdrill_certifications"."exam_simulation_scenario_count" >= 0)
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_attempt_answers" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_attempt_answers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"exam_attempt_id" uuid NOT NULL,
 	"question_id" uuid NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE "certdrill_exam_attempt_answers" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_attempt_scenario_responses" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_attempt_scenario_responses" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"exam_attempt_id" uuid NOT NULL,
 	"scenario_id" uuid NOT NULL,
@@ -83,7 +83,7 @@ CREATE TABLE "certdrill_exam_attempt_scenario_responses" (
 	CONSTRAINT "certdrill_exam_attempt_scenario_responses_score_range" CHECK ("certdrill_exam_attempt_scenario_responses"."score_pct" >= 0 AND "certdrill_exam_attempt_scenario_responses"."score_pct" <= 100)
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_attempts" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_attempts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"certification_id" uuid NOT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE "certdrill_exam_attempts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_categories" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_categories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"parent_category_id" uuid,
@@ -123,7 +123,7 @@ CREATE TABLE "certdrill_exam_categories" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_form_scenarios" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_form_scenarios" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"exam_form_id" uuid NOT NULL,
 	"scenario_id" uuid NOT NULL,
@@ -132,7 +132,7 @@ CREATE TABLE "certdrill_exam_form_scenarios" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_exam_forms" (
+CREATE TABLE IF NOT EXISTS "certdrill_exam_forms" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE "certdrill_exam_forms" (
 	CONSTRAINT "certdrill_exam_forms_assignment_version_positive" CHECK ("certdrill_exam_forms"."assignment_version" > 0)
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_handoff_runs" (
+CREATE TABLE IF NOT EXISTS "certdrill_handoff_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"blueprint_url" text NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE "certdrill_handoff_runs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_learn_resources" (
+CREATE TABLE IF NOT EXISTS "certdrill_learn_resources" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"category_id" uuid,
@@ -189,7 +189,7 @@ CREATE TABLE "certdrill_learn_resources" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_question_feedback" (
+CREATE TABLE IF NOT EXISTS "certdrill_question_feedback" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"question_id" uuid NOT NULL,
@@ -204,7 +204,7 @@ CREATE TABLE "certdrill_question_feedback" (
 	CONSTRAINT "certdrill_question_feedback_status_check" CHECK ("certdrill_question_feedback"."status" IN ('open', 'reviewed', 'resolved'))
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_question_generation_jobs" (
+CREATE TABLE IF NOT EXISTS "certdrill_question_generation_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"handoff_run_id" uuid,
@@ -227,7 +227,7 @@ CREATE TABLE "certdrill_question_generation_jobs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_questions" (
+CREATE TABLE IF NOT EXISTS "certdrill_questions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"category_id" uuid NOT NULL,
@@ -245,7 +245,7 @@ CREATE TABLE "certdrill_questions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_review_queue" (
+CREATE TABLE IF NOT EXISTS "certdrill_review_queue" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"certification_id" uuid NOT NULL,
@@ -263,7 +263,7 @@ CREATE TABLE "certdrill_review_queue" (
 	CONSTRAINT "certdrill_review_queue_ease_positive" CHECK ("certdrill_review_queue"."ease" > 0)
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_scenario_generation_jobs" (
+CREATE TABLE IF NOT EXISTS "certdrill_scenario_generation_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"resource_ids" uuid[] NOT NULL,
@@ -285,7 +285,7 @@ CREATE TABLE "certdrill_scenario_generation_jobs" (
 	CONSTRAINT "certdrill_scenario_generation_jobs_requested_count_positive" CHECK ("certdrill_scenario_generation_jobs"."requested_count" > 0)
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_scenarios" (
+CREATE TABLE IF NOT EXISTS "certdrill_scenarios" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"certification_id" uuid NOT NULL,
 	"source_resource_ids" uuid[] DEFAULT ARRAY[]::uuid[] NOT NULL,
@@ -304,7 +304,7 @@ CREATE TABLE "certdrill_scenarios" (
 	CONSTRAINT "certdrill_scenarios_status_check" CHECK ("certdrill_scenarios"."status" IN ('draft', 'validated', 'published', 'archived'))
 );
 --> statement-breakpoint
-CREATE TABLE "certdrill_vendors" (
+CREATE TABLE IF NOT EXISTS "certdrill_vendors" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"slug" text NOT NULL,
 	"name" text NOT NULL,
@@ -316,7 +316,43 @@ CREATE TABLE "certdrill_vendors" (
 	CONSTRAINT "certdrill_vendors_slug_unique" UNIQUE("slug")
 );
 --> statement-breakpoint
-DROP INDEX "passkey_credentialID_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "passkey_credentialID_idx";--> statement-breakpoint
+--> statement-breakpoint
+ALTER TABLE "certdrill_answer_options" DROP CONSTRAINT IF EXISTS "certdrill_answer_options_question_id_certdrill_questions_id_fk";
+ALTER TABLE "certdrill_blueprint_parse_runs" DROP CONSTRAINT IF EXISTS "certdrill_blueprint_parse_runs_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_blueprint_parse_runs" DROP CONSTRAINT IF EXISTS "certdrill_blueprint_parse_runs_resource_id_certdrill_learn_resources_id_fk";
+ALTER TABLE "certdrill_certifications" DROP CONSTRAINT IF EXISTS "certdrill_certifications_vendor_id_certdrill_vendors_id_fk";
+ALTER TABLE "certdrill_exam_attempt_answers" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempt_answers_exam_attempt_id_certdrill_exam_attempts_id_fk";
+ALTER TABLE "certdrill_exam_attempt_scenario_responses" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempt_scenario_responses_exam_attempt_id_certdrill_exam_attempts_id_fk";
+ALTER TABLE "certdrill_exam_attempt_scenario_responses" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempt_scenario_responses_scenario_id_certdrill_scenarios_id_fk";
+ALTER TABLE "certdrill_exam_attempts" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempts_user_id_user_id_fk";
+ALTER TABLE "certdrill_exam_attempts" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempts_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_exam_attempts" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempts_exam_form_id_certdrill_exam_forms_id_fk";
+ALTER TABLE "certdrill_exam_categories" DROP CONSTRAINT IF EXISTS "certdrill_exam_categories_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_exam_categories" DROP CONSTRAINT IF EXISTS "certdrill_exam_categories_parent_category_id_certdrill_exam_categories_id_fk";
+ALTER TABLE "certdrill_exam_form_scenarios" DROP CONSTRAINT IF EXISTS "certdrill_exam_form_scenarios_exam_form_id_certdrill_exam_forms_id_fk";
+ALTER TABLE "certdrill_exam_form_scenarios" DROP CONSTRAINT IF EXISTS "certdrill_exam_form_scenarios_scenario_id_certdrill_scenarios_id_fk";
+ALTER TABLE "certdrill_exam_forms" DROP CONSTRAINT IF EXISTS "certdrill_exam_forms_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_handoff_runs" DROP CONSTRAINT IF EXISTS "certdrill_handoff_runs_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_handoff_runs" DROP CONSTRAINT IF EXISTS "certdrill_handoff_runs_requested_by_user_id_user_id_fk";
+ALTER TABLE "certdrill_learn_resources" DROP CONSTRAINT IF EXISTS "certdrill_learn_resources_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_learn_resources" DROP CONSTRAINT IF EXISTS "certdrill_learn_resources_category_id_certdrill_exam_categories_id_fk";
+ALTER TABLE "certdrill_question_feedback" DROP CONSTRAINT IF EXISTS "certdrill_question_feedback_user_id_user_id_fk";
+ALTER TABLE "certdrill_question_feedback" DROP CONSTRAINT IF EXISTS "certdrill_question_feedback_question_id_certdrill_questions_id_fk";
+ALTER TABLE "certdrill_question_feedback" DROP CONSTRAINT IF EXISTS "certdrill_question_feedback_exam_attempt_id_certdrill_exam_attempts_id_fk";
+ALTER TABLE "certdrill_question_generation_jobs" DROP CONSTRAINT IF EXISTS "certdrill_question_generation_jobs_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_question_generation_jobs" DROP CONSTRAINT IF EXISTS "certdrill_question_generation_jobs_handoff_run_id_certdrill_handoff_runs_id_fk";
+ALTER TABLE "certdrill_question_generation_jobs" DROP CONSTRAINT IF EXISTS "certdrill_question_generation_jobs_category_id_certdrill_exam_categories_id_fk";
+ALTER TABLE "certdrill_questions" DROP CONSTRAINT IF EXISTS "certdrill_questions_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_questions" DROP CONSTRAINT IF EXISTS "certdrill_questions_category_id_certdrill_exam_categories_id_fk";
+ALTER TABLE "certdrill_questions" DROP CONSTRAINT IF EXISTS "certdrill_questions_source_resource_id_certdrill_learn_resources_id_fk";
+ALTER TABLE "certdrill_questions" DROP CONSTRAINT IF EXISTS "certdrill_questions_generation_job_id_certdrill_question_generation_jobs_id_fk";
+ALTER TABLE "certdrill_review_queue" DROP CONSTRAINT IF EXISTS "certdrill_review_queue_user_id_user_id_fk";
+ALTER TABLE "certdrill_review_queue" DROP CONSTRAINT IF EXISTS "certdrill_review_queue_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_review_queue" DROP CONSTRAINT IF EXISTS "certdrill_review_queue_question_id_certdrill_questions_id_fk";
+ALTER TABLE "certdrill_scenario_generation_jobs" DROP CONSTRAINT IF EXISTS "certdrill_scenario_generation_jobs_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_scenarios" DROP CONSTRAINT IF EXISTS "certdrill_scenarios_certification_id_certdrill_certifications_id_fk";
+ALTER TABLE "certdrill_scenarios" DROP CONSTRAINT IF EXISTS "certdrill_scenarios_generation_job_id_certdrill_scenario_generation_jobs_id_fk";
 --> statement-breakpoint
 ALTER TABLE "certdrill_answer_options" ADD CONSTRAINT "certdrill_answer_options_question_id_certdrill_questions_id_fk" FOREIGN KEY ("question_id") REFERENCES "public"."certdrill_questions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certdrill_blueprint_parse_runs" ADD CONSTRAINT "certdrill_blueprint_parse_runs_certification_id_certdrill_certifications_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certdrill_certifications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -353,6 +389,63 @@ ALTER TABLE "certdrill_review_queue" ADD CONSTRAINT "certdrill_review_queue_ques
 ALTER TABLE "certdrill_scenario_generation_jobs" ADD CONSTRAINT "certdrill_scenario_generation_jobs_certification_id_certdrill_certifications_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certdrill_certifications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certdrill_scenarios" ADD CONSTRAINT "certdrill_scenarios_certification_id_certdrill_certifications_id_fk" FOREIGN KEY ("certification_id") REFERENCES "public"."certdrill_certifications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certdrill_scenarios" ADD CONSTRAINT "certdrill_scenarios_generation_job_id_certdrill_scenario_generation_jobs_id_fk" FOREIGN KEY ("generation_job_id") REFERENCES "public"."certdrill_scenario_generation_jobs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
+DROP INDEX IF EXISTS "certdrill_answer_options_question_id_idx";
+DROP INDEX IF EXISTS "certdrill_blueprint_parse_runs_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_blueprint_parse_runs_resource_id_idx";
+DROP INDEX IF EXISTS "certdrill_blueprint_parse_runs_status_idx";
+DROP INDEX IF EXISTS "certdrill_certifications_is_active_idx";
+DROP INDEX IF EXISTS "certdrill_certifications_enabled_at_idx";
+DROP INDEX IF EXISTS "certdrill_certifications_archived_at_idx";
+DROP INDEX IF EXISTS "certdrill_certifications_vendor_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempt_answers_attempt_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempt_answers_attempt_question_idx";
+ALTER TABLE "certdrill_exam_attempt_scenario_responses" DROP CONSTRAINT IF EXISTS "certdrill_exam_attempt_scenario_responses_attempt_scenario_unique";
+DROP INDEX IF EXISTS "certdrill_exam_attempt_scenario_responses_attempt_scenario_unique";
+DROP INDEX IF EXISTS "certdrill_exam_attempt_scenario_responses_attempt_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempts_user_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempts_cert_completed_status_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempts_status_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempts_test_mode_variant_idx";
+DROP INDEX IF EXISTS "certdrill_exam_attempts_expires_at_idx";
+DROP INDEX IF EXISTS "certdrill_exam_categories_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_categories_parent_category_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_categories_archived_at_idx";
+DROP INDEX IF EXISTS "certdrill_exam_categories_cert_code_idx";
+DROP INDEX IF EXISTS "certdrill_exam_form_scenarios_form_scenario_idx";
+DROP INDEX IF EXISTS "certdrill_exam_form_scenarios_form_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_form_scenarios_scenario_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_forms_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_exam_forms_active_idx";
+DROP INDEX IF EXISTS "certdrill_exam_forms_cert_sort_idx";
+DROP INDEX IF EXISTS "certdrill_handoff_runs_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_handoff_runs_status_idx";
+DROP INDEX IF EXISTS "certdrill_learn_resources_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_learn_resources_category_id_idx";
+DROP INDEX IF EXISTS "certdrill_learn_resources_status_idx";
+DROP INDEX IF EXISTS "certdrill_question_feedback_user_id_idx";
+DROP INDEX IF EXISTS "certdrill_question_feedback_question_id_idx";
+DROP INDEX IF EXISTS "certdrill_question_feedback_exam_attempt_id_idx";
+DROP INDEX IF EXISTS "certdrill_question_feedback_status_idx";
+DROP INDEX IF EXISTS "certdrill_question_feedback_created_at_idx";
+DROP INDEX IF EXISTS "certdrill_question_generation_jobs_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_question_generation_jobs_status_idx";
+DROP INDEX IF EXISTS "certdrill_question_generation_jobs_handoff_run_id_idx";
+DROP INDEX IF EXISTS "certdrill_questions_certification_status_idx";
+DROP INDEX IF EXISTS "certdrill_questions_category_id_idx";
+DROP INDEX IF EXISTS "certdrill_questions_generation_job_id_idx";
+DROP INDEX IF EXISTS "certdrill_questions_delivery_purpose_idx";
+DROP INDEX IF EXISTS "certdrill_review_queue_user_due_idx";
+DROP INDEX IF EXISTS "certdrill_review_queue_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_review_queue_question_id_idx";
+DROP INDEX IF EXISTS "certdrill_review_queue_user_cert_question_idx";
+DROP INDEX IF EXISTS "certdrill_scenario_generation_jobs_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_scenario_generation_jobs_status_idx";
+DROP INDEX IF EXISTS "certdrill_scenarios_certification_id_idx";
+DROP INDEX IF EXISTS "certdrill_scenarios_generation_job_id_idx";
+DROP INDEX IF EXISTS "certdrill_scenarios_status_idx";
+DROP INDEX IF EXISTS "certdrill_vendors_is_active_idx";
+DROP INDEX IF EXISTS "certdrill_vendors_sort_order_idx";
 --> statement-breakpoint
 CREATE INDEX "certdrill_answer_options_question_id_idx" ON "certdrill_answer_options" USING btree ("question_id");--> statement-breakpoint
 CREATE INDEX "certdrill_blueprint_parse_runs_certification_id_idx" ON "certdrill_blueprint_parse_runs" USING btree ("certification_id");--> statement-breakpoint
