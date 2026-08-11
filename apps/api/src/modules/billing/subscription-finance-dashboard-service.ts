@@ -8,13 +8,14 @@ import {
   userSubscriptions,
   type SubscriptionStatus,
 } from "@platform/platform-db";
+import type { PlatformDb } from "@platform/platform-db";
 import type { AdminSubscriptionFinanceDashboard } from "@platform/contracts";
 
 import { subscriptionPlans } from "../../config/billing";
 import type { PaymentProvider, ProviderLedgerEntry, ProviderPaymentListItem } from "../payments/provider";
 
 type AdminSubscriptionFinanceDashboardServiceDeps = {
-  db: any;
+  db: PlatformDb;
   paymentProvider?: PaymentProvider;
 };
 
@@ -35,10 +36,25 @@ type LocalSubscriptionRow = AdminSubscriptionFinanceDashboard["subscriptions"]["
 type LocalSubscriptionPagination = AdminSubscriptionFinanceDashboard["subscriptions"]["pagination"];
 type LocalPaymentRow = AdminSubscriptionFinanceDashboard["transactions"]["localPayments"][number];
 type LocalDiscountRow = AdminSubscriptionFinanceDashboard["discounts"]["rows"][number];
+type LocalSubscriptionBaseRow = Omit<
+  LocalSubscriptionRow,
+  "latestPaymentId" | "amount" | "currency" | "paymentMethod" | "paymentMethodType"
+>;
+type LocalSubscriptionDbRow = Omit<
+  LocalSubscriptionBaseRow,
+  "createdAt" | "updatedAt" | "currentPeriodStart" | "currentPeriodEnd" | "providerEventAt"
+> & {
+  createdAt: Date;
+  updatedAt: Date;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  providerEventAt: Date | null;
+};
+type LocalDiscountBaseRow = Omit<LocalDiscountRow, "providerDiscount">;
 type ProviderList<T> = { items: T[]; nextCursor?: string | null };
 type LocalSubscriptionsResult = {
-  rows: LocalSubscriptionRow[];
-  allRows: LocalSubscriptionRow[];
+  rows: LocalSubscriptionBaseRow[];
+  allRows: LocalSubscriptionBaseRow[];
   pagination: LocalSubscriptionPagination;
 };
 
@@ -77,7 +93,7 @@ export function createAdminSubscriptionFinanceDashboardService(deps: AdminSubscr
       : emptyProviderData(warnings);
 
     const enrichedSubscriptions = enrichSubscriptionsWithPayments(subscriptionsResult.rows, payments, providerPayments.items);
-    const allSubscriptions = subscriptionsResult.allRows;
+    const allSubscriptions = enrichSubscriptionsWithPayments(subscriptionsResult.allRows, payments, providerPayments.items);
     const completedPayments = payments.filter((payment) => payment.paymentStatus === COMPLETED_PAYMENT_STATUS);
     const grossIncomeCents = completedPayments.reduce((total, payment) => total + payment.priceInclVat, 0);
     const localNetIncomeCents = completedPayments.reduce((total, payment) => total + payment.priceExclVat, 0);
@@ -123,7 +139,7 @@ export function createAdminSubscriptionFinanceDashboardService(deps: AdminSubscr
         rows: enrichedSubscriptions,
         pagination: subscriptionsResult.pagination,
         providerRows: providerSubscriptions.items,
-        planDistribution: buildPlanDistribution(subscriptionsResult.allRows),
+        planDistribution: buildPlanDistribution(allSubscriptions),
         churn: {
           activeAtStart: activeSubscriptions + canceledInPeriod,
           canceledInPeriod,
@@ -291,7 +307,7 @@ export function createAdminSubscriptionFinanceDashboardService(deps: AdminSubscr
       .orderBy(desc(subscriptionPayments.createdAt))
       .limit(250);
 
-    return rows.map((row: any) => ({ ...row, createdAt: toIso(row.createdAt) }));
+    return rows.map((row) => ({ ...row, createdAt: toIso(row.createdAt) }));
   }
 
   async function getLocalEvents(startDate: Date, endDate: Date) {
@@ -302,17 +318,17 @@ export function createAdminSubscriptionFinanceDashboardService(deps: AdminSubscr
       .orderBy(desc(subscriptionEvents.createdAt))
       .limit(100);
 
-    return rows.map((row: any) => ({ ...row, createdAt: toIso(row.createdAt) }));
+    return rows.map((row) => ({ ...row, createdAt: toIso(row.createdAt) }));
   }
 
-  async function getLocalDiscounts(): Promise<LocalDiscountRow[]> {
+  async function getLocalDiscounts(): Promise<LocalDiscountBaseRow[]> {
     const rows = await deps.db
       .select({ id: discounts.id, code: discounts.code, type: discounts.type, value: discounts.value, status: discounts.status, currentUses: discounts.currentUses, maxUses: discounts.maxUses, subscriptionCycles: discounts.subscriptionCycles, providerDiscountId: discounts.providerDiscountId, dodoDiscountId: discounts.dodoDiscountId })
       .from(discounts)
       .orderBy(desc(discounts.createdAt))
       .limit(100);
 
-    return rows.map((row: any) => ({ ...row, value: Number(row.value ?? 0) }));
+    return rows.map((row) => ({ ...row, value: Number(row.value ?? 0) }));
   }
 
   return { getDashboard };
@@ -376,7 +392,7 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function toSubscriptionRow(row: any): LocalSubscriptionRow {
+function toSubscriptionRow(row: LocalSubscriptionDbRow): LocalSubscriptionBaseRow {
   return { ...row, createdAt: toIso(row.createdAt), updatedAt: toIso(row.updatedAt), currentPeriodStart: nullableIso(row.currentPeriodStart), currentPeriodEnd: nullableIso(row.currentPeriodEnd), providerEventAt: nullableIso(row.providerEventAt) };
 }
 
@@ -413,7 +429,7 @@ function emptyProviderData(warnings: AdminSubscriptionFinanceDashboard["warnings
   ];
 }
 
-function enrichSubscriptionsWithPayments(rows: LocalSubscriptionRow[], payments: LocalPaymentRow[], providerPayments: ProviderPaymentListItem[]) {
+function enrichSubscriptionsWithPayments(rows: LocalSubscriptionBaseRow[], payments: LocalPaymentRow[], providerPayments: ProviderPaymentListItem[]) {
   return rows.map((subscription) => {
     const localPayment = payments.find((payment) => payment.dodoSubscriptionId === subscription.dodoSubscriptionId || payment.providerSubscriptionId === subscription.providerSubscriptionId);
     const providerPayment = providerPayments.find((payment) => payment.subscriptionId === subscription.dodoSubscriptionId || payment.subscriptionId === subscription.providerSubscriptionId);

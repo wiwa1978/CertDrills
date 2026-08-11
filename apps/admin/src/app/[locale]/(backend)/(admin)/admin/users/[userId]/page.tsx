@@ -59,8 +59,8 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
       <Suspense fallback={<UserInfoHeaderSkeleton />}>
         <UserInfoHeader user={user} />
       </Suspense>
-
       <CertDrillProgressResetCard userId={user.id} userName={user.name} />
+
 
       {/* Credit Stats Cards */}
       <div className="mb-6">

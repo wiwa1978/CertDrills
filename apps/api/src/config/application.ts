@@ -1,11 +1,14 @@
-export type BillingMode = "credits" | "subscriptions";
+export type { BillingMode } from "@platform/module-contracts";
+import type { BillingMode } from "@platform/module-contracts";
+
+import { productDefinition } from "../composition/product-definition";
 
 export const applicationConfig = {
   billing: {
-    mode: "credits" as BillingMode,
+    mode: productDefinition.billing.mode as BillingMode,
   },
   features: {
-    billing: true,
+    billing: productDefinition.billing.enabled,
     notifications: true,
     discounts: true,
     vouchers: true,

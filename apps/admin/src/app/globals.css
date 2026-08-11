@@ -135,21 +135,6 @@
 	--shadow-offset-x: 0;
 	--shadow-offset-y: 1px;
 	--letter-spacing: 0em;
-
-	--certdrill-bg: #f4efe3;
-	--certdrill-panel: #fffaf0;
-	--certdrill-panel-raised: #f1e6d2;
-	--certdrill-grid-line: rgba(42, 59, 87, 0.1);
-	--certdrill-border: #c8b99f;
-	--certdrill-accent: #b56f18;
-	--certdrill-accent-dim: rgba(181, 111, 24, 0.12);
-	--certdrill-success: #2f7d57;
-	--certdrill-success-dim: rgba(47, 125, 87, 0.12);
-	--certdrill-danger: #b94a3b;
-	--certdrill-danger-dim: rgba(185, 74, 59, 0.12);
-	--certdrill-foreground: #1f2937;
-	--certdrill-muted: #667085;
-	--certdrill-action-fg: #fffaf0;
 }
 
 .dark {
@@ -212,21 +197,6 @@
 	--shadow-offset-y: 1px;
 	--letter-spacing: 0em;
 	--spacing: 0.25rem;
-
-	--certdrill-bg: #0f1720;
-	--certdrill-panel: #16212f;
-	--certdrill-panel-raised: #1c293a;
-	--certdrill-grid-line: rgba(94, 200, 216, 0.07);
-	--certdrill-border: #2a3b57;
-	--certdrill-accent: #e8a33d;
-	--certdrill-accent-dim: rgba(232, 163, 61, 0.16);
-	--certdrill-success: #4cae7d;
-	--certdrill-success-dim: rgba(76, 174, 125, 0.14);
-	--certdrill-danger: #d9614f;
-	--certdrill-danger-dim: rgba(217, 97, 79, 0.14);
-	--certdrill-foreground: #e8ecf1;
-	--certdrill-muted: #7e8ca3;
-	--certdrill-action-fg: #0f1720;
 }
 
 @layer base {

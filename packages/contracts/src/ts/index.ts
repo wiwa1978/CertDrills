@@ -8,6 +8,7 @@
 // the schemas exported from `@platform/contracts/wire`.
 
 export * from "./api/routes";
+export * from "./application-settings";
 export * from "./billing/config";
 export * from "./billing/plans";
 export * from "./auth/forms";

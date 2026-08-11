@@ -16,9 +16,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  buildMyDataExportDownloadUrl,
   cancelMyDataExport,
   createMyDataExport,
+  downloadMyDataExport,
   listMyDataExports,
   type UserDataExportSummary,
 } from "@/lib/api/me";
@@ -35,6 +35,8 @@ function formatBytes(value: number | null) {
 export function DataExportCard() {
   const t = useTranslations("settings.dataExport");
   const queryClient = useQueryClient();
+  const [downloadTokens, setDownloadTokens] = React.useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
   const exportsQuery = useQuery({
     queryKey: webQueryKeys.dataExports,
     queryFn: () => listMyDataExports() as Promise<ExportWithToken[]>,
@@ -46,6 +48,8 @@ export function DataExportCard() {
         toast.error(result.error ?? t("failed"));
         return;
       }
+      const data = result.data;
+      setDownloadTokens((current) => ({ ...current, [data.id]: data.downloadToken }));
       await queryClient.invalidateQueries({ queryKey: webQueryKeys.dataExports });
       toast.success(t("success"));
     },
@@ -72,8 +76,35 @@ export function DataExportCard() {
     await cancelMutation.mutateAsync(exportId);
   };
 
-  const exports = exportsQuery.data ?? [];
+  const exports = (exportsQuery.data ?? []).map((item) => ({
+    ...item,
+    downloadToken: downloadTokens[item.id],
+  }));
   const activeExport = exports.find((item) => item.status === "pending" || item.status === "ready");
+
+  const handleDownload = async (item: ExportWithToken) => {
+    if (!item.downloadToken) return;
+    setDownloadingId(item.id);
+    try {
+      const blob = await downloadMyDataExport(item.id, item.downloadToken);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = item.fileName ?? `user-data-export-${item.id}.json`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+      setDownloadTokens((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      await queryClient.invalidateQueries({ queryKey: webQueryKeys.dataExports });
+    } catch {
+      toast.error(t("failed"));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   return (
     <Card>
@@ -97,7 +128,6 @@ export function DataExportCard() {
           exports.slice(0, 3).map((item) => {
             const canDownload = item.status === "ready" && item.downloadToken;
             const canCancel = item.status === "pending" || item.status === "ready";
-            const downloadUrl = canDownload ? buildMyDataExportDownloadUrl(item.id, item.downloadToken!) : null;
 
             return (
               <div key={item.id} className="rounded-md border bg-muted/30 p-3">
@@ -111,12 +141,18 @@ export function DataExportCard() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {downloadUrl && (
-                      <Button size="sm" asChild>
-                        <a href={downloadUrl} download>
+                    {canDownload && (
+                      <Button
+                        size="sm"
+                        disabled={downloadingId === item.id}
+                        onClick={() => void handleDownload(item)}
+                      >
+                        {downloadingId === item.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                        ) : (
                           <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                          {t("downloadButton")}
-                        </a>
+                        )}
+                        {t("downloadButton")}
                       </Button>
                     )}
                     {canCancel && (

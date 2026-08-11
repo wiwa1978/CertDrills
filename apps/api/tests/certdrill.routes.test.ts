@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createCertDrillUserRouter } from "../src/modules/certdrill/routes";
-import { CertDrillServiceError } from "../src/modules/certdrill/service";
+import { createCertDrillUserRouter } from "../src/product/certdrill/routes";
+import { CertDrillServiceError } from "../src/product/certdrill/service";
 
 const service = {
   listCertifications: vi.fn(),

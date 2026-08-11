@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Build faster, ship smarter",
-    "description": "The modern platform for building exceptional products. Streamline your workflow, collaborate seamlessly, and deliver outstanding results."
+    "title": "CertDrills Admin",
+    "description": "Secure administration for the CertDrills platform."
   },
   "nav": {
     "features": "Features",
@@ -146,9 +146,9 @@
     "disclaimer": "No credit card required · 14-day free trial · Cancel anytime"
   },
   "footer": {
-    "description": "Building the future of product development. Empowering teams to create exceptional experiences.",
-    "copyright": "Acme Inc. All rights reserved.",
-    "madeWith": "Made with ❤️ for developers",
+    "description": "Secure administration for the CertDrills platform.",
+    "copyright": "CertDrills. All rights reserved.",
+    "madeWith": "Built for product teams",
     "groups": {
       "product": {
         "title": "Product",
@@ -213,14 +213,15 @@
     },
     "errors": {
       "default": "An error occurred. Please try again.",
-      "NETWORK_ERROR": "Unable to reach the authentication service. Please try again in a moment.",
       "PASSWORD_COMPROMISED": "This password has been found in a data breach. Please choose a different password.",
       "INVALID_EMAIL_OR_PASSWORD": "Invalid email or password.",
       "USER_ALREADY_EXISTS": "An account with this email already exists.",
       "EMAIL_NOT_VERIFIED": "Please verify your email address first.",
       "INVALID_TOKEN": "Invalid or expired token.",
       "TOO_MANY_REQUESTS": "Too many requests. Please try again later.",
-      "BANNED_USER": "Your account has been banned. Please contact support for assistance."
+      "BANNED_USER": "Your account has been banned. Please contact support for assistance.",
+      "ADMIN_ACCESS_DENIED": "This account is not allowed to access the admin portal.",
+      "TWO_FACTOR_REQUIRED": "Admin access requires two-factor authentication. Temporarily disable the admin TOTP requirement, sign in, enable 2FA under Settings > Security, then re-enable the requirement."
     },
     "signup": {
       "title": "Create an account",
@@ -616,7 +617,6 @@
     "nav": {
       "overview": "Overview",
       "system": "System",
-      "admins": "Admins",
       "users": "Users",
       "billing": "Billing",
       "webhooks": "Webhooks",
@@ -624,9 +624,7 @@
       "notifications": "Notifications",
       "discounts": "Discounts",
       "vouchers": "Vouchers",
-      "logs": "Logs",
-      "certdrill": "CertDrill",
-      "questions": "Questions"
+      "logs": "Logs"
     },
     "dashboard": {
       "stats": {
@@ -687,13 +685,40 @@
         "description": "Available API app and audit log files.",
         "app": "App logs",
         "audit": "Audit logs"
+      },
+      "runtimeSettings": {
+        "title": "Runtime Settings",
+        "description": "Adjust selected application settings without redeploying the app.",
+        "adminSecret": "Admin secret",
+        "adminSecretPlaceholder": "Enter admin secret",
+        "updateSuccess": "Setting updated.",
+        "updateError": "Failed to update setting.",
+        "resetSuccess": "Setting reset to default.",
+        "resetError": "Failed to reset setting.",
+        "integerError": "Value must be an integer.",
+        "overrideBadge": "Override",
+        "defaultBadge": "Default",
+        "value": "Value",
+        "sourceValue": "Default: {value}",
+        "range": "Range: {min}-{max}",
+        "save": "Save",
+        "reset": "Reset",
+        "categories": {
+          "ui": "Interface"
+        },
+        "notificationsDropdownLimit": {
+          "label": "Notification dropdown limit",
+          "description": "Maximum notifications shown in the topbar dropdown."
+        },
+        "notificationsPollingIntervalMs": {
+          "label": "Notification polling interval",
+          "description": "How often notification counts and lists refresh, in milliseconds. Use 0 to disable polling."
+        },
+        "deleteAccountCountdownSeconds": {
+          "label": "Delete-account countdown",
+          "description": "Seconds users must wait after entering the confirmation code before deleting their account."
+        }
       }
-    },
-    "admins": {
-      "title": "Admin Accounts",
-      "description": "View privileged admin users across the system.",
-      "passwordUpdated": "Password updated. New password copied to clipboard.",
-      "passwordUpdateFailed": "Failed to set password."
     },
     "backToPortal": "Back to Portal",
     "impersonation": {
@@ -912,6 +937,8 @@
         "purchases": "Purchases"
       },
       "creditsDashboard": {
+        "title": "Credits dashboard",
+        "description": "Monitor credit revenue, purchases, consumption, ledger activity, and refunds.",
         "unknownUser": "Unknown",
         "search": "Search",
         "searchPlaceholder": "Search by user email...",
@@ -1151,6 +1178,229 @@
             "providerSubscription": "Provider subscription",
             "received": "Received"
           }
+        }
+      },
+      "transactionsMode": {
+        "title": "Transaction finance",
+        "description": "Monitor one-time order revenue, payment attempts, refunds, products, and conversion performance.",
+        "tabs": {
+          "label": "Transaction finance sections",
+          "overview": "Overview",
+          "orders": "Orders",
+          "refunds": "Refunds",
+          "products": "Products"
+        },
+        "filters": {
+          "range": "Date range",
+          "startDate": "Start date",
+          "endDate": "End date",
+          "grouping": "Group by",
+          "currency": "Currency",
+          "allCurrencies": "All currencies",
+          "status": "Status",
+          "allStatuses": "All statuses",
+          "product": "Product",
+          "allProducts": "All products",
+          "search": "Search",
+          "searchPlaceholder": "Search user, email, order, or payment ID",
+          "apply": "Apply",
+          "clear": "Clear"
+        },
+        "ranges": {
+          "7d": "Last 7 days",
+          "30d": "Last 30 days",
+          "90d": "Last 90 days",
+          "12m": "Last 12 months",
+          "custom": "Custom"
+        },
+        "grouping": {
+          "day": "Day",
+          "week": "Week",
+          "month": "Month",
+          "year": "Year"
+        },
+        "status": {
+          "pending_payment": "Pending payment",
+          "paid": "Paid",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "refund_pending": "Refund pending",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded"
+        },
+        "warnings": {
+          "title": "Data warning",
+          "providerPayments": "Payment provider payment data is unavailable.",
+          "providerRefunds": "Payment provider refund data is unavailable.",
+          "providerProducts": "Payment provider product data is unavailable.",
+          "providerPageCap": "The payment provider page limit was reached. Some provider data may be incomplete.",
+          "analyticsTruncation": "Local analytics reached the reporting limit. Results for this range may be incomplete.",
+          "localPartialRefund": "An exact amount is unavailable for one or more partial refunds.",
+          "generic": "Some transaction dashboard data is unavailable."
+        },
+        "overview": {
+          "conversionRate": "Conversion rate",
+          "conversionDescription": "Successful orders as a percentage of attempts",
+          "totalAttempts": "Total attempts",
+          "totalAttemptsDescription": "All matching local order attempts",
+          "successfulOrders": "Successful orders",
+          "successfulOrdersDescription": "Paid and refunded orders",
+          "pendingAttempts": "Pending",
+          "pendingAttemptsDescription": "Orders awaiting payment",
+          "failedAttempts": "Failed",
+          "failedAttemptsDescription": "Unsuccessful payment attempts",
+          "cancelledAttempts": "Cancelled",
+          "cancelledAttemptsDescription": "Cancelled order attempts",
+          "refundedOrders": "Refunded",
+          "refundedOrdersDescription": "Fully or partially refunded orders",
+          "currencyCard": "{currency} financials",
+          "grossRevenue": "Gross revenue",
+          "preTaxRevenue": "Pre-tax revenue",
+          "taxCollected": "Tax collected",
+          "refundedAmount": "Refunded amount"
+        },
+        "charts": {
+          "revenueTitle": "Revenue trend",
+          "revenueDescription": "Major-unit gross revenue shown as a separate line for each currency.",
+          "attemptsTitle": "Order status trend",
+          "attemptsDescription": "Order attempts shown as separate lines for successful, failed, pending, and cancelled outcomes.",
+          "productVolumeTitle": "Purchases by product",
+          "productVolumeDescription": "Units sold and completed orders for each product.",
+          "productRevenueTitle": "Revenue by product",
+          "productRevenueDescription": "Gross revenue for each product, kept separate by currency.",
+          "successTitle": "Success rate trend",
+          "successDescription": "Total attempts, successful orders, and conversion rate over time.",
+          "period": "Period",
+          "values": "Values"
+        },
+        "orders": {
+          "title": "All orders",
+          "description": "Every local transaction order and payment status in the selected range."
+        },
+        "orderTrends": {
+          "30d": "Orders · last 30 days",
+          "90d": "Orders · last 3 months",
+          "180d": "Orders · last 6 months",
+          "breakdown": "{successful} successful · {failed} failed",
+          "chartLabel": "Order volume trend for {range}"
+        },
+        "table": {
+          "user": "User",
+          "customer": "Customer",
+          "unknownUser": "Unknown user",
+          "order": "Order ID",
+          "items": "Items",
+          "quantity": "x{quantity}",
+          "subtotal": "Subtotal",
+          "tax": "Tax",
+          "total": "Total",
+          "status": "Status",
+          "payment": "Payment ID",
+          "created": "Created",
+          "actions": "Actions",
+          "notAvailable": "Not available"
+        },
+        "details": {
+          "show": "Operational details",
+          "expand": "Show details for order {orderId}",
+          "collapse": "Hide details for order {orderId}",
+          "subtotal": "Subtotal",
+          "tax": "Tax",
+          "total": "Total",
+          "paymentId": "Payment ID",
+          "userId": "User ID",
+          "paymentProvider": "Payment provider",
+          "checkoutReferenceId": "Checkout reference ID",
+          "createdAt": "Created at",
+          "paidAt": "Paid at",
+          "failedAt": "Failed at",
+          "fulfilledAt": "Fulfilled at",
+          "items": "Item details",
+          "itemId": "Item ID",
+          "productKey": "Product key",
+          "name": "Name",
+          "description": "Description",
+          "quantity": "Quantity",
+          "unitPrice": "Unit price",
+          "itemTotal": "Item total",
+          "currency": "Currency",
+          "providerProductId": "Provider product ID"
+        },
+        "pagination": {
+          "label": "Order pagination",
+          "page": "Page {current} of {total} · {count} orders",
+          "previous": "Previous",
+          "next": "Next"
+        },
+        "refunds": {
+          "total": "{currency} refunds",
+          "totalDescription": "Provider refund total in major currency units",
+          "refundableTitle": "Refundable orders",
+          "refundableDescription": "Paid orders with unused entitlements that can be refunded through the payment provider.",
+          "action": "Refund",
+          "success": "Transaction order refund created.",
+          "error": "Failed to create the transaction refund.",
+          "missingOrder": "Select an order to refund.",
+          "localTitle": "Locally refunded orders",
+          "localDescription": "Local orders marked fully or partially refunded.",
+          "providerTitle": "Provider refunds",
+          "providerDescription": "Normalized provider refund metadata without raw payloads.",
+          "dialog": {
+            "title": "Refund transaction order",
+            "description": "This creates a full provider refund and revokes all unused entitlements from the order.",
+            "reason": "Reason",
+            "secret": "Admin secret",
+            "cancel": "Cancel",
+            "submit": "Create refund",
+            "submitting": "Creating..."
+          }
+        },
+        "provider": {
+          "provider": "Provider",
+          "refundId": "Refund ID",
+          "amount": "Amount",
+          "reason": "Reason"
+        },
+        "providerStatus": {
+          "successful": "Successful",
+          "pending": "Pending",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "unknown": "Unknown"
+        },
+        "products": {
+          "localTitle": "Product performance",
+          "localDescription": "Local units, orders, and gross revenue kept separate by currency.",
+          "unitsSold": "Units sold",
+          "orderCount": "Orders",
+          "grossRevenue": "Gross revenue",
+          "providerTitle": "Provider product metadata",
+          "providerDescription": "Read-only normalized product data from the payment provider.",
+          "product": "Product",
+          "productId": "Product ID",
+          "price": "Price",
+          "recurring": "Recurring",
+          "taxCategory": "Tax category",
+          "updated": "Updated"
+        },
+        "success": {
+          "rate": "Success rate",
+          "total": "Total attempts",
+          "successful": "Successful"
+        },
+        "empty": {
+          "financials": "No financial totals are available for these filters.",
+          "chart": "No trend data is available for these filters.",
+          "orders": "No orders match these filters.",
+          "refunds": "No refunds match these filters.",
+          "refundableOrders": "No paid orders are available to refund in this period.",
+          "providerRefunds": "No provider refunds are available.",
+          "products": "No product summaries match these filters.",
+          "providerProducts": "No provider product metadata is available."
+        },
+        "common": {
+          "yes": "Yes",
+          "no": "No"
         }
       },
       "errors": {
@@ -1459,6 +1709,11 @@
         "name": "Pro",
         "description": "Maximum credits with the biggest bonus.",
         "cta": "Buy Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "The largest credit bundle for high-volume usage.",
+        "cta": "Buy Max"
       }
     },
     "features": {
@@ -1569,13 +1824,7 @@
     "discounts": "Discounts",
     "vouchers": "Vouchers",
     "logs": "Logs",
-    "system": "System",
-    "certdrill": "CertDrill",
-    "questions": "Questions",
-    "exam-forms": "Exam Forms",
-    "new": "New",
-    "import": "Import",
-    "operations": "Operations"
+    "system": "System"
   },
   "creditProgressBar": {
     "creditsOf": "{current} of {total} credits",

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createStaticCertificationAccessProvider } from "../../../src/modules/certdrill/access";
-import { buildAttemptSnapshot } from "../../../src/modules/certdrill/snapshot";
-import { createCertDrillService } from "../../../src/modules/certdrill/service";
+import { createStaticCertificationAccessProvider } from "../../../src/product/certdrill/access";
+import { buildAttemptSnapshot } from "../../../src/product/certdrill/snapshot";
+import { createCertDrillService } from "../../../src/product/certdrill/service";
 
 const ids = {
   user: "11111111-1111-4111-8111-111111111111",

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth-session";
 import { getCreditBalanceServer, getMyApplicationConfigServer } from "@/lib/api/me.server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/layout/backend/shared/stat-card";
 import { CreditCard, Wallet, TrendingDown, DollarSign } from "lucide-react";
@@ -15,7 +15,6 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const t = await getTranslations("dashboard");
   const applicationConfig = await getMyApplicationConfigServer();
 
   return (

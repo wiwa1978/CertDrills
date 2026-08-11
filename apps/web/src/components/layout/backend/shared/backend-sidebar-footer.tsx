@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { SidebarFooter } from "@/components/ui/sidebar"
 import { UserDropdown } from "@/components/layout/backend/shared/user-dropdown"
 import { CreditProgressBar } from "@/components/layout/backend/shared/credit-progress-bar"
 import { SubscriptionProgressBar } from "@/components/layout/backend/shared/subscription-progress-bar"

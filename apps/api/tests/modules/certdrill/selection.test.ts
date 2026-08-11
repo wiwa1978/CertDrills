@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { allocateWeightedQuestionCounts, expandCategoryIds, selectQuestionIds } from "../../../src/modules/certdrill/selection";
+import { allocateWeightedQuestionCounts, expandCategoryIds, selectQuestionIds } from "../../../src/product/certdrill/selection";
 
 const categories = [
   { id: "domain-1", parentCategoryId: null, weightPct: "30.00" },

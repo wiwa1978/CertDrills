@@ -381,14 +381,21 @@ export const subscriptionPaymentsListSchema = z.object({
 export const applicationConfigSchema = z.object({
   billing: z.object({
     enabled: z.boolean(),
-    mode: z.enum(["credits", "subscriptions"]),
+    mode: z.enum(["credits", "subscriptions", "transactions"]),
     creditSurfacesEnabled: z.boolean(),
     subscriptionSurfacesEnabled: z.boolean(),
+    transactionSurfacesEnabled: z.boolean(),
   }),
   features: z.object({
     vouchers: z.boolean(),
     discounts: z.boolean(),
     notifications: z.boolean(),
+  }),
+  capabilities: z.array(z.string()).optional(),
+  ui: z.object({
+    notificationsDropdownLimit: z.number().int().min(1),
+    notificationsPollingIntervalMs: z.number().int().min(0),
+    deleteAccountCountdownSeconds: z.number().int().min(0),
   }),
 });
 
@@ -475,3 +482,174 @@ export type AdminCreditRefundResponseData = z.infer<typeof adminCreditRefundResp
 export type AdminSubscriptionRefundResponseData = z.infer<typeof adminSubscriptionRefundResponseDataSchema>;
 export type ApiKeySummary = z.infer<typeof apiKeySummarySchema>;
 export type CreateApiKeyResponseData = z.infer<typeof createApiKeyResponseDataSchema>;
+
+export const transactionBasketStatusSchema = z.enum(["draft", "converted", "abandoned"]);
+export const transactionOrderStatusSchema = z.enum(["pending_payment", "paid", "failed", "cancelled", "refund_pending", "refunded", "partially_refunded"]);
+export const transactionEntitlementStatusSchema = z.enum(["available", "consumed", "refunded"]);
+
+export const transactionBasketItemSchema = z.object({
+  id: z.string(),
+  productKey: z.string(),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().int().nonnegative(),
+  totalAmount: z.number().int().nonnegative(),
+  currency: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+});
+
+export const transactionBasketSchema = z.object({
+  id: z.string(),
+  status: transactionBasketStatusSchema,
+  currency: z.string().nullable(),
+  totalAmount: z.number().int().nonnegative(),
+  items: z.array(transactionBasketItemSchema),
+});
+
+export const transactionOrderItemSchema = transactionBasketItemSchema.extend({
+  providerProductId: z.string().optional(),
+});
+
+export const transactionOrderSchema = z.object({
+  id: z.string(),
+  status: transactionOrderStatusSchema,
+  currency: z.string(),
+  subtotalAmount: z.number().int().nonnegative(),
+  taxAmount: z.number().int().nonnegative(),
+  totalAmount: z.number().int().nonnegative(),
+  paymentId: z.string().nullable().optional(),
+  createdAt: z.string(),
+  items: z.array(transactionOrderItemSchema),
+});
+
+const adminTransactionDashboardOrderItemSchema = z.object({
+  id: z.string(),
+  productKey: z.string(),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().int().nonnegative(),
+  totalAmount: z.number().int().nonnegative(),
+  currency: z.string(),
+  providerProductId: z.string().nullable(),
+  name: z.string(),
+  description: z.string().nullable(),
+});
+
+const adminTransactionDashboardOrderSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  userName: z.string().nullable(),
+  userEmail: z.string(),
+  status: transactionOrderStatusSchema,
+  currency: z.string(),
+  subtotalAmount: z.number().int().nonnegative(),
+  taxAmount: z.number().int().nonnegative(),
+  totalAmount: z.number().int().nonnegative(),
+  paymentProvider: z.string(),
+  paymentId: z.string().nullable(),
+  checkoutReferenceId: z.string().nullable(),
+  createdAt: z.string(),
+  paidAt: z.string().nullable(),
+  failedAt: z.string().nullable(),
+  fulfilledAt: z.string().nullable(),
+  items: z.array(adminTransactionDashboardOrderItemSchema),
+});
+export const adminTransactionRefundResponseDataSchema = z.object({
+  refund: adminRefundSchema,
+  order: z.object({
+    id: z.string(),
+    userId: z.string(),
+    status: transactionOrderStatusSchema,
+    paymentId: z.string().nullable(),
+  }),
+});
+
+
+const adminTransactionDashboardPaginationSchema = z.object({
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().positive(),
+});
+
+const adminTransactionDashboardProviderRefundSchema = providerRefundSchema.omit({ raw: true });
+const adminTransactionDashboardProviderProductSchema = providerProductSchema.omit({ raw: true });
+
+export const adminTransactionFinanceDashboardSchema = z.object({
+  filters: z.object({
+    startDate: z.string(),
+    endDate: z.string(),
+    grouping: z.enum(["day", "week", "month", "year"]),
+    range: z.enum(["7d", "30d", "90d", "12m", "custom"]),
+    currency: z.string().optional(),
+    status: transactionOrderStatusSchema.optional(),
+    productKey: z.string().optional(),
+    search: z.string().optional(),
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+  }),
+  warnings: z.array(adminBillingWarningSchema),
+  overview: z.object({
+    amounts: z.array(z.object({
+      currency: z.string(),
+      grossRevenue: z.number(),
+      preTaxRevenue: z.number(),
+      taxCollected: z.number(),
+      refundedAmount: z.number(),
+    })),
+    successfulOrders: z.number().int().nonnegative(),
+    pendingAttempts: z.number().int().nonnegative(),
+    failedAttempts: z.number().int().nonnegative(),
+    cancelledAttempts: z.number().int().nonnegative(),
+    refundedOrders: z.number().int().nonnegative(),
+    conversionRate: z.number(),
+    totalAttempts: z.number().int().nonnegative(),
+  }),
+  revenue: z.array(z.object({ period: z.string(), amount: z.number(), currency: z.string() })),
+  attempts: z.array(z.object({ period: z.string(), success: z.number().int().nonnegative(), failed: z.number().int().nonnegative(), pending: z.number().int().nonnegative(), cancelled: z.number().int().nonnegative() })),
+  successRate: z.array(z.object({ period: z.string(), total: z.number().int().nonnegative(), successful: z.number().int().nonnegative(), rate: z.number() })),
+  orderTrends: z.array(z.object({
+    range: z.enum(["30d", "90d", "180d"]),
+    total: z.number().int().nonnegative(),
+    successful: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    points: z.array(z.object({ period: z.string(), total: z.number().int().nonnegative(), successful: z.number().int().nonnegative(), failed: z.number().int().nonnegative() })),
+  })),
+  orders: z.object({ rows: z.array(adminTransactionDashboardOrderSchema), pagination: adminTransactionDashboardPaginationSchema }),
+  refunds: z.object({ refundableRows: z.array(adminTransactionDashboardOrderSchema), localRows: z.array(adminTransactionDashboardOrderSchema), providerRows: z.array(adminTransactionDashboardProviderRefundSchema), totalAmounts: z.array(z.object({ currency: z.string(), amount: z.number() })) }),
+  products: z.object({
+    rows: z.array(z.object({ productKey: z.string(), name: z.string(), unitsSold: z.number().int().nonnegative(), orderCount: z.number().int().nonnegative(), grossRevenue: z.number(), currency: z.string() })),
+    providerRows: z.array(adminTransactionDashboardProviderProductSchema),
+  }),
+});
+
+export const adminTransactionFinanceDashboardResponseSchema = successResultSchema(adminTransactionFinanceDashboardSchema);
+export const adminTransactionRefundResponseSchema = successResultSchema(adminTransactionRefundResponseDataSchema);
+export type AdminTransactionRefundResponseData = z.infer<typeof adminTransactionRefundResponseDataSchema>;
+export type AdminTransactionFinanceDashboard = z.infer<typeof adminTransactionFinanceDashboardSchema>;
+
+export const transactionEntitlementSchema = z.object({
+  id: z.string().uuid(),
+  productKey: z.string(),
+  status: transactionEntitlementStatusSchema,
+  orderId: z.string(),
+  consumedAt: z.string().nullable().optional(),
+  refundedAt: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+
+export const transactionCheckoutSchema = z.object({
+  checkoutUrl: z.string().url(),
+  orderId: z.string(),
+});
+
+export const transactionBasketResponseSchema = successResultSchema(transactionBasketSchema);
+export const transactionOrderResponseSchema = successResultSchema(transactionOrderSchema);
+export const transactionOrdersResponseSchema = successResultSchema(z.array(transactionOrderSchema));
+export const transactionEntitlementResponseSchema = successResultSchema(transactionEntitlementSchema);
+export const transactionEntitlementsResponseSchema = successResultSchema(z.array(transactionEntitlementSchema));
+export const transactionCheckoutResponseSchema = successResultSchema(transactionCheckoutSchema);
+
+export type TransactionBasket = z.infer<typeof transactionBasketSchema>;
+export type TransactionOrder = z.infer<typeof transactionOrderSchema>;
+export type TransactionEntitlement = z.infer<typeof transactionEntitlementSchema>;
+export type TransactionCheckout = z.infer<typeof transactionCheckoutSchema>;

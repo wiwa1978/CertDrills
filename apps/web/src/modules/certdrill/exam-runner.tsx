@@ -35,7 +35,7 @@ export function ExamRunnerFromSession({ attemptId, resumeAttempt }: { attemptId:
     return <ExamRunnerFallback />;
   }
 
-  return <ExamRunner attempt={runnerAttempt} />;
+  return <ExamRunner key={runnerAttempt.attemptId} attempt={runnerAttempt} />;
 }
 
 export function ExamRunnerFallback() {
@@ -87,17 +87,6 @@ export function ExamRunner({ attempt }: { attempt: ResumableAttempt }) {
     await finishCertDrillAttempt(attempt.attemptId, router);
   });
 
-  useEffect(() => {
-    const nextQuestionIndex = getResumeQuestionIndex(attempt);
-    const nextSelection = getResumeSelection(attempt, nextQuestionIndex);
-    setQuestionIndex(nextQuestionIndex);
-    setSelectedOptionId(nextSelection.selectedOptionId);
-    setTextAnswer(nextSelection.response?.type === "fill_blank" ? nextSelection.response.text : "");
-    setMatches(nextSelection.response?.type === "matching" ? Object.fromEntries(nextSelection.response.matches.map((match) => [match.promptId, match.targetId])) : {});
-    setConfidence(nextSelection.confidence);
-    setFeedback(null);
-    setScenarioIndex(areQuestionsComplete(attempt) ? getResumeScenarioIndex(attempt) : -1);
-  }, [attempt]);
 
   useEffect(() => {
     if (!expiresAtMs) {
@@ -121,7 +110,7 @@ export function ExamRunner({ attempt }: { attempt: ResumableAttempt }) {
         setError(caught instanceof Error ? caught.message : "Time expired, but the attempt could not be submitted.");
       }
     });
-  }, [expiresAtMs, finishExpiredAttempt, remainingMs]);
+  }, [expiresAtMs, remainingMs]);
 
   if (scenario) {
     return <ScenarioExamItem attempt={attempt} scenario={scenario} scenarioIndex={scenarioIndex} remainingMs={remainingMs} isExpired={isExpired} onComplete={() => {

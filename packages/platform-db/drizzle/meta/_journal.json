@@ -131,134 +131,64 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1778371200000,
-      "tag": "0018_add_certdrill_foundation",
+      "when": 1778366400000,
+      "tag": "0018_exam_entitlements",
       "breakpoints": true
     },
     {
       "idx": 19,
       "version": "7",
-      "when": 1785283200000,
-      "tag": "0019_certdrill_exam_modes_adaptive_practice",
+      "when": 1785859200000,
+      "tag": "0019_transaction_billing",
       "breakpoints": true
     },
     {
       "idx": 20,
       "version": "7",
-      "when": 1785369600000,
-      "tag": "0020_certdrill_certification_lifecycle",
+      "when": 1785945600000,
+      "tag": "0020_certdrill_exam_entitlements",
       "breakpoints": true
     },
     {
       "idx": 21,
       "version": "7",
-      "when": 1785456000000,
-      "tag": "0021_certdrill_question_feedback",
+      "when": 1786032000000,
+      "tag": "0021_transaction_orders_created_at_id_idx",
       "breakpoints": true
     },
     {
       "idx": 22,
       "version": "7",
-      "when": 1785542400000,
-      "tag": "0022_certdrill_certification_logo",
+      "when": 1786118400000,
+      "tag": "0022_rate_limit_buckets",
       "breakpoints": true
     },
     {
       "idx": 23,
       "version": "7",
-      "when": 1785628800000,
-      "tag": "0023_certdrill_vendors",
+      "when": 1786204800000,
+      "tag": "0023_background_leases",
       "breakpoints": true
     },
     {
       "idx": 24,
       "version": "7",
-      "when": 1785715200000,
-      "tag": "0024_certdrill_category_archive",
+      "when": 1786291200000,
+      "tag": "0024_integrity_constraints",
       "breakpoints": true
     },
     {
       "idx": 25,
       "version": "7",
-      "when": 1785801600000,
-      "tag": "0025_certdrill_review_queue",
+      "when": 1786377957000,
+      "tag": "0025_platform_runtime_cutover",
       "breakpoints": true
     },
     {
       "idx": 26,
       "version": "7",
-      "when": 1786036181985,
-      "tag": "0026_certdrill_blueprint_parse_runs",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "7",
-      "when": 1786044049198,
-      "tag": "0027_certdrill_exam_form_assignments",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1786291543000,
-      "tag": "0028_certdrill_category_weight_ranges",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1786294381000,
-      "tag": "0029_certdrill_question_generation",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1786297200000,
-      "tag": "0030_certdrill_question_delivery_purpose",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1786320000000,
-      "tag": "0031_certdrill_scenarios",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1786323600000,
-      "tag": "0032_certdrill_scenario_generation",
-      "breakpoints": true
-    },
-    {
-      "idx": 33,
-      "version": "7",
-      "when": 1786356000000,
-      "tag": "0033_certdrill_scenario_publishing",
-      "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1786359600000,
-      "tag": "0034_certdrill_scenario_archiving",
-      "breakpoints": true
-    },
-    {
-      "idx": 35,
-      "version": "7",
-      "when": 1786363200000,
-      "tag": "0035_certdrill_mixed_scenario_exams",
-      "breakpoints": true
-    }
-    ,{
-      "idx": 36,
-      "version": "7",
-      "when": 1786370400000,
-      "tag": "0036_certdrill_question_types",
+      "when": 1786449142912,
+      "tag": "0026_certdrill_module",
       "breakpoints": true
     }
   ]

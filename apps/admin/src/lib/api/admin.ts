@@ -6,6 +6,8 @@ import type {
   AdminCreditRefundResponseData,
   AdminCreditsDashboard,
   AdminSubscriptionFinanceDashboard,
+  AdminTransactionFinanceDashboard,
+  AdminTransactionRefundResponseData,
   AdminSubscriptionRefundResponseData,
   AdminSearchUser,
   AdminUserDetail,
@@ -35,7 +37,10 @@ import type {
   VoucherAssignmentScope,
   VoucherStatus,
 } from "@platform/contracts";
+export type { AdminTransactionFinanceDashboardQuery } from "@platform/contracts";
+import type { AdminTransactionFinanceDashboardQuery } from "@platform/contracts";
 import { apiRoutes } from "@platform/contracts/ts";
+import type { RuntimeApplicationSettingKey } from "@platform/contracts/ts";
 
 export async function verifyAdminSecretApi(secret: string) {
   return apiRequest<{ success: boolean; error?: string }>("/admin/verify-admin-secret", {
@@ -49,6 +54,27 @@ export async function getAdminStatusApi() {
     success: boolean;
     data: { message: string; totpRequired: boolean; twoFactorEnabled: boolean; canEnrollTotp: boolean };
   }>("/admin/status");
+}
+
+export async function updateAdminApplicationSettingApi(payload: { key: RuntimeApplicationSettingKey; value: number; secret: string }) {
+  return apiRequest<{ success: boolean; error?: string }>(apiRoutes.admin.applicationSetting, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetAdminApplicationSettingApi(payload: { key: RuntimeApplicationSettingKey; secret: string }) {
+  return apiRequest<{ success: boolean; error?: string }>(apiRoutes.admin.applicationSetting, {
+    method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function redriveBackgroundEventApi(eventId: string, secret: string) {
+  return apiRequest<{ success: boolean; data?: unknown; error?: string }>(apiRoutes.admin.redriveBackgroundEvent(eventId), {
+    method: "POST",
+    body: JSON.stringify({ secret }),
+  });
 }
 
 export async function getAdminDashboardStatsApi() {
@@ -116,7 +142,7 @@ export async function impersonateAdminUserApi(userId: string, secret: string) {
 
 export async function stopAdminImpersonationApi() {
   return apiRequest<{ session?: unknown; user?: unknown; error?: { message?: string } | string }>(
-    "/auth/admin/stop-impersonating",
+    "/admin-auth/admin/stop-impersonating",
     {
       method: "POST",
       body: JSON.stringify({}),
@@ -256,6 +282,17 @@ export async function createAdminCreditRefundApi(payload: { paymentId: string; r
   );
   return result.data;
 }
+export async function createAdminTransactionRefundApi(payload: { orderId: string; reason?: string; secret: string }) {
+  const result = await apiRequest<{ success: boolean; data: AdminTransactionRefundResponseData; error?: string }>(
+    apiRoutes.admin.billingTransactionRefunds,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return result.data;
+}
+
 
 export async function getAdminBillingSubscriptionsApi(limit = 20, offset = 0, searchEmail?: string) {
   const result = await apiRequest<{ success: boolean; data: SubscriptionsList }>(
@@ -299,6 +336,13 @@ export async function getAdminBillingSubscriptionFinanceSummaryApi() {
 export async function getAdminBillingSubscriptionFinanceDashboardApi(query: AdminSubscriptionFinanceDashboardQuery = {}) {
   const result = await apiRequest<{ success: boolean; data: AdminSubscriptionFinanceDashboard }>(
     apiRoutes.admin.billingSubscriptionFinanceDashboard(query),
+  );
+  return result.data;
+}
+
+export async function getAdminBillingTransactionFinanceDashboardApi(query: Partial<AdminTransactionFinanceDashboardQuery> = {}) {
+  const result = await apiRequest<{ success: boolean; data: AdminTransactionFinanceDashboard }>(
+    apiRoutes.admin.billingTransactionFinanceDashboard(query),
   );
   return result.data;
 }

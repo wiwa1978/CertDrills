@@ -137,7 +137,7 @@ export function SendNotificationForm() {
       } else {
         toast.error(result.error || t("error"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("error"));
     } finally {
       setIsSubmitting(false);

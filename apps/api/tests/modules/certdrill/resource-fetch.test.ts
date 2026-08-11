@@ -6,7 +6,7 @@ import {
   assertPublicResourceUrl,
   fetchPublicResource,
   ResourceFetchError,
-} from "../../../src/modules/certdrill/resource-fetch";
+} from "../../../src/product/certdrill/resource-fetch";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();

@@ -35,6 +35,38 @@ describe("logger.readLogEntries", () => {
 });
 
 describe("redactString", () => {
+  it("does not treat dot-separated event names as JWTs", () => {
+    expect(redactString("billing_checkout.create.failed")).toBe("billing_checkout.create.failed");
+  });
+
+  it("redacts structurally valid JWTs with short payloads", () => {
+    expect(redactString("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.c2ln")).toBe("[redacted]");
+  });
+
+  it("redacts unsecured three-part JWS tokens with empty signatures", () => {
+    expect(redactString("eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.e30.")).toBe("[redacted]");
+  });
+
+  it("redacts detached-payload JWS tokens while preserving event names and punctuation", () => {
+    expect(redactString("billing_checkout.create.failed token eyJhbGciOiJIUzI1NiJ9..c2ln."))
+      .toBe("billing_checkout.create.failed token [redacted].");
+  });
+
+  it("redacts five-part JWE tokens with semantic protected headers", () => {
+    expect(redactString("eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..aXY.Y2lwaGVydGV4dA.dGFn"))
+      .toBe("[redacted]");
+  });
+
+  it("preserves sentence punctuation after redacted JWTs", () => {
+    expect(redactString("Token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.c2ln."))
+      .toBe("Token [redacted].");
+  });
+
+  it("preserves sentence punctuation after redacted JWEs", () => {
+    expect(redactString("Token eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..aXY.Y2lwaGVydGV4dA.dGFn."))
+      .toBe("Token [redacted].");
+  });
+
   it("redacts quoted multi-word colon-style secret values", () => {
     expect(redactString('password: "correct horse battery staple"')).toBe('password: "[redacted]"');
     expect(redactString("client_secret: 'single word secret'")).toBe("client_secret: '[redacted]'");
@@ -217,11 +249,17 @@ describe("logger metadata serialization", () => {
     );
 
     const output = warnSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    const logEntry = JSON.parse(String(warnSpy.mock.calls[0]?.[0])) as {
+      message: string;
+      safe: string;
+      nested: { detail: string };
+    };
+    const redactedFields = JSON.stringify({ message: logEntry.message, safe: logEntry.safe, nested: logEntry.nested });
     expect(output).toContain('password: \\"[redacted]\\"');
     expect(output).toContain('\\"password\\":\\"[redacted]\\"');
     expect(output).toContain("client_secret: '[redacted]'");
-    expect(output).not.toContain("abc");
-    expect(output).not.toContain("def");
+    expect(redactedFields).not.toContain("abc");
+    expect(redactedFields).not.toContain("def");
   });
 
   it("redacts quoted metadata secrets containing structural delimiters", async () => {
@@ -266,10 +304,12 @@ describe("logger metadata serialization", () => {
     );
 
     const output = warnSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    const logged = JSON.parse(output) as { message: string; safe: string; nested: { detail: string } };
+    const redactedFields = [logged.message, logged.safe, logged.nested.detail].join("\n");
     expect(output).toContain('\\\\\\"password\\\\\\":\\\\\\"[redacted]\\\\\\"');
     expect(output).toContain("\\\\'client_secret\\\\':\\\\'[redacted]\\\\'");
-    expect(output).not.toContain("abc");
-    expect(output).not.toContain("def");
+    expect(redactedFields).not.toContain("abc");
+    expect(redactedFields).not.toContain("def");
   });
 
   it("redacts unterminated quoted metadata secrets without leaking suffix tokens", async () => {

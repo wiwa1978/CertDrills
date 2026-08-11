@@ -9,6 +9,9 @@ import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { resolveInternalRedirect } from "@platform/frontend-shared/url";
+
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Container } from "@/components/ui/container";
@@ -22,12 +25,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { authClient, twoFactor } from "@/lib/auth-client";
+import { checkAdminAccess, type AdminAccessCheck } from "@/lib/admin-access";
 import { authConfig } from "@/config/auth";
 import { signInSchema } from "@/schemas";
 import { getAdminStatus } from "@/lib/services/admin";
-import { unexpectedLoginErrorKey } from "@/modules/auth/login-transport-error";
 
 const DEFAULT_REDIRECT = "/admin/overview";
 
@@ -38,24 +41,14 @@ const adminLoginSchema = signInSchema.extend({
 type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 type AdminLoginStep = "credentials" | "verify-totp";
 
-async function enforceAdminAccess() {
-  try {
-    await getAdminStatus();
-    return { allowed: true };
-  } catch {
-    return { allowed: false };
-  }
-}
 
 function LoginPageContent() {
   const t = useTranslations("auth.login");
   const tErrors = useTranslations("auth.errors");
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [loginStep, setLoginStep] = React.useState<AdminLoginStep>("credentials");
 
-  const callbackUrl = searchParams.get("callbackUrl");
-  const redirectTo = callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : DEFAULT_REDIRECT;
+  const redirectTo = resolveInternalRedirect(searchParams.get("callbackUrl"), DEFAULT_REDIRECT);
 
   const getErrorMessage = (error: { code?: string; message?: string }) => {
     if (error.code) {
@@ -69,29 +62,9 @@ function LoginPageContent() {
     return error.message || tErrors("default");
   };
 
-  const showUnexpectedLoginError = (error: unknown) => {
-    console.error("[admin-login] Authentication request failed", error);
-    passwordForm.setError("root", {
-      message: tErrors(unexpectedLoginErrorKey(error)),
-    });
-  };
-
-  async function verifyTotpCode(code: string) {
-    try {
-      const verify = await twoFactor.verifyTotp({ code });
-      if (verify.error) {
-        passwordForm.setError("totpCode", {
-          message: "Enter a valid 6-digit authentication code",
-        });
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      showUnexpectedLoginError(error);
-      return false;
-    }
-  }
+  const adminAccessErrorMessage = (status: AdminAccessCheck) => status.allowed || status.reason === "forbidden"
+    ? tErrors("ADMIN_ACCESS_DENIED")
+    : tErrors("TWO_FACTOR_REQUIRED");
 
   const passwordForm = useForm<AdminLoginInput>({
     resolver: zodResolver(adminLoginSchema),
@@ -106,33 +79,16 @@ function LoginPageContent() {
   const isSubmitting = passwordForm.formState.isSubmitting;
   const isTotpStep = loginStep === "verify-totp";
 
-  async function completeAdminLogin() {
-    try {
-      await getAdminStatus();
-    } catch {
-      passwordForm.setError("root", {
-        message: "This account is not allowed to access the admin portal.",
-      });
-      return;
-    }
-
+  function completeAdminLogin() {
     window.location.assign(redirectTo);
   }
 
   async function onCredentialsSubmit(values: AdminLoginInput) {
-    let response;
-    try {
-      response = await authClient.signIn.email({
-        email: values.email,
-        password: values.password,
-        ...(authConfig.rememberMeEnabled && { rememberMe: values.rememberMe }),
-      });
-    } catch (error) {
-      showUnexpectedLoginError(error);
-      passwordForm.resetField("password");
-      return;
-    }
-    const { data, error } = response;
+    const { data, error } = await authClient.signIn.email({
+      email: values.email,
+      password: values.password,
+      ...(authConfig.rememberMeEnabled && { rememberMe: values.rememberMe }),
+    });
 
     if (error) {
       passwordForm.setError("root", { message: getErrorMessage(error) });
@@ -143,18 +99,24 @@ function LoginPageContent() {
     const signInNeedsTotp = Boolean((data as { twoFactorRedirect?: boolean } | null | undefined)?.twoFactorRedirect);
     if (signInNeedsTotp) {
       if (values.totpCode) {
-        if (!(await verifyTotpCode(values.totpCode))) return;
-
-        const status = await enforceAdminAccess();
-        if (!status.allowed) {
-          await authClient.signOut();
-          passwordForm.setError("root", {
-            message: "This account is not allowed to access the admin portal.",
+        const verify = await twoFactor.verifyTotp({ code: values.totpCode });
+        if (verify.error) {
+          passwordForm.setError("totpCode", {
+            message: "Enter a valid 6-digit authentication code",
           });
           return;
         }
 
-        await completeAdminLogin();
+        const status = await checkAdminAccess(getAdminStatus);
+        if (!status.allowed) {
+          await authClient.signOut();
+          passwordForm.setError("root", {
+            message: adminAccessErrorMessage(status),
+          });
+          return;
+        }
+
+        completeAdminLogin();
         return;
       }
 
@@ -164,16 +126,16 @@ function LoginPageContent() {
       return;
     }
 
-    const status = await enforceAdminAccess();
+    const status = await checkAdminAccess(getAdminStatus);
     if (!status.allowed) {
       await authClient.signOut();
       passwordForm.setError("root", {
-        message: "This account is not allowed to access the admin portal.",
+        message: adminAccessErrorMessage(status),
       });
       return;
     }
 
-    await completeAdminLogin();
+    completeAdminLogin();
   }
 
   async function onTotpSubmit(values: AdminLoginInput) {
@@ -184,18 +146,24 @@ function LoginPageContent() {
       return;
     }
 
-    if (!(await verifyTotpCode(values.totpCode))) return;
-
-    const status = await enforceAdminAccess();
-    if (!status.allowed) {
-      await authClient.signOut();
-      passwordForm.setError("root", {
-        message: "This account is not allowed to access the admin portal.",
+    const verify = await twoFactor.verifyTotp({ code: values.totpCode });
+    if (verify.error) {
+      passwordForm.setError("totpCode", {
+        message: "Enter a valid 6-digit authentication code",
       });
       return;
     }
 
-    await completeAdminLogin();
+    const status = await checkAdminAccess(getAdminStatus);
+    if (!status.allowed) {
+      await authClient.signOut();
+      passwordForm.setError("root", {
+        message: adminAccessErrorMessage(status),
+      });
+      return;
+    }
+
+    completeAdminLogin();
   }
 
   function onPasswordSubmit(values: AdminLoginInput) {
@@ -215,7 +183,7 @@ function LoginPageContent() {
             <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
               <div className="rounded-lg border bg-card p-6 space-y-4">
                 {passwordForm.formState.errors.root && (
-                  <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {passwordForm.formState.errors.root.message}
                   </div>
                 )}

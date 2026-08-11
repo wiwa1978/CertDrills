@@ -1,11 +1,10 @@
 import type DodoPayments from "dodopayments";
 
+import type { DodoBrandConfig } from "../../../config/dodo-brands";
 import {
   CHECKOUT_CANCEL_RETURN_PATH,
   CHECKOUT_SUCCESS_RETURN_PATH,
-  DODO_CHECKOUT_BASE_URL,
   buildCheckoutReturnUrl,
-  buildDodoCheckoutUrl,
 } from "../../../lib/dodo-checkout";
 import { isProviderTimeout, withProviderTimeout } from "../../../lib/provider-fetch";
 import type { PaymentProvider, ProviderListParams } from "../provider";
@@ -14,6 +13,7 @@ type DodoPaymentProviderOptions = {
   apiKey?: string;
   environment: "test_mode" | "live_mode";
   appUrl: string;
+  brands?: DodoBrandConfig;
   client?: DodoPayments | null;
 };
 
@@ -160,10 +160,6 @@ function dodoApiBaseUrl(environment: "test_mode" | "live_mode") {
   return environment === "live_mode" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
 }
 
-function checkoutBaseUrl(environment: "test_mode" | "live_mode") {
-  return environment === "live_mode" ? DODO_CHECKOUT_BASE_URL.live_mode : DODO_CHECKOUT_BASE_URL.test_mode;
-}
-
 function invoiceUrlFromResponse(invoiceData: DodoInvoiceResponse) {
   return invoiceData.invoice_pdf ?? invoiceData.invoice_url ?? invoiceData.url;
 }
@@ -259,6 +255,66 @@ async function dodoApiRequest<T>(
 
 export function createDodoPaymentProvider(options: DodoPaymentProviderOptions): PaymentProvider {
   const financeAvailable = Boolean(options.apiKey);
+  type CheckoutMode = keyof DodoBrandConfig;
+  type CheckoutSessionRequest = Parameters<DodoPayments["checkoutSessions"]["create"]>[0];
+
+  function checkoutBillingAddress(address: {
+    street: string;
+    number: string;
+    zipcode: string;
+    town: string;
+    countryCode: string;
+    countryName?: string | null;
+  } | null | undefined) {
+    return address
+      ? {
+          country: address.countryCode as never,
+          city: address.town,
+          state: address.countryName ?? undefined,
+          street: `${address.street} ${address.number}`.trim(),
+          zipcode: address.zipcode,
+        }
+      : undefined;
+  }
+
+  function stringMetadata(entries: Record<string, string | undefined>) {
+    return Object.fromEntries(
+      Object.entries(entries).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    );
+  }
+
+  async function createCheckoutSession(mode: CheckoutMode, request: CheckoutSessionRequest) {
+    const brandId = options.brands?.[mode];
+    if (!brandId) {
+      throw new Error(`Missing Dodo brand configuration for ${mode}`);
+    }
+
+    const checkoutSessions = options.client?.checkoutSessions;
+    if (!checkoutSessions) {
+      throw new Error("Checkout sessions are not configured");
+    }
+
+    let session: Awaited<ReturnType<typeof checkoutSessions.create>>;
+    try {
+      session = await checkoutSessions.create({
+        ...request,
+        brand_id: brandId,
+        // Secondary-brand sessions require this field, which Dodo accepts despite its SDK type omitting it.
+      } as CheckoutSessionRequest);
+    } catch (error) {
+      const status = (error as { status?: unknown }).status;
+      if (typeof status === "number" && status >= 400 && status < 500) {
+        throw new Error("Dodo checkout rejected the configured products", { cause: error });
+      }
+      throw new Error("Dodo checkout could not be created", { cause: error });
+    }
+
+    if (!session.checkout_url) {
+      throw new Error("Checkout session URL not available");
+    }
+
+    return session.checkout_url;
+  }
 
   return {
     name: "dodo",
@@ -280,19 +336,50 @@ export function createDodoPaymentProvider(options: DodoPaymentProviderOptions): 
         paymentLineItems: financeAvailable,
       },
     },
-    createCheckoutUrl(input) {
-      return buildDodoCheckoutUrl({
-        baseUrl: checkoutBaseUrl(options.environment),
-        productId: input.productId,
-        userId: input.userId,
-        billingMode: input.billingMode,
-        packageKey: input.packageKey,
-        planKey: input.planKey,
-        referenceId: input.referenceId,
-        discountCode: input.discountCode,
-        customerEmail: input.customerEmail,
-        successUrl: input.successUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_SUCCESS_RETURN_PATH }),
-        cancelUrl: input.cancelUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_CANCEL_RETURN_PATH }),
+    async createCheckoutUrl(input) {
+      return createCheckoutSession(input.billingMode, {
+        product_cart: [{ product_id: input.productId, quantity: 1 }],
+        customer: input.customerEmail ? { email: input.customerEmail } : undefined,
+        billing_address: checkoutBillingAddress(input.billingAddress),
+        discount_code: input.discountCode,
+        feature_flags: { allow_discount_code: Boolean(input.discountCode) },
+        metadata: stringMetadata({
+          billingMode: input.billingMode,
+          userId: input.userId,
+          productId: input.productId,
+          referenceId: input.referenceId,
+          checkoutReferenceId: input.referenceId,
+          packageKey: input.packageKey,
+          planKey: input.planKey,
+          discountCode: input.discountCode,
+        }),
+        return_url: input.successUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_SUCCESS_RETURN_PATH }),
+        cancel_url: input.cancelUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_CANCEL_RETURN_PATH }),
+        short_link: false,
+      });
+    },
+    async createTransactionCheckoutUrl(input) {
+      return createCheckoutSession("transactions", {
+        product_cart: input.items.map((item) => ({
+          product_id: item.productId,
+          quantity: item.quantity,
+          amount: item.amount,
+        })),
+        customer: input.customerEmail ? { email: input.customerEmail } : undefined,
+        billing_currency: input.currency as never,
+        billing_address: checkoutBillingAddress(input.billingAddress),
+        discount_code: undefined,
+        feature_flags: { allow_discount_code: false },
+        metadata: {
+          billingMode: "transactions",
+          userId: input.userId,
+          orderId: input.orderId,
+          referenceId: input.referenceId,
+          checkoutReferenceId: input.referenceId,
+        },
+        return_url: input.successUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_SUCCESS_RETURN_PATH }),
+        cancel_url: input.cancelUrl ?? buildCheckoutReturnUrl({ appUrl: options.appUrl, path: CHECKOUT_CANCEL_RETURN_PATH }),
+        short_link: false,
       });
     },
     async createCustomerPortal(input) {

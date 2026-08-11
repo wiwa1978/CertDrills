@@ -1,7 +1,6 @@
 import { createNotificationsApi } from "@platform/frontend-shared/notifications";
 
 import { apiRequest } from "@/lib/api/client";
-import type { Notification } from "@/schemas/notification";
 
 const notificationsApi = createNotificationsApi(apiRequest);
 

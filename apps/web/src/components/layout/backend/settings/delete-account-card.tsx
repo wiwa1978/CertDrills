@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -26,6 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { deleteUser } from "@/lib/auth-client";
 import { authConfig } from "@/config/auth";
+import { useQuery } from "@tanstack/react-query";
+import { getMyApplicationConfig } from "@/lib/api/me";
+import { webQueryKeys } from "@/lib/query/keys";
 
 function generateConfirmationCode(): string {
   return Math.random().toString().slice(2, 10);
@@ -38,6 +40,12 @@ export function DeleteAccountCard() {
   const [confirmationCode, setConfirmationCode] = React.useState("");
   const [inputValue, setInputValue] = React.useState("");
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const applicationConfigQuery = useQuery({
+    queryKey: webQueryKeys.applicationConfig,
+    queryFn: getMyApplicationConfig,
+    staleTime: 60_000,
+  });
+  const deleteAccountCountdownSeconds = applicationConfigQuery.data?.ui.deleteAccountCountdownSeconds ?? authConfig.deleteAccountCountdownSeconds;
 
   const isCodeValid = inputValue === confirmationCode;
   const isCountdownActive = countdown !== null && countdown > 0;
@@ -55,9 +63,9 @@ export function DeleteAccountCard() {
   // Start countdown when code becomes valid
   React.useEffect(() => {
     if (isCodeValid && countdown === null) {
-      setCountdown(authConfig.deleteAccountCountdownSeconds);
+      setCountdown(deleteAccountCountdownSeconds);
     }
-  }, [isCodeValid, countdown]);
+  }, [deleteAccountCountdownSeconds, isCodeValid, countdown]);
 
   // Countdown timer (only when countdown is active)
   React.useEffect(() => {

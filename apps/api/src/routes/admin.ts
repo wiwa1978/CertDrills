@@ -1,23 +1,20 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
-import { and, count, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
 
 import {
   banUserSchema,
   adminCreditsDashboardQuerySchema,
   adminSubscriptionFinanceDashboardQuerySchema,
-  adminJobRunsQuerySchema,
-  adminJobsQuerySchema,
-  adminPendingEmailsQuerySchema,
+  adminTransactionFinanceDashboardQuerySchema,
+  adminTransactionFinanceDashboardSchema,
   billingListQuerySchema,
   billingRangeQuerySchema,
   createCreditRefundSchema,
+  createTransactionRefundSchema,
   discountIdParamSchema,
   discountListQuerySchema,
   generateDiscountCodeSchema,
-  logEntriesQuerySchema,
-  logFilesQuerySchema,
   notificationsListQuerySchema,
   optionalLimitQuerySchema,
   paginationQuerySchema,
@@ -34,25 +31,26 @@ import {
   createSubscriptionRefundSchema,
   createVoucherSchema,
   updateVoucherSchema,
+  updateApplicationSettingSchema,
   verifyAdminSecretSchema,
   adminSecretOnlySchema,
+  resetApplicationSettingSchema,
   voucherIdParamSchema,
   voucherListQuerySchema,
-  webhookEventIdParamSchema,
-  webhookEventsQuerySchema,
 } from "@platform/contracts";
-import { jobRuns, jobs, paymentWebhookEvents, pendingEmails } from "@platform/platform-db";
-
 import type { AppEnv } from "../context";
-import { bootstrap } from "../bootstrap";
+import type { PlatformServices } from "../bootstrap";
 import { authConfig } from "../config/auth";
 import { env } from "../env";
 import { createJsonResponseFromAuthResponse, resolveAdminAuthApi } from "../lib/auth-admin";
-import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled, getBillingModeDisabledErrorMessage } from "../lib/feature-guards";
+import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled, ensureTransactionBillingEnabled, getBillingModeDisabledErrorMessage } from "../lib/feature-guards";
 import { badRequest, fail, forbidden, notFound, parseJsonBody, parseParams, parseQuery, validationError } from "../lib/http";
-import { buildRoleChangeAuditMetadata, checkSetRoleGovernance, isImpersonatedSession } from "../modules/admin/governance";
+import { buildRoleChangeAuditMetadata, checkSetRoleGovernance } from "../modules/admin/governance";
 import { getAuditRequestContext } from "../modules/audit/service";
 import { logger } from "../observability/logger";
+import { registerAdminLogRoutes } from "./admin-logs";
+import { registerAdminOperationsRoutes } from "./admin-operations";
+import { registerAdminWebhookRoutes } from "./admin-webhooks";
 
 type NotificationSendResultWithBatch = {
   sentCount: number;
@@ -240,162 +238,16 @@ function notificationSendHistoryItem(entry: Record<string, unknown>) {
   };
 }
 
-type WebhookEventRow = typeof paymentWebhookEvents.$inferSelect;
-type JobRow = typeof jobs.$inferSelect;
-type JobRunRow = typeof jobRuns.$inferSelect;
-type PendingEmailRow = typeof pendingEmails.$inferSelect;
 
-function isoDate(value: Date | string | null | undefined) {
-  if (!value) return null;
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
-
-function publicWebhookEvent(event: WebhookEventRow) {
-  return {
-    id: event.id,
-    provider: event.provider,
-    providerEventId: event.providerEventId,
-    eventType: event.eventType,
-    paymentId: event.paymentId,
-    signatureTimestamp: isoDate(event.signatureTimestamp),
-    sanitizedPayload: event.sanitizedPayload ?? null,
-    requestId: event.requestId,
-    correlationId: event.correlationId,
-    durationMs: event.durationMs,
-    processingStatus: event.processingStatus,
-    errorDetails: event.errorDetails ?? null,
-    processedAt: isoDate(event.processedAt),
-    failedAt: isoDate(event.failedAt),
-    createdAt: isoDate(event.createdAt) ?? new Date(0).toISOString(),
-    updatedAt: isoDate(event.updatedAt) ?? new Date(0).toISOString(),
-  };
-}
-
-function publicJob(job: JobRow) {
-  return {
-    id: job.id,
-    name: job.name,
-    status: job.status,
-    intervalSeconds: job.intervalSeconds,
-    nextRunAt: isoDate(job.nextRunAt) ?? new Date(0).toISOString(),
-    lockedAt: isoDate(job.lockedAt),
-    lockedBy: job.lockedBy,
-    lastRunAt: isoDate(job.lastRunAt),
-    lastSuccessAt: isoDate(job.lastSuccessAt),
-    lastFailureAt: isoDate(job.lastFailureAt),
-    lastError: job.lastError,
-    metadata: job.metadata ?? null,
-    createdAt: isoDate(job.createdAt) ?? new Date(0).toISOString(),
-    updatedAt: isoDate(job.updatedAt) ?? new Date(0).toISOString(),
-  };
-}
-
-function publicJobRun(run: JobRunRow) {
-  return {
-    id: run.id,
-    jobId: run.jobId,
-    jobName: run.jobName,
-    status: run.status,
-    startedAt: isoDate(run.startedAt) ?? new Date(0).toISOString(),
-    finishedAt: isoDate(run.finishedAt) ?? new Date(0).toISOString(),
-    durationMs: run.durationMs,
-    result: run.result ?? null,
-    error: run.error,
-    createdAt: isoDate(run.createdAt) ?? new Date(0).toISOString(),
-  };
-}
-
-function publicPendingEmail(email: PendingEmailRow) {
-  return {
-    id: email.id,
-    to: email.to,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    status: email.status,
-    attempts: email.attempts,
-    maxAttempts: email.maxAttempts,
-    nextAttemptAt: isoDate(email.nextAttemptAt) ?? new Date(0).toISOString(),
-    sentAt: isoDate(email.sentAt),
-    failedAt: isoDate(email.failedAt),
-    lastError: email.lastError,
-    providerMessageId: email.providerMessageId,
-    metadata: email.metadata ?? null,
-    createdAt: isoDate(email.createdAt) ?? new Date(0).toISOString(),
-    updatedAt: isoDate(email.updatedAt) ?? new Date(0).toISOString(),
-  };
-}
-
-function parseOptionalDate(value: string | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function buildWebhookEventWhere(filters: {
-  provider?: string;
-  status?: "processing" | "processed" | "failed";
-  eventType?: string;
-  paymentId?: string;
-  text?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}) {
-  const conditions: SQL[] = [];
-
-  if (filters.provider) conditions.push(eq(paymentWebhookEvents.provider, filters.provider));
-  if (filters.status) conditions.push(eq(paymentWebhookEvents.processingStatus, filters.status));
-  if (filters.eventType) conditions.push(ilike(paymentWebhookEvents.eventType, `%${filters.eventType}%`));
-  if (filters.paymentId) conditions.push(ilike(paymentWebhookEvents.paymentId, `%${filters.paymentId}%`));
-  if (filters.text) {
-    conditions.push(
-      or(
-        ilike(paymentWebhookEvents.provider, `%${filters.text}%`),
-        ilike(paymentWebhookEvents.providerEventId, `%${filters.text}%`),
-        ilike(paymentWebhookEvents.eventType, `%${filters.text}%`),
-        ilike(paymentWebhookEvents.paymentId, `%${filters.text}%`),
-      )!,
-    );
-  }
-
-  const dateFrom = parseOptionalDate(filters.dateFrom);
-  if (dateFrom) conditions.push(gte(paymentWebhookEvents.createdAt, dateFrom));
-
-  const dateTo = parseOptionalDate(filters.dateTo);
-  if (dateTo) conditions.push(lte(paymentWebhookEvents.createdAt, dateTo));
-
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
-function buildJobsWhere(filters: { name?: string; status?: "idle" | "running" | "disabled" }) {
-  const conditions: SQL[] = [];
-  if (filters.name) conditions.push(ilike(jobs.name, `%${filters.name}%`));
-  if (filters.status) conditions.push(eq(jobs.status, filters.status));
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
-function buildJobRunsWhere(filters: { jobName?: string; status?: "success" | "failed" }) {
-  const conditions: SQL[] = [];
-  if (filters.jobName) conditions.push(ilike(jobRuns.jobName, `%${filters.jobName}%`));
-  if (filters.status) conditions.push(eq(jobRuns.status, filters.status));
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
-function buildPendingEmailsWhere(filters: { status?: "pending" | "sending" | "sent" | "failed"; text?: string }) {
-  const conditions: SQL[] = [];
-  if (filters.status) conditions.push(eq(pendingEmails.status, filters.status));
-  if (filters.text) {
-    conditions.push(or(ilike(pendingEmails.to, `%${filters.text}%`), ilike(pendingEmails.subject, `%${filters.text}%`))!);
-  }
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
-export function createAdminRouter() {
+export function createAdminRouter(services: PlatformServices) {
   const router = new Hono<AppEnv>();
+  registerAdminWebhookRoutes(router, services);
+  registerAdminOperationsRoutes(router, services);
+  registerAdminLogRoutes(router);
   type AdminContext = Context<AppEnv>;
 
   function requireAdminAuthApi() {
-    const adminAuthApi = resolveAdminAuthApi(bootstrap.authModule);
+    const adminAuthApi = resolveAdminAuthApi(services.adminAuthModule);
     if (!adminAuthApi) {
       throw new Error("Better Auth admin API is unavailable");
     }
@@ -454,7 +306,7 @@ export function createAdminRouter() {
 
   async function recordAdminAuthAudit<T>(c: AdminContext, body: T, details: AdminAuthAuditDetails<T>) {
     const requestContext = getAuditRequestContext(c);
-    const result = await bootstrap.auditService.recordAuditEntry({
+    const result = await services.auditService.recordAuditEntry({
       ...requestContext,
       action: details.action,
       outcome: "success",
@@ -484,7 +336,7 @@ export function createAdminRouter() {
     },
   ) {
     const requestContext = getAuditRequestContext(c);
-    const result = await bootstrap.auditService.recordAuditEntry({
+    const result = await services.auditService.recordAuditEntry({
       ...requestContext,
       ...input,
       metadata: mergeAuditMetadata(requestContext.metadata, input.metadata),
@@ -515,7 +367,7 @@ export function createAdminRouter() {
       return null;
     }
 
-    const activeAdminCount = await bootstrap.adminService.countActiveAdmins();
+    const activeAdminCount = await services.adminService.countActiveAdmins();
     if (activeAdminCount <= 1) {
       return forbidden(c, "Cannot ban the last active admin.");
     }
@@ -523,16 +375,8 @@ export function createAdminRouter() {
     return null;
   }
 
-  function blockIfImpersonatedAdminSession(c: AdminContext) {
-    if (!isImpersonatedSession(c.get("authSession"))) {
-      return null;
-    }
-
-    return forbidden(c, "Admin actions are blocked while impersonating another user.");
-  }
-
   async function requireAdminActionSecret(c: AdminContext, secret: string) {
-    const result = await bootstrap.adminService.verifyAdminSecret(secret);
+    const result = await services.adminService.verifyAdminSecret(secret);
     if (!result.success) {
       return forbidden(c, result.error ?? "Invalid admin secret");
     }
@@ -621,19 +465,6 @@ export function createAdminRouter() {
     });
   }
 
-  router.use("/*", bootstrap.authModule.requireAuth);
-  router.use("/*", bootstrap.authModule.requireAdminAccess);
-  router.use("/*", async (c, next) => {
-    if (c.req.path === "/admin/session" || c.req.path === "/admin/status") {
-      return next();
-    }
-
-    const block = blockIfImpersonatedAdminSession(c);
-    if (block) return block;
-
-    return next();
-  });
-
   router.get("/session", (c) => {
     return c.json({
       success: true,
@@ -644,7 +475,7 @@ export function createAdminRouter() {
   router.get("/status", async (c) => {
     const authUser = getAuthUser(c);
     const allowTotpEnrollment = canEnrollTotp(authUser);
-    const currentSession = await bootstrap.authModule.auth.api.getSession({ headers: c.req.raw.headers }) as
+    const currentSession = await services.adminAuthModule.auth.api.getSession({ headers: c.req.raw.headers }) as
       | { user?: { twoFactorEnabled?: boolean | null } }
       | null;
     const twoFactorEnabled = Boolean(currentSession?.user?.twoFactorEnabled);
@@ -653,7 +484,7 @@ export function createAdminRouter() {
       success: true,
       data: {
         message: "Admin access granted.",
-        totpRequired: authConfig.adminPortalTotpRequired,
+        totpRequired: env.ADMIN_PORTAL_TOTP_REQUIRED,
         twoFactorEnabled,
         canEnrollTotp: allowTotpEnrollment,
       },
@@ -668,7 +499,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid secret payload");
     }
 
-    const result = await bootstrap.adminService.verifyAdminSecret(parsedBody.data.secret);
+    const result = await services.adminService.verifyAdminSecret(parsedBody.data.secret);
     if (!result.success) {
       return badRequest(c, result.error ?? "Invalid admin secret");
     }
@@ -677,8 +508,69 @@ export function createAdminRouter() {
   });
 
   router.get("/dashboard/stats", async (c) => {
-    const stats = await bootstrap.adminService.getDashboardStats();
+    const stats = await services.adminService.getDashboardStats();
     return c.json({ success: true, data: stats });
+  });
+
+  router.get("/application-settings", async (c) => {
+    const settings = await services.applicationSettingsService.getRuntimeSettingsPayload();
+    return c.json({ success: true, data: settings });
+  });
+
+  router.put("/application-settings/setting", async (c) => {
+    const parsedBody = parseJsonBody(updateApplicationSettingSchema, await c.req.json().catch(() => null));
+    if (!parsedBody.success) {
+      return validationError(c, "Invalid application setting payload");
+    }
+
+    const secretFailure = await requireAdminActionSecret(c, parsedBody.data.secret);
+    if (secretFailure) return secretFailure;
+
+    const authUser = getAuthUser(c);
+    const result = await services.applicationSettingsService.updateRuntimeSetting({
+      key: parsedBody.data.key,
+      value: parsedBody.data.value,
+      updatedByUserId: authUser.id,
+    });
+
+    if (!result.success) {
+      return badRequest(c, result.error);
+    }
+
+    const auditContext = getAuditRequestContext(c);
+    await services.auditService.recordAuditEntry({
+      ...auditContext,
+      action: "application_setting.update",
+      outcome: "success",
+      targetType: "application_setting",
+      targetId: parsedBody.data.key,
+      after: { value: parsedBody.data.value },
+    });
+
+    return c.json({ success: true });
+  });
+
+  router.delete("/application-settings/setting", async (c) => {
+    const parsedBody = parseJsonBody(resetApplicationSettingSchema, await c.req.json().catch(() => null));
+    if (!parsedBody.success) {
+      return validationError(c, "Invalid application setting payload");
+    }
+
+    const secretFailure = await requireAdminActionSecret(c, parsedBody.data.secret);
+    if (secretFailure) return secretFailure;
+
+    await services.applicationSettingsService.resetRuntimeSetting(parsedBody.data.key);
+
+    const auditContext = getAuditRequestContext(c);
+    await services.auditService.recordAuditEntry({
+      ...auditContext,
+      action: "application_setting.reset",
+      outcome: "success",
+      targetType: "application_setting",
+      targetId: parsedBody.data.key,
+    });
+
+    return c.json({ success: true });
   });
 
   router.get("/users", async (c) => {
@@ -694,7 +586,7 @@ export function createAdminRouter() {
     }
 
     const trimmedSearch = parsedQuery.data.search?.trim();
-    const users = await bootstrap.adminService.getUsers(
+    const users = await services.adminService.getUsers(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       trimmedSearch || undefined,
@@ -708,54 +600,54 @@ export function createAdminRouter() {
       const secretFailure = await requireAdminActionSecret(c, body.secret);
       if (secretFailure) return secretFailure;
 
-      const roleChangeBody = omitAdminSecret(body);
-      const targetUser = await bootstrap.adminService.getUserById(body.userId);
-      const selfRoleChangeBlock = blockIfSelfRoleChange(c, roleChangeBody.userId, targetUser, roleChangeBody.role);
-      if (selfRoleChangeBlock) return selfRoleChangeBlock;
+      return services.adminService.withGovernanceLock(async () => {
+        const roleChangeBody = omitAdminSecret(body);
+        const targetUser = await services.adminService.getUserById(body.userId);
+        const selfRoleChangeBlock = blockIfSelfRoleChange(c, roleChangeBody.userId, targetUser, roleChangeBody.role);
+        if (selfRoleChangeBlock) return selfRoleChangeBlock;
 
-      const activeAdminCount = targetUser && isActiveAdmin(targetUser) && roleChangeBody.role !== "admin"
-        ? await bootstrap.adminService.countActiveAdmins()
-        : undefined;
-      const governance = checkSetRoleGovernance({
-        previousRole: targetUser?.role,
-        nextRole: roleChangeBody.role,
-        reason: roleChangeBody.reason,
-        confirmed: roleChangeBody.confirmed,
-        activeAdminCount,
-      });
-      if (!governance.allowed) {
-        return forbidden(c, governance.error);
-      }
-
-      const adminAuthApi = requireAdminAuthApi();
-      const roleBody = { userId: roleChangeBody.userId, role: roleChangeBody.role };
-      const result = await adminAuthApi.setRole({ body: roleBody, headers: c.req.raw.headers });
-      if (isSuccessfulMutationResult(result)) {
-        const roleChanged = !targetUser || targetUser.role !== roleChangeBody.role;
-        if (roleChanged && typeof adminAuthApi.revokeUserSessions === "function") {
-          await adminAuthApi.revokeUserSessions({ body: { userId: roleChangeBody.userId }, headers: c.req.raw.headers }).catch((error: unknown) => {
-            logger.warn("Failed to revoke user sessions after admin role change", { userId: roleChangeBody.userId, error });
-          });
-        }
-        const auditFailure = await recordAdminAuthAudit(c, roleChangeBody, {
-          action: "admin.user.set_role",
-          targetType: "user",
-          targetId: (body) => body.userId,
-          after: (body) => ({ role: body.role }),
-          metadata: (body) => buildRoleChangeAuditMetadata({
-            previousRole: targetUser?.role,
-            nextRole: body.role,
-            reason: body.reason,
-          }),
+        const activeAdminCount = targetUser && isActiveAdmin(targetUser) && roleChangeBody.role !== "admin"
+          ? await services.adminService.countActiveAdmins()
+          : undefined;
+        const governance = checkSetRoleGovernance({
+          previousRole: targetUser?.role,
+          nextRole: roleChangeBody.role,
+          reason: roleChangeBody.reason,
+          confirmed: roleChangeBody.confirmed,
+          activeAdminCount,
         });
-        if (auditFailure) return auditFailure;
-      }
-      return c.json(result);
+        if (!governance.allowed) return forbidden(c, governance.error);
+
+        const adminAuthApi = requireAdminAuthApi();
+        const roleBody = { userId: roleChangeBody.userId, role: roleChangeBody.role };
+        const result = await adminAuthApi.setRole({ body: roleBody, headers: c.req.raw.headers });
+        if (isSuccessfulMutationResult(result)) {
+          const roleChanged = !targetUser || targetUser.role !== roleChangeBody.role;
+          if (roleChanged && typeof adminAuthApi.revokeUserSessions === "function") {
+            await adminAuthApi.revokeUserSessions({ body: { userId: roleChangeBody.userId }, headers: c.req.raw.headers }).catch((error: unknown) => {
+              logger.warn("Failed to revoke user sessions after admin role change", { userId: roleChangeBody.userId, error });
+            });
+          }
+          const auditFailure = await recordAdminAuthAudit(c, roleChangeBody, {
+            action: "admin.user.set_role",
+            targetType: "user",
+            targetId: (input) => input.userId,
+            after: (input) => ({ role: input.role }),
+            metadata: (input) => buildRoleChangeAuditMetadata({
+              previousRole: targetUser?.role,
+              nextRole: input.role,
+              reason: input.reason,
+            }),
+          });
+          if (auditFailure) return auditFailure;
+        }
+        return c.json(result);
+      });
     });
   });
 
   registerAdminAuthSecretJsonAction("/users/unban", userOnlySchema, "Invalid unban payload", (body, headers) => {
-    return requireAdminAuthApi().unbanUser({ body, headers });
+    return services.adminService.withGovernanceLock(() => requireAdminAuthApi().unbanUser({ body, headers }));
   }, {
     action: "admin.user.unban",
     targetType: "user",
@@ -768,22 +660,24 @@ export function createAdminRouter() {
       const secretFailure = await requireAdminActionSecret(c, body.secret);
       if (secretFailure) return secretFailure;
 
-      const targetUser = await bootstrap.adminService.getUserById(body.userId);
-      const lastAdminBlock = await blockIfLastActiveAdminBan(c, targetUser);
-      if (lastAdminBlock) return lastAdminBlock;
+      return services.adminService.withGovernanceLock(async () => {
+        const targetUser = await services.adminService.getUserById(body.userId);
+        const lastAdminBlock = await blockIfLastActiveAdminBan(c, targetUser);
+        if (lastAdminBlock) return lastAdminBlock;
 
-      const { secret: _secret, ...banBody } = body;
-      const result = await requireAdminAuthApi().banUser({ body: banBody, headers: c.req.raw.headers });
-      if (isSuccessfulMutationResult(result)) {
-        const auditFailure = await recordAdminAuthAudit(c, banBody, {
-          action: "admin.user.ban",
-          targetType: "user",
-          targetId: (body) => body.userId,
-          after: (body) => ({ banned: true, ...body }),
-        });
-        if (auditFailure) return auditFailure;
-      }
-      return c.json(result);
+        const { secret: _secret, ...banBody } = body;
+        const result = await requireAdminAuthApi().banUser({ body: banBody, headers: c.req.raw.headers });
+        if (isSuccessfulMutationResult(result)) {
+          const auditFailure = await recordAdminAuthAudit(c, banBody, {
+            action: "admin.user.ban",
+            targetType: "user",
+            targetId: (input) => input.userId,
+            after: (input) => ({ banned: true, ...input }),
+          });
+          if (auditFailure) return auditFailure;
+        }
+        return c.json(result);
+      });
     });
   });
 
@@ -794,7 +688,7 @@ export function createAdminRouter() {
 
       const impersonationBody = omitAdminSecret(body);
       const actor = getAuthUser(c);
-      const targetUser = await bootstrap.adminService.getUserById(impersonationBody.userId);
+      const targetUser = await services.adminService.getUserById(impersonationBody.userId);
 
       if (!targetUser) {
         return notFound(c, "User not found");
@@ -852,13 +746,13 @@ export function createAdminRouter() {
   });
 
   router.get("/users/stats", async (c) => {
-    const stats = await bootstrap.adminService.getUserStats();
+    const stats = await services.adminService.getUserStats();
     return c.json({ success: true, data: stats });
   });
 
   router.get("/users/:userId", async (c) => {
     return withUserIdParam(c, async (userId) => {
-      const userRecord = await bootstrap.adminService.getUserById(userId);
+      const userRecord = await services.adminService.getUserById(userId);
       if (!userRecord) {
         return notFound(c, "User not found");
       }
@@ -875,7 +769,7 @@ export function createAdminRouter() {
     }
 
     return withUserIdParam(c, async (userId) => {
-      const balance = await bootstrap.adminService.getUserCreditBalance(userId);
+      const balance = await services.adminService.getUserCreditBalance(userId);
       return c.json({ success: true, data: balance });
     });
   });
@@ -889,7 +783,7 @@ export function createAdminRouter() {
 
     return withUserIdParam(c, async (userId) => {
       return withQuery(c, optionalLimitQuerySchema, { limit: c.req.query("limit") }, "Invalid history query", async ({ limit }) => {
-        const history = await bootstrap.adminService.getUserCreditHistory(userId, limit);
+        const history = await services.adminService.getUserCreditHistory(userId, limit);
         return c.json({ success: true, data: history });
       });
     });
@@ -904,7 +798,7 @@ export function createAdminRouter() {
 
     return withUserIdParam(c, async (userId) => {
       return withQuery(c, optionalLimitQuerySchema, { limit: c.req.query("limit") }, "Invalid purchases query", async ({ limit }) => {
-        const purchases = await bootstrap.adminService.getUserCreditPurchases(userId, limit);
+        const purchases = await services.adminService.getUserCreditPurchases(userId, limit);
         return c.json({ success: true, data: purchases });
       });
     });
@@ -917,7 +811,7 @@ export function createAdminRouter() {
       return billingModeErrorResponse(c, error);
     }
 
-    const stats = await bootstrap.adminService.getBillingStats();
+    const stats = await services.adminService.getBillingStats();
     return c.json({ success: true, data: stats });
   });
 
@@ -934,7 +828,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid time range");
     }
 
-    const data = await bootstrap.adminService.getRevenueData(parsedQuery.data.timeRange);
+    const data = await services.adminService.getRevenueData(parsedQuery.data.timeRange);
     return c.json({ success: true, data });
   });
 
@@ -955,7 +849,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid transactions query");
     }
 
-    const data = await bootstrap.adminService.getAllTransactions(
+    const data = await services.adminService.getAllTransactions(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.searchEmail,
@@ -980,7 +874,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid purchases query");
     }
 
-    const data = await bootstrap.adminService.getAllPurchases(
+    const data = await services.adminService.getAllPurchases(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.searchEmail,
@@ -1001,7 +895,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid time range");
     }
 
-    const data = await bootstrap.adminService.getTransactionData(parsedQuery.data.timeRange);
+    const data = await services.adminService.getTransactionData(parsedQuery.data.timeRange);
     return c.json({ success: true, data });
   });
 
@@ -1018,7 +912,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid time range");
     }
 
-    const data = await bootstrap.adminService.getCreditsConsumedData(parsedQuery.data.timeRange);
+    const data = await services.adminService.getCreditsConsumedData(parsedQuery.data.timeRange);
     return c.json({ success: true, data });
   });
 
@@ -1041,9 +935,95 @@ export function createAdminRouter() {
       return validationError(c, "Invalid credits dashboard query");
     }
 
-    const data = await bootstrap.adminCreditsDashboardService.getDashboard(parsedQuery.data);
+    const data = await services.adminCreditsDashboardService.getDashboard(parsedQuery.data);
     return c.json({ success: true, data });
   });
+
+  router.get("/billing/transaction-dashboard", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const parsedQuery = parseQuery(adminTransactionFinanceDashboardQuerySchema, {
+      range: c.req.query("range"),
+      startDate: c.req.query("startDate"),
+      endDate: c.req.query("endDate"),
+      grouping: c.req.query("grouping"),
+      currency: c.req.query("currency"),
+      status: c.req.query("status"),
+      productKey: c.req.query("productKey"),
+      search: c.req.query("search"),
+      page: c.req.query("page"),
+    });
+
+    if (!parsedQuery.success) {
+      return validationError(c, "Invalid transaction finance dashboard query");
+    }
+
+    const data = adminTransactionFinanceDashboardSchema.parse(
+      await services.adminTransactionFinanceDashboardService.getDashboard(parsedQuery.data),
+    );
+    return c.json({ success: true, data });
+  });
+  router.post("/billing/transaction-refunds", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    return withJsonBody(c, createTransactionRefundSchema, "Invalid transaction refund payload", async (body) => {
+      const secretFailure = await requireAdminActionSecret(c, body.secret);
+      if (secretFailure) return secretFailure;
+
+      const actor = getAuthUser(c);
+      let result: Awaited<ReturnType<typeof services.transactionService.createTransactionRefund>>;
+      try {
+        result = await services.transactionService.createTransactionRefund({
+          orderId: body.orderId,
+          reason: body.reason,
+          actorUserId: actor.id,
+        });
+      } catch (error) {
+        const message = safeErrorMessage(error, "Failed to create transaction refund");
+        const status = message === "Transaction order not found" ? 404
+          : message === "Only paid transaction orders can be refunded"
+            || message === "Transaction order has no payment ID"
+            || message === "Orders with consumed entitlements cannot be refunded"
+            || message.includes("changed while the refund")
+            ? 400
+            : 502;
+        return fail(c, message, status);
+      }
+
+      const auditFailure = await recordMutationAudit(c, {
+        action: "billing.transaction_refund.create",
+        outcome: "success",
+        targetType: "transaction_order",
+        targetId: result.order.id,
+        after: {
+          paymentId: result.order.paymentId,
+          status: result.order.status,
+          refundId: result.refund.refundId,
+          refundStatus: result.refund.status,
+        },
+        metadata: {
+          reason: body.reason ?? null,
+          userId: result.order.userId,
+          amount: result.refund.amount ?? null,
+          currency: result.refund.currency ?? null,
+        },
+      });
+      if (auditFailure) return auditFailure;
+
+      return c.json({ success: true, data: { refund: result.refund, order: result.order } });
+    });
+  });
+
 
   router.post("/billing/credit-refunds", async (c) => {
     return withJsonBody(c, createCreditRefundSchema, "Invalid credit refund payload", async (body) => {
@@ -1051,10 +1031,10 @@ export function createAdminRouter() {
       if (secretFailure) return secretFailure;
 
       const actor = getAuthUser(c);
-      let result: Awaited<ReturnType<typeof bootstrap.billingService.createCreditRefund>>;
+      let result: Awaited<ReturnType<typeof services.billingService.createCreditRefund>>;
 
       try {
-        result = await bootstrap.billingService.createCreditRefund({
+        result = await services.billingService.createCreditRefund({
           paymentId: body.paymentId,
           reason: body.reason,
           actorUserId: actor.id,
@@ -1097,7 +1077,7 @@ export function createAdminRouter() {
     }
 
     return withUserIdParam(c, async (userId) => {
-      const subscription = await bootstrap.subscriptionService.getUserSubscription(userId);
+      const subscription = await services.subscriptionService.getUserSubscription(userId);
       return c.json({ success: true, data: subscription ?? null });
     });
   });
@@ -1119,7 +1099,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid subscriptions query");
     }
 
-    const data = await bootstrap.subscriptionService.listSubscriptions(
+    const data = await services.subscriptionService.listSubscriptions(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.searchEmail,
@@ -1144,7 +1124,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid subscription payments query");
     }
 
-    const data = await bootstrap.subscriptionService.listSubscriptionPayments(
+    const data = await services.subscriptionService.listSubscriptionPayments(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.searchEmail,
@@ -1159,7 +1139,7 @@ export function createAdminRouter() {
       return billingModeErrorResponse(c, error);
     }
 
-    const data = await bootstrap.subscriptionService.getSubscriptionStats();
+    const data = await services.subscriptionService.getSubscriptionStats();
     return c.json({ success: true, data });
   });
 
@@ -1170,7 +1150,7 @@ export function createAdminRouter() {
       return billingModeErrorResponse(c, error);
     }
 
-    const data = await bootstrap.subscriptionService.getSubscriptionFinanceSummary();
+    const data = await services.subscriptionService.getSubscriptionFinanceSummary();
     return c.json({ success: true, data });
   });
 
@@ -1198,7 +1178,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid subscription finance dashboard query");
     }
 
-    const data = await bootstrap.adminSubscriptionFinanceDashboardService.getDashboard(parsedQuery.data);
+    const data = await services.adminSubscriptionFinanceDashboardService.getDashboard(parsedQuery.data);
     return c.json({ success: true, data });
   });
 
@@ -1209,7 +1189,7 @@ export function createAdminRouter() {
       return billingModeErrorResponse(c, error);
     }
 
-    const data = await bootstrap.subscriptionService.getPlanDistribution();
+    const data = await services.subscriptionService.getPlanDistribution();
     return c.json({ success: true, data });
   });
 
@@ -1226,7 +1206,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid subscription events query");
     }
 
-    const data = await bootstrap.subscriptionService.listSubscriptionEvents(parsedQuery.data.limit);
+    const data = await services.subscriptionService.listSubscriptionEvents(parsedQuery.data.limit);
     return c.json({ success: true, data });
   });
 
@@ -1237,10 +1217,10 @@ export function createAdminRouter() {
 
       const refundBody = omitAdminSecret(body);
       const actor = getAuthUser(c);
-      let result: Awaited<ReturnType<typeof bootstrap.subscriptionService.createSubscriptionRefund>>;
+      let result: Awaited<ReturnType<typeof services.subscriptionService.createSubscriptionRefund>>;
 
       try {
-        result = await bootstrap.subscriptionService.createSubscriptionRefund({
+        result = await services.subscriptionService.createSubscriptionRefund({
           paymentId: refundBody.paymentId,
           reason: refundBody.reason,
           actorUserId: actor.id,
@@ -1284,176 +1264,10 @@ export function createAdminRouter() {
     const secretFailure = await requireAdminActionSecret(c, parsedBody.data.secret);
     if (secretFailure) return secretFailure;
 
-    const result = await bootstrap.billingReconciliationService.reconcileProviderBillingStateSafely();
-    return c.json({ success: true, data: bootstrap.billingReconciliationService.serializeResult(result) });
+    const result = await services.billingReconciliationService.reconcileProviderBillingStateSafely();
+    return c.json({ success: true, data: services.billingReconciliationService.serializeResult(result) });
   });
 
-  router.get("/webhooks", async (c) => {
-    const parsedQuery = parseQuery(webhookEventsQuerySchema, {
-      limit: c.req.query("limit"),
-      offset: c.req.query("offset"),
-      provider: c.req.query("provider"),
-      status: c.req.query("status"),
-      eventType: c.req.query("eventType"),
-      paymentId: c.req.query("paymentId"),
-      text: c.req.query("text"),
-      dateFrom: c.req.query("dateFrom"),
-      dateTo: c.req.query("dateTo"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid webhook events query");
-    }
-
-    const where = buildWebhookEventWhere(parsedQuery.data);
-    const [events, totalRows] = await Promise.all([
-      bootstrap.db.query.paymentWebhookEvents.findMany({
-        where,
-        orderBy: desc(paymentWebhookEvents.createdAt),
-        limit: parsedQuery.data.limit,
-        offset: parsedQuery.data.offset,
-      }),
-      bootstrap.db.select({ count: count() }).from(paymentWebhookEvents).where(where),
-    ]);
-
-    const total = Number(totalRows[0]?.count ?? 0);
-    return c.json({ success: true, data: { events: events.map(publicWebhookEvent), total } });
-  });
-
-  router.get("/webhooks/stats", async (c) => {
-    const rows = await bootstrap.db
-      .select({ processingStatus: paymentWebhookEvents.processingStatus, count: count() })
-      .from(paymentWebhookEvents)
-      .groupBy(paymentWebhookEvents.processingStatus);
-
-    const stats = { total: 0, processing: 0, processed: 0, failed: 0 };
-    for (const row of rows) {
-      const status = row.processingStatus;
-      const value = Number(row.count ?? 0);
-      if (status === "processing" || status === "processed" || status === "failed") {
-        stats[status] = value;
-        stats.total += value;
-      }
-    }
-
-    return c.json({ success: true, data: stats });
-  });
-
-  router.get("/webhooks/:eventId", async (c) => {
-    return withParams(
-      c,
-      webhookEventIdParamSchema,
-      { eventId: c.req.param("eventId") ?? "" },
-      "Invalid webhook event id",
-      async ({ eventId }) => {
-        const event = await bootstrap.db.query.paymentWebhookEvents.findFirst({
-          where: eq(paymentWebhookEvents.id, eventId),
-        });
-
-        if (!event) {
-          return notFound(c, "Webhook event not found");
-        }
-
-        return c.json({ success: true, data: publicWebhookEvent(event) });
-      },
-    );
-  });
-
-  router.get("/operations/stats", async (c) => {
-    const [jobRows, failedJobRunRows, emailRows] = await Promise.all([
-      bootstrap.db.select({ status: jobs.status, count: count() }).from(jobs).groupBy(jobs.status),
-      bootstrap.db.select({ count: count() }).from(jobRuns).where(eq(jobRuns.status, "failed")),
-      bootstrap.db.select({ status: pendingEmails.status, count: count() }).from(pendingEmails).groupBy(pendingEmails.status),
-    ]);
-
-    const data = {
-      jobs: { total: 0, idle: 0, running: 0, disabled: 0, failedRuns: Number(failedJobRunRows[0]?.count ?? 0) },
-      emails: { total: 0, pending: 0, sending: 0, sent: 0, failed: 0 },
-    };
-
-    for (const row of jobRows) {
-      const status = row.status;
-      const value = Number(row.count ?? 0);
-      if (status === "idle" || status === "running" || status === "disabled") {
-        data.jobs[status] = value;
-        data.jobs.total += value;
-      }
-    }
-
-    for (const row of emailRows) {
-      const status = row.status;
-      const value = Number(row.count ?? 0);
-      if (status === "pending" || status === "sending" || status === "sent" || status === "failed") {
-        data.emails[status] = value;
-        data.emails.total += value;
-      }
-    }
-
-    return c.json({ success: true, data });
-  });
-
-  router.get("/operations/jobs", async (c) => {
-    const parsedQuery = parseQuery(adminJobsQuerySchema, {
-      limit: c.req.query("limit"),
-      offset: c.req.query("offset"),
-      name: c.req.query("name"),
-      status: c.req.query("status"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid jobs query");
-    }
-
-    const where = buildJobsWhere(parsedQuery.data);
-    const [rows, totalRows] = await Promise.all([
-      bootstrap.db.select().from(jobs).where(where).orderBy(desc(jobs.nextRunAt)).limit(parsedQuery.data.limit).offset(parsedQuery.data.offset),
-      bootstrap.db.select({ count: count() }).from(jobs).where(where),
-    ]);
-
-    return c.json({ success: true, data: { jobs: rows.map(publicJob), total: Number(totalRows[0]?.count ?? 0) } });
-  });
-
-  router.get("/operations/job-runs", async (c) => {
-    const parsedQuery = parseQuery(adminJobRunsQuerySchema, {
-      limit: c.req.query("limit"),
-      offset: c.req.query("offset"),
-      jobName: c.req.query("jobName"),
-      status: c.req.query("status"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid job runs query");
-    }
-
-    const where = buildJobRunsWhere(parsedQuery.data);
-    const [rows, totalRows] = await Promise.all([
-      bootstrap.db.select().from(jobRuns).where(where).orderBy(desc(jobRuns.startedAt)).limit(parsedQuery.data.limit).offset(parsedQuery.data.offset),
-      bootstrap.db.select({ count: count() }).from(jobRuns).where(where),
-    ]);
-
-    return c.json({ success: true, data: { runs: rows.map(publicJobRun), total: Number(totalRows[0]?.count ?? 0) } });
-  });
-
-  router.get("/operations/pending-emails", async (c) => {
-    const parsedQuery = parseQuery(adminPendingEmailsQuerySchema, {
-      limit: c.req.query("limit"),
-      offset: c.req.query("offset"),
-      status: c.req.query("status"),
-      text: c.req.query("text"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid pending emails query");
-    }
-
-    const where = buildPendingEmailsWhere(parsedQuery.data);
-    const [rows, totalRows] = await Promise.all([
-      bootstrap.db.select().from(pendingEmails).where(where).orderBy(desc(pendingEmails.createdAt)).limit(parsedQuery.data.limit).offset(parsedQuery.data.offset),
-      bootstrap.db.select({ count: count() }).from(pendingEmails).where(where),
-    ]);
-
-    return c.json({ success: true, data: { emails: rows.map(publicPendingEmail), total: Number(totalRows[0]?.count ?? 0) } });
-  });
 
   router.get("/discounts", async (c) => {
     const parsedQuery = parseQuery(discountListQuerySchema, {
@@ -1467,7 +1281,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid discount query");
     }
 
-    const result = await bootstrap.discountsService.getDiscounts(
+    const result = await services.discountsService.getDiscounts(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.search,
@@ -1478,7 +1292,7 @@ export function createAdminRouter() {
 
   router.get("/discounts/:discountId", async (c) => {
     return withDiscountIdParam(c, async (discountId) => {
-      const result = await bootstrap.discountsService.getDiscountById(discountId);
+      const result = await services.discountsService.getDiscountById(discountId);
       if (!result.success) {
         return notFound(c, resultError(result, "Discount not found"));
       }
@@ -1496,7 +1310,7 @@ export function createAdminRouter() {
     }
 
     try {
-      const code = await bootstrap.discountsService.generateDiscountCode(parsedBody.data.overridePrefix);
+      const code = await services.discountsService.generateDiscountCode(parsedBody.data.overridePrefix);
       return c.json({ success: true, data: { code } });
     } catch (error) {
       return badRequest(c, error instanceof Error ? error.message : "Failed");
@@ -1511,7 +1325,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid discount validation payload");
     }
 
-    const result = await bootstrap.discountsService.validateDiscountCode(parsedBody.data.code, parsedBody.data.excludeId);
+    const result = await services.discountsService.validateDiscountCode(parsedBody.data.code, parsedBody.data.excludeId);
     return c.json({ success: true, data: result });
   });
 
@@ -1527,9 +1341,9 @@ export function createAdminRouter() {
     if (secretFailure) return secretFailure;
 
     const bodyData = omitAdminSecret(parsedBody.data);
-    let result: Awaited<ReturnType<typeof bootstrap.discountsService.createDiscount>>;
+    let result: Awaited<ReturnType<typeof services.discountsService.createDiscount>>;
     try {
-      result = await bootstrap.discountsService.createDiscount({
+      result = await services.discountsService.createDiscount({
         code: bodyData.code,
         type: bodyData.type,
         value: bodyData.value,
@@ -1577,9 +1391,9 @@ export function createAdminRouter() {
         if (secretFailure) return secretFailure;
 
         const updateBody = omitAdminSecret(bodyData);
-        let result: Awaited<ReturnType<typeof bootstrap.discountsService.updateDiscount>>;
+        let result: Awaited<ReturnType<typeof services.discountsService.updateDiscount>>;
         try {
-          result = await bootstrap.discountsService.updateDiscount({
+          result = await services.discountsService.updateDiscount({
             id: discountId,
             code: updateBody.code,
             type: updateBody.type,
@@ -1638,9 +1452,9 @@ export function createAdminRouter() {
       const secretFailure = await requireAdminActionSecret(c, parsedBody.data.secret);
       if (secretFailure) return secretFailure;
 
-      let result: Awaited<ReturnType<typeof bootstrap.discountsService.deleteDiscount>>;
+      let result: Awaited<ReturnType<typeof services.discountsService.deleteDiscount>>;
       try {
-        result = await bootstrap.discountsService.deleteDiscount(discountId);
+        result = await services.discountsService.deleteDiscount(discountId);
       } catch (error) {
         await recordMutationAudit(c, {
           action: "discount.delete",
@@ -1687,7 +1501,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid voucher query");
     }
 
-    const result = await bootstrap.vouchersService.getVouchers(
+    const result = await services.vouchersService.getVouchers(
       parsedQuery.data.limit,
       parsedQuery.data.offset,
       parsedQuery.data.search,
@@ -1706,13 +1520,13 @@ export function createAdminRouter() {
       return validationError(c, "Invalid voucher search query");
     }
 
-    const users = await bootstrap.vouchersService.searchUsers(parsedQuery.data.query, parsedQuery.data.limit);
+    const users = await services.vouchersService.searchUsers(parsedQuery.data.query, parsedQuery.data.limit);
     return c.json({ success: true, data: users });
   });
 
   router.get("/vouchers/:voucherId", async (c) => {
     return withVoucherIdParam(c, async (voucherId) => {
-      const result = await bootstrap.vouchersService.getVoucherById(voucherId);
+      const result = await services.vouchersService.getVoucherById(voucherId);
       if (!result.success) {
         return notFound(c, resultError(result, "Voucher not found"));
       }
@@ -1734,9 +1548,9 @@ export function createAdminRouter() {
 
     const voucherBody = omitAdminSecret(parsedBody.data);
 
-    let result: Awaited<ReturnType<typeof bootstrap.vouchersService.createVoucher>>;
+    let result: Awaited<ReturnType<typeof services.vouchersService.createVoucher>>;
     try {
-      result = await bootstrap.vouchersService.createVoucher(voucherBody);
+      result = await services.vouchersService.createVoucher(voucherBody);
     } catch (error) {
       await recordMutationAudit(c, {
         action: "voucher.create",
@@ -1777,9 +1591,9 @@ export function createAdminRouter() {
         if (secretFailure) return secretFailure;
 
         const updateBody = omitAdminSecret(bodyData);
-        let result: Awaited<ReturnType<typeof bootstrap.vouchersService.updateVoucher>>;
+        let result: Awaited<ReturnType<typeof services.vouchersService.updateVoucher>>;
         try {
-          result = await bootstrap.vouchersService.updateVoucher({
+          result = await services.vouchersService.updateVoucher({
             id: voucherId,
             ...updateBody,
           });
@@ -1822,40 +1636,6 @@ export function createAdminRouter() {
     });
   });
 
-  router.get("/logs/files", async (c) => {
-    const parsedQuery = parseQuery(logFilesQuerySchema, {
-      stream: c.req.query("stream"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid logs query");
-    }
-
-    const files = logger.listLogFiles(parsedQuery.data.stream);
-    return c.json({ success: true, data: files });
-  });
-
-  router.get("/logs/entries", async (c) => {
-    const parsedQuery = parseQuery(logEntriesQuerySchema, {
-      stream: c.req.query("stream"),
-      file: c.req.query("file"),
-      limit: c.req.query("limit"),
-    });
-
-    if (!parsedQuery.success) {
-      return validationError(c, "Invalid log entries query");
-    }
-
-    try {
-      const data = logger.readLogEntries(parsedQuery.data);
-      return c.json({ success: true, data });
-    } catch (error) {
-      if (error instanceof Error && error.message === "Invalid log file") {
-        return validationError(c, "Invalid log entries query");
-      }
-      throw error;
-    }
-  });
 
   router.get("/notifications", async (c) => {
     const parsedQuery = parseQuery(notificationsListQuerySchema, { limit: c.req.query("limit") });
@@ -1864,7 +1644,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid notifications query");
     }
 
-    const data = await bootstrap.notificationsService.getAllNotifications(parsedQuery.data.limit);
+    const data = await services.notificationsService.getAllNotifications(parsedQuery.data.limit);
     return c.json({ success: true, data });
   });
 
@@ -1875,7 +1655,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid notification sends query");
     }
 
-    const entries = await bootstrap.auditService.listAuditEntries({ actionPrefix: "notification.", limit: parsedQuery.data.limit });
+    const entries = await services.auditService.listAuditEntries({ actionPrefix: "notification.", limit: parsedQuery.data.limit });
     return c.json({ success: true, data: entries.map((entry: Record<string, unknown>) => notificationSendHistoryItem(entry)) });
   });
 
@@ -1889,7 +1669,7 @@ export function createAdminRouter() {
       return validationError(c, "Invalid notification search query");
     }
 
-    const users = await bootstrap.adminService.searchUsers(parsedQuery.data.query, parsedQuery.data.limit);
+    const users = await services.adminService.searchUsers(parsedQuery.data.query, parsedQuery.data.limit);
     return c.json({ success: true, data: users });
   });
 
@@ -1906,12 +1686,12 @@ export function createAdminRouter() {
 
     const notificationBody = omitAdminSecret(parsedBody.data);
 
-    const result = await bootstrap.notificationsService.sendNotificationToAllUsers({
+    const result = await services.notificationsService.sendNotificationToAllUsers({
       ...notificationBody,
     }) as NotificationSendResultWithBatch;
     const publicResult = publicNotificationSendResult(result);
 
-    await bootstrap.auditService.recordAuditEntry({
+    await services.auditService.recordAuditEntry({
       ...getAuditRequestContext(c),
       action: "notification.send_all",
       outcome: "success",
@@ -1944,12 +1724,12 @@ export function createAdminRouter() {
 
     const notificationBody = omitAdminSecret(parsedBody.data);
 
-    const result = await bootstrap.notificationsService.sendNotificationToUsers({
+    const result = await services.notificationsService.sendNotificationToUsers({
       ...notificationBody,
     }) as NotificationSendResultWithBatch;
     const publicResult = publicNotificationSendResult(result);
 
-    await bootstrap.auditService.recordAuditEntry({
+    await services.auditService.recordAuditEntry({
       ...getAuditRequestContext(c),
       action: "notification.send_users",
       outcome: "success",

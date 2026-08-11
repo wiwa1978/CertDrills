@@ -23,4 +23,25 @@ describe("createClientLogger", () => {
       },
     });
   });
+
+  it("redacts credentials from nested request context", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const logger = createClientLogger({ endpoint: "http://localhost/logs/client" }).logger;
+
+    logger.error("request failed", {
+      password: "top-secret",
+      headers: { authorization: "Bearer token", cookie: "session=secret" },
+      request: {
+        body: JSON.stringify({ email: "user@example.com", password: "top-secret", rememberMe: false }),
+      },
+    });
+
+    expect(consoleError.mock.calls[0]?.[1]).toEqual({
+      password: "[REDACTED]",
+      headers: { authorization: "[REDACTED]", cookie: "[REDACTED]" },
+      request: {
+        body: JSON.stringify({ email: "user@example.com", password: "[REDACTED]", rememberMe: false }),
+      },
+    });
+  });
 });

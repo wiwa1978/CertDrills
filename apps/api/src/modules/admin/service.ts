@@ -1,11 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { and, desc, eq, gte, ilike, inArray, like, lt, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, like, lt, or, sql } from "drizzle-orm";
 
 import { creditPurchases, creditTransactions, user, userCredits, vouchers } from "@platform/platform-db";
+import type { PlatformDb, PlatformDbTransaction } from "@platform/platform-db";
 
 type AdminServiceDeps = {
-  db: any;
+  db: PlatformDb;
   adminSecret?: string;
 };
 
@@ -108,25 +109,25 @@ export function createAdminService(deps: AdminServiceDeps) {
       lastMonthPurchaseTransactionsResult,
       refundTransactionsResult,
     ] = await Promise.all([
-      deps.db.select({ count: sql<number>`COUNT(*)` }).from(user),
+      deps.db.select({ count: count() }).from(user),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(user)
         .where(gte(user.createdAt, startOfThisMonth)),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(user)
         .where(lt(user.createdAt, endOfLastMonth)),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(user)
         .where(eq(user.banned, true)),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .where(eq(creditPurchases.paymentStatus, "completed")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .where(
           and(
@@ -135,41 +136,41 @@ export function createAdminService(deps: AdminServiceDeps) {
           ),
         ),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .where(eq(creditPurchases.paymentStatus, "pending")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .where(eq(creditPurchases.paymentStatus, "failed")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .where(eq(creditPurchases.paymentStatus, "refunded")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(eq(creditTransactions.type, "usage")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(and(eq(creditTransactions.type, "usage"), lt(creditTransactions.createdAt, endOfLastMonth))),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(eq(creditTransactions.type, "bonus")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(eq(creditTransactions.type, "purchase")),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(
           and(eq(creditTransactions.type, "purchase"), lt(creditTransactions.createdAt, endOfLastMonth)),
         ),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .where(eq(creditTransactions.type, "refund")),
     ]);
@@ -196,7 +197,7 @@ export function createAdminService(deps: AdminServiceDeps) {
   async function getVoucherStats() {
     const [voucherTotals] = await deps.db
       .select({
-        totalVouchers: sql<number>`COUNT(*)`,
+        totalVouchers: count(),
         activeVouchers: sql<number>`COALESCE(SUM(CASE WHEN ${vouchers.status} = 'active' THEN 1 ELSE 0 END), 0)`,
         redeemedVouchers: sql<number>`COALESCE(SUM(CASE WHEN ${vouchers.status} = 'redeemed' THEN 1 ELSE 0 END), 0)`,
         totalVoucherCredits: sql<number>`COALESCE(SUM(${vouchers.creditAmount} * ${vouchers.currentRedemptions}), 0)`,
@@ -229,7 +230,7 @@ export function createAdminService(deps: AdminServiceDeps) {
       })
       .from(user);
 
-    const countQuery = deps.db.select({ count: sql<number>`COUNT(*)` }).from(user);
+    const countQuery = deps.db.select({ count: count() }).from(user);
 
     const [users, totalResult] = await Promise.all([
       (whereCondition ? usersQuery.where(whereCondition) : usersQuery)
@@ -266,12 +267,12 @@ export function createAdminService(deps: AdminServiceDeps) {
 
   async function getUserStats() {
     const [totalUsers, admins, banned] = await Promise.all([
-      deps.db.select({ count: sql<number>`COUNT(*)` }).from(user),
+      deps.db.select({ count: count() }).from(user),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(user)
         .where(eq(user.role, "admin")),
-      deps.db.select({ count: sql<number>`COUNT(*)` }).from(user).where(eq(user.banned, true)),
+      deps.db.select({ count: count() }).from(user).where(eq(user.banned, true)),
     ]);
 
     return {
@@ -305,7 +306,7 @@ export function createAdminService(deps: AdminServiceDeps) {
 
   async function countActiveAdmins() {
     const [result] = await deps.db
-      .select({ count: sql<number>`COUNT(*)` })
+      .select({ count: count() })
       .from(user)
       .where(and(eq(user.role, "admin"), eq(user.banned, false)));
 
@@ -336,7 +337,7 @@ export function createAdminService(deps: AdminServiceDeps) {
         totalInclVat: sql<string>`COALESCE(SUM(${creditPurchases.priceInclVat}), 0)`,
         totalExclVat: sql<string>`COALESCE(SUM(${creditPurchases.priceExclVat}), 0)`,
         totalVat: sql<string>`COALESCE(SUM(${creditPurchases.vatAmount}), 0)`,
-        count: sql<number>`COUNT(*)`,
+        count: count(),
       })
       .from(creditPurchases)
       .where(sql`${creditPurchases.userId} = ${userId} AND ${creditPurchases.paymentStatus} = 'completed'`);
@@ -418,7 +419,7 @@ export function createAdminService(deps: AdminServiceDeps) {
     ] =
       await Promise.all([
         deps.db
-          .select({ count: sql<number>`COUNT(*)` })
+          .select({ count: count() })
           .from(creditPurchases)
           .where(eq(creditPurchases.paymentStatus, "completed")),
         deps.db
@@ -478,14 +479,14 @@ export function createAdminService(deps: AdminServiceDeps) {
       .select({
         period: sql<string>`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditPurchases.createdAt})`,
         revenue: sql<number>`COALESCE(SUM(${creditPurchases.priceInclVat}), 0)`,
-        count: sql<number>`COUNT(*)`,
+        count: count(),
       })
       .from(creditPurchases)
       .where(and(eq(creditPurchases.paymentStatus, "completed"), gte(creditPurchases.createdAt, startDate)))
       .groupBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditPurchases.createdAt})`)
       .orderBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditPurchases.createdAt})`);
 
-    return result.map((item: any) => ({
+    return result.map((item) => ({
       period: item.period,
       revenue: centsToEur(item.revenue),
       count: Number(item.count),
@@ -518,7 +519,7 @@ export function createAdminService(deps: AdminServiceDeps) {
         .limit(normalizedLimit)
         .offset(normalizedOffset),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditTransactions)
         .innerJoin(user, eq(creditTransactions.userId, user.id))
         .where(whereCondition),
@@ -526,7 +527,10 @@ export function createAdminService(deps: AdminServiceDeps) {
 
     const total = totalCountResult[0]?.count ?? 0;
     return {
-      transactions,
+      transactions: transactions.map((transaction) => ({
+        ...transaction,
+        createdAt: transaction.createdAt.toISOString(),
+      })),
       total,
       hasMore: normalizedOffset + normalizedLimit < total,
     };
@@ -566,7 +570,7 @@ export function createAdminService(deps: AdminServiceDeps) {
         .limit(normalizedLimit)
         .offset(normalizedOffset),
       deps.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: count() })
         .from(creditPurchases)
         .innerJoin(user, eq(creditPurchases.userId, user.id))
         .where(whereCondition),
@@ -574,7 +578,10 @@ export function createAdminService(deps: AdminServiceDeps) {
 
     const total = totalCountResult[0]?.count ?? 0;
     return {
-      purchases,
+      purchases: purchases.map((purchase) => ({
+        ...purchase,
+        createdAt: purchase.createdAt.toISOString(),
+      })),
       total,
       hasMore: normalizedOffset + normalizedLimit < total,
     };
@@ -586,14 +593,14 @@ export function createAdminService(deps: AdminServiceDeps) {
     const result = await deps.db
       .select({
         period: sql<string>`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditTransactions.createdAt})`,
-        count: sql<number>`COUNT(*)`,
+        count: count(),
       })
       .from(creditTransactions)
       .where(gte(creditTransactions.createdAt, startDate))
       .groupBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditTransactions.createdAt})`)
       .orderBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditTransactions.createdAt})`);
 
-    return result.map((item: any) => ({
+    return result.map((item) => ({
       period: item.period,
       count: Number(item.count),
     }));
@@ -612,10 +619,17 @@ export function createAdminService(deps: AdminServiceDeps) {
       .groupBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditTransactions.createdAt})`)
       .orderBy(sql`DATE_TRUNC(${sql.raw(`'${dateTrunc}'`)}, ${creditTransactions.createdAt})`);
 
-    return result.map((item: any) => ({
+    return result.map((item) => ({
       period: item.period,
       consumed: Number(item.consumed),
     }));
+  }
+
+  async function withGovernanceLock<T>(action: () => Promise<T>): Promise<T> {
+    return deps.db.transaction(async (tx: PlatformDbTransaction) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('admin-governance'))`);
+      return action();
+    });
   }
 
   return {
@@ -627,6 +641,7 @@ export function createAdminService(deps: AdminServiceDeps) {
     getUserStats,
     getUserById,
     countActiveAdmins,
+    withGovernanceLock,
     getUserCreditBalance,
     getUserCreditHistory,
     getUserCreditPurchases,

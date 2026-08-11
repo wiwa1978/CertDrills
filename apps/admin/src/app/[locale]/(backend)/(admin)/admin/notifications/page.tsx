@@ -3,14 +3,12 @@ import { SendNotificationForm } from "@/components/layout/backend/admin/notifica
 
 import { Container } from "@/components/ui/container";
 import { NotificationHistoryTable } from "@/components/layout/backend/admin/notifications/notification-history-table";
-import { getAllNotifications } from "@/lib/services/notifications";
+import { getNotificationSendHistoryServer } from "@/lib/api/admin.server";
 
 export default async function AdminNotificationsPage() {
   const t = await getTranslations("admin.notifications");
   
-  // Fetch all notifications from the database
-  const result = await getAllNotifications(100);
-  const notifications = result.success && result.data ? result.data : [];
+  const notifications = await getNotificationSendHistoryServer(100).catch(() => []);
 
   return (
     <Container className="py-6">

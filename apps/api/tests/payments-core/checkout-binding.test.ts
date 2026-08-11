@@ -55,6 +55,35 @@ describe("buildDodoCheckoutUrl", () => {
     expect(url.searchParams.get("metadata_userId")).toBe("user-123");
   });
 
+  it("passes discount codes and billing address prefill to checkout", () => {
+    const url = new URL(
+      buildDodoCheckoutUrl({
+        baseUrl,
+        productId,
+        userId: "user-123",
+        packageKey: "advanced",
+        discountCode: "SAVE10",
+        billingAddress: {
+          street: "Main",
+          number: "1",
+          zipcode: "1000",
+          town: "Brussels",
+          countryCode: "BE",
+          countryName: "Belgium",
+        },
+      }),
+    );
+
+    expect(url.searchParams.get("metadata_discountCode")).toBe("SAVE10");
+    expect(url.searchParams.get("discount_code")).toBe("SAVE10");
+    expect(url.searchParams.get("allow_discount_code")).toBe("true");
+    expect(url.searchParams.get("billing_address_country")).toBe("BE");
+    expect(url.searchParams.get("billing_address_city")).toBe("Brussels");
+    expect(url.searchParams.get("billing_address_street")).toBe("Main 1");
+    expect(url.searchParams.get("billing_address_zipcode")).toBe("1000");
+    expect(url.searchParams.get("billing_address_state")).toBe("Belgium");
+  });
+
   it("URL-encodes userId values to prevent metadata smuggling", () => {
     const url = new URL(
       buildDodoCheckoutUrl({
@@ -78,11 +107,14 @@ describe("createDodoPaymentProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("creates checkout URLs through the provider seam", async () => {
+  it("creates subscription checkout sessions through the provider seam instead of static buy URLs", async () => {
+    const create = vi.fn().mockResolvedValue({ checkout_url: "https://checkout.example.com/session/cs_123" });
     const provider = createDodoPaymentProvider({
       environment: "test_mode",
       appUrl: "https://app.example.com",
       apiKey: "api-key",
+      brands: { subscriptions: "brnd_subscriptions" },
+      client: { checkoutSessions: { create } } as any,
     });
 
     const checkoutUrl = await provider.createCheckoutUrl({
@@ -93,17 +125,23 @@ describe("createDodoPaymentProvider", () => {
       referenceId: "checkout-ref-123",
       customerEmail: "buyer@example.com",
     });
-    const url = new URL(checkoutUrl);
 
     expect(provider.name).toBe("dodo");
     expect(provider.capabilities.checkout).toBe(true);
     expect(provider.capabilities.invoices).toBe(true);
-    expect(url.origin + url.pathname).toBe("https://test.checkout.dodopayments.com/buy/pdt_TEST");
-    expect(url.searchParams.get("metadata_billingMode")).toBe("subscriptions");
-    expect(url.searchParams.get("metadata_planKey")).toBe("starter");
-    expect(url.searchParams.get("metadata_checkoutReferenceId")).toBe("checkout-ref-123");
-    expect(url.searchParams.get("redirect_url")).toBe("https://app.example.com/billing?success=true");
-    expect(url.searchParams.get("cancel_url")).toBe("https://app.example.com/billing?cancel=true");
+    expect(checkoutUrl).toBe("https://checkout.example.com/session/cs_123");
+    expect(checkoutUrl).not.toContain("/buy/");
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      brand_id: "brnd_subscriptions",
+      product_cart: [{ product_id: "pdt_TEST", quantity: 1 }],
+      metadata: expect.objectContaining({
+        billingMode: "subscriptions",
+        planKey: "starter",
+        checkoutReferenceId: "checkout-ref-123",
+      }),
+      return_url: "https://app.example.com/billing?success=true",
+      cancel_url: "https://app.example.com/billing?cancel=true",
+    }));
   });
 
   it("fetches invoices through the provider seam with timeout signal", async () => {
@@ -131,7 +169,10 @@ describe("createDodoPaymentProvider", () => {
 });
 
 describe("createPaymentEventHandler", () => {
-  const samplePackage = creditPackages[0];
+  const samplePackage = {
+    ...creditPackages[0],
+    providerProductIds: { ...creditPackages[0].providerProductIds, dodo: "pdt_checkout_binding" },
+  };
   const sampleProductId = samplePackage.providerProductIds.dodo;
 
   beforeEach(() => {
@@ -211,7 +252,7 @@ describe("createPaymentEventHandler", () => {
       getUserById,
       checkoutIntents,
       handler: createPaymentEventHandler({
-        creditPackages,
+        creditPackages: [samplePackage, ...creditPackages.slice(1)],
         checkoutIntents,
         billing: {
           getUserById,

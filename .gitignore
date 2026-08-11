@@ -1,44 +1,26 @@
-# Dependencies
-node_modules/
-
-# Local tooling and scratch work
+node_modules
 .worktrees/
 .superpowers/
-.local-storage/
-apps/*/.local-storage/
-
-# Logs and reports
-*.log
 /logs/
 /runtime-logs/
-/reports/
-/coverage/
+runtime-logs/
+reports/
+coverage/
+.local-storage/
+.next/
+dist/
+*.log
 apps/*/runtime-logs/
 apps/*/tests/.reports/
 apps/*/tests/.tmp-vitest-report.json
-apps/*/coverage/
-
-# Build output and caches
-/.next/
-/dist/
-/out/
-/build/
-*.tsbuildinfo
-apps/*/.next/
-apps/*/dist/
-apps/*/out/
-apps/*/build/
-
-# Playwright and browser test output
-/playwright-report/
-/test-results/
 apps/*/playwright-report/
 apps/*/test-results/
-
-# Platform/deployment local state
-/.vercel/
-/.netlify/
-/.azure/
+apps/*/test-results/**
+apps/*/.next/
+apps/*/.next-*/
+apps/*/dist/
+apps/*/coverage/
+apps/*/.local-storage/
 
 # Generated Bicep build output
 infra/*.json
@@ -51,9 +33,3 @@ infra/*.json
 **/.env.*
 !.env.example
 !**/.env.example
-
-# OS/editor noise
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/

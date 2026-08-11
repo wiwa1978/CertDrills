@@ -13,7 +13,7 @@ const SECRET_ASSIGNMENT_PREFIX_PATTERN = new RegExp(
   "gi",
 );
 const BEARER_PATTERN = /\bBearer\s+[-._~+/A-Za-z0-9]+=*/gi;
-const JWT_PATTERN = /\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+const JOSE_CANDIDATE_PATTERN = /\b(?:[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+|[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.)(?![A-Za-z0-9_-]|\.[A-Za-z0-9_-])/g;
 
 function findQuotedValueEnd(value: string, start: number, quote: string, stopAtStructuralDelimiter = false) {
   let structuralDelimiterIndex = -1;
@@ -164,10 +164,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function redactJoseCandidate(candidate: string) {
+  try {
+    const segments = candidate.split(".");
+    const [encodedHeader] = segments;
+    const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8"));
+    if (!isRecord(header)) {
+      return candidate;
+    }
+
+    const hasAlgorithm = typeof header.alg === "string" && header.alg.length > 0;
+    const isJwt = typeof header.typ === "string" && header.typ.toUpperCase() === "JWT";
+    const hasEncryption = typeof header.enc === "string" && header.enc.length > 0;
+    if ((segments.length === 3 && (hasAlgorithm || isJwt)) || (segments.length === 5 && hasAlgorithm && hasEncryption)) {
+      return REDACTED;
+    }
+  } catch {
+    // Ordinary dotted strings are not JWTs and should remain visible.
+  }
+
+  return candidate;
+}
+
 export function redactString(value: string) {
   return redactSecretAssignments(value)
     .replace(BEARER_PATTERN, "Bearer [redacted]")
-    .replace(JWT_PATTERN, REDACTED)
+    .replace(JOSE_CANDIDATE_PATTERN, redactJoseCandidate)
     .replace(URL_SECRET_PARAM_PATTERN, `$1${REDACTED}`);
 }
 

@@ -17,10 +17,12 @@ vi.mock("@/lib/services/credits", () => ({
 }));
 
 vi.mock("@/lib/api/me.server", () => ({
+  getCountriesServer: vi.fn(),
   getCreditPurchasesServer: vi.fn(),
   getMyApplicationConfigServer: vi.fn(),
   getMySubscriptionPaymentsServer: vi.fn(),
   getMySubscriptionServer: vi.fn(),
+  getUserProfileAddressServer: vi.fn(),
 }));
 
 vi.mock("@/components/layout/backend/billing/purchase-history", () => ({
@@ -29,10 +31,6 @@ vi.mock("@/components/layout/backend/billing/purchase-history", () => ({
 
 vi.mock("@/components/layout/backend/billing/credit-pricing", () => ({
   CreditPricing: vi.fn(),
-}));
-
-vi.mock("@/components/layout/backend/billing/redeem-voucher-card", () => ({
-  RedeemVoucherCard: vi.fn(),
 }));
 
 vi.mock("@/components/ui/separator", () => ({
@@ -56,16 +54,16 @@ vi.mock("@/components/layout/backend/billing/subscription-status", () => ({
   SubscriptionStatus: vi.fn(),
 }));
 
-vi.mock("@/components/layout/backend/billing/subscription-discount-form", () => ({
-  SubscriptionDiscountForm: vi.fn(),
-}));
-
 vi.mock("@/components/layout/backend/billing/subscription-history", () => ({
   SubscriptionHistory: vi.fn(),
 }));
 
 vi.mock("@/components/layout/backend/billing/subscription-pricing", () => ({
   SubscriptionPricing: vi.fn(),
+}));
+
+vi.mock("@/components/layout/backend/billing/transaction-billing-portal", () => ({
+  TransactionBillingPortal: vi.fn(),
 }));
 
 import { getCheckoutOutcome } from "../../src/app/[locale]/(backend)/billing/page";
@@ -99,11 +97,17 @@ describe("billing checkout outcome", () => {
         mode: "subscriptions",
         creditSurfacesEnabled: false,
         subscriptionSurfacesEnabled: true,
+        transactionSurfacesEnabled: false,
       },
       features: {
         vouchers: false,
         discounts: false,
         notifications: true,
+      },
+      ui: {
+        notificationsDropdownLimit: 5,
+        notificationsPollingIntervalMs: 30_000,
+        deleteAccountCountdownSeconds: 10,
       },
     });
 

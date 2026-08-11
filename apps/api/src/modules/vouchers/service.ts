@@ -8,6 +8,7 @@ import {
   voucherRedemptions,
   vouchers,
 } from "@platform/platform-db";
+import type { PlatformDb, PlatformDbExecutor, PlatformDbTransaction } from "@platform/platform-db";
 import type {
   CreateVoucherInput,
   RedeemVoucherInput,
@@ -30,7 +31,7 @@ type VoucherWithRelations = VoucherRecord & {
 };
 
 type VouchersServiceDeps = {
-  db: any;
+  db: PlatformDb;
   notifications: {
     createNotification: (input: {
       userId: string;
@@ -45,7 +46,7 @@ type VouchersServiceDeps = {
   };
 };
 
-type DbTransaction = any;
+type DbTransaction = PlatformDbTransaction;
 
 const DEFAULT_ALL_USER_VOUCHER_MAX_REDEMPTIONS = 100_000;
 
@@ -120,7 +121,7 @@ function inferVoucherStatus(input: {
 
 async function getOrInitializeCredits(
   userId: string,
-  tx: VouchersServiceDeps["db"] | DbTransaction,
+  tx: PlatformDbExecutor,
 ) {
   const credits = await tx.query.userCredits.findFirst({ where: eq(userCredits.userId, userId) });
 
@@ -143,7 +144,9 @@ async function getOrInitializeCredits(
     return created;
   }
 
-  return tx.query.userCredits.findFirst({ where: eq(userCredits.userId, userId) });
+  const initialized = await tx.query.userCredits.findFirst({ where: eq(userCredits.userId, userId) });
+  if (!initialized) throw new Error("Credit balance could not be initialized");
+  return initialized;
 }
 
 async function replaceVoucherAssignments(tx: DbTransaction, voucherId: string, userIds: string[]) {

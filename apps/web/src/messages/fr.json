@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Construisez plus vite, livrez plus intelligemment",
-    "description": "La plateforme moderne pour créer des produits exceptionnels. Rationalisez votre flux de travail, collaborez sans effort et obtenez des résultats remarquables."
+    "title": "CertDrills - Base SaaS composable",
+    "description": "Une base SaaS mono-locataire avec des applications web, administration et API séparées, ainsi que des composants d'authentification et de facturation."
   },
   "nav": {
     "features": "Fonctionnalités",
@@ -13,28 +13,27 @@
     "toggleMenu": "Ouvrir le menu"
   },
   "hero": {
-    "badge": "Nouveau",
-    "badgeText": "CertDrills",
+    "badge": "Boilerplate",
+    "badgeText": "Une fondation de plateforme composable",
     "titleBuild": "Construisez",
     "titleFaster": "plus vite",
     "titleShip": ", livrez",
     "titleSmarter": "plus intelligemment",
     "description": "La plateforme moderne pour créer des produits exceptionnels. Rationalisez votre flux de travail, collaborez sans effort et obtenez des résultats remarquables.",
     "cta": "Commencer",
-    "watchDemo": "Voir la démo",
-    "socialProof": "Approuvé par {count}+ développeurs et équipes dans le monde"
+    "watchDemo": "Voir la démo"
   },
   "features": {
     "title": "Tout ce dont vous avez besoin pour réussir",
-    "description": "Des fonctionnalités puissantes conçues pour vous aider à créer, lancer et faire évoluer vos produits plus rapidement que jamais.",
+    "description": "Des capacités de plateforme réutilisables à composer avec les routes, données et workflows propres au produit.",
     "items": {
       "lightningFast": {
         "title": "Ultra rapide",
         "description": "Des performances optimisées qui maintiennent votre application à pleine vitesse, quelle que soit l'échelle."
       },
       "enterpriseSecurity": {
-        "title": "Sécurité Entreprise",
-        "description": "Sécurité de niveau bancaire avec chiffrement de bout en bout et conformité aux normes de l'industrie."
+        "title": "Contrôles de sécurité",
+        "description": "L'authentification, l'autorisation administrateur, l'audit et les webhooks de paiement signés sont intégrés à la plateforme."
       },
       "advancedAnalytics": {
         "title": "Analyses Avancées",
@@ -49,14 +48,14 @@
         "description": "Croissez sans limites. Notre infrastructure évolue automatiquement avec vos besoins."
       },
       "support": {
-        "title": "Support 24/7",
-        "description": "Support permanent de notre équipe d'experts pour vous aider à réussir."
+        "title": "Visibilité opérationnelle",
+        "description": "Les écrans d'administration exposent l'état de la facturation, des webhooks, de l'audit et des traitements en arrière-plan."
       }
     }
   },
   "pricing": {
     "title": "Tarification simple et transparente",
-    "description": "Choisissez le forfait qui vous convient. Tous les forfaits incluent un essai gratuit de 14 jours.",
+    "description": "Des écrans d'exemple montrent comment composer crédits, abonnements ou transactions ponctuelles.",
     "mostPopular": "Le plus populaire",
     "perMonth": "/mois",
     "plans": {
@@ -109,8 +108,8 @@
     "subtitle": "Notre mission est d'aider les équipes à créer de meilleurs produits, plus rapidement.",
     "mission": {
       "title": "Notre Mission",
-      "paragraph1": "Nous croyons que la création de produits exceptionnels ne devrait pas être compliquée. Notre plateforme permet aux équipes de toutes tailles de collaborer efficacement, de livrer plus rapidement et de se concentrer sur ce qui compte le plus — créer de la valeur pour leurs utilisateurs.",
-      "paragraph2": "Fondée en 2024, nous avons aidé des milliers d'équipes à rationaliser leurs flux de travail et à obtenir des résultats exceptionnels. Notre engagement envers la simplicité et l'expérience développeur guide tout ce que nous faisons."
+      "paragraph1": "Ce dépôt fournit des mécanismes de plateforme réutilisables tout en gardant les routes, données, capacités et politiques produit hors de la plateforme.",
+      "paragraph2": "Utilisez-le comme point de départ, remplacez la composition produit et validez l'application obtenue avant son lancement."
     },
     "values": {
       "title": "Nos Valeurs",
@@ -130,25 +129,19 @@
         "title": "Amélioration Continue",
         "description": "Nous livrons vite, apprenons plus vite et ne cessons jamais de nous améliorer."
       }
-    },
-    "stats": {
-      "activeUsers": "Utilisateurs Actifs",
-      "companies": "Entreprises",
-      "uptimeSla": "SLA de Disponibilité",
-      "support": "Support"
     }
   },
   "cta": {
     "title": "Prêt à commencer ?",
-    "description": "Rejoignez des milliers d'équipes qui utilisent déjà notre plateforme pour créer des produits incroyables. Commencez votre essai gratuit aujourd'hui.",
-    "primaryButton": "Essai gratuit",
-    "secondaryButton": "Contactez-nous",
-    "disclaimer": "Pas de carte bancaire requise · 14 jours d'essai gratuit · Annulation à tout moment"
+    "description": "Explorez la fondation de plateforme, puis connectez vos propres modules produit et votre catalogue de facturation.",
+    "primaryButton": "Commencer",
+    "secondaryButton": "Voir la documentation",
+    "disclaimer": "Configurez l'authentification, la facturation, les opérations et les politiques produit pour votre déploiement"
   },
   "footer": {
-    "description": "Construire l'avenir du développement produit. Permettre aux équipes de créer des expériences exceptionnelles.",
-    "copyright": "Acme Inc. Tous droits réservés.",
-    "madeWith": "Fait avec ❤️ pour les développeurs",
+    "description": "Une fondation composable pour les produits SaaS mono-locataires.",
+    "copyright": "CertDrills. Tous droits réservés.",
+    "madeWith": "Conçu pour les équipes produit",
     "groups": {
       "product": {
         "title": "Produit",
@@ -291,9 +284,7 @@
       "settings": "Paramètres",
       "billing": "Portail de facturation",
       "userManagement": "Gestion des utilisateurs",
-      "admin": "Panneau Admin",
-      "exams": "Examens",
-      "attempts": "Historique des tentatives"
+      "admin": "Panneau Admin"
     },
     "signOut": "Déconnexion",
     "topNav": {
@@ -1142,6 +1133,11 @@
         "name": "Pro",
         "description": "Maximum de crédits avec le plus gros bonus.",
         "cta": "Acheter Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "Le plus grand forfait de crédits pour une utilisation intensive.",
+        "cta": "Acheter Max"
       }
     },
     "features": {
@@ -1190,6 +1186,26 @@
       "successDescription": "Vos credits apparaitront une fois le paiement traite.",
       "cancelTitle": "Paiement annule",
       "cancelDescription": "Aucun credit n'a ete achete."
+    },
+    "credits": {
+      "checkout": {
+        "title": "Acheter {package}",
+        "description": "Confirmez les details du forfait avant de continuer vers le paiement.",
+        "packageNotFound": "Forfait de credits introuvable",
+        "baseCredits": "{count} credits",
+        "bonusCredits": "+{count} credits bonus",
+        "totalCredits": "{count} credits au total",
+        "creditsNeverExpire": "Les credits n'expirent jamais",
+        "subtotal": "Sous-total",
+        "voucherLabel": "Code bon ou reduction",
+        "voucherPlaceholder": "Entrez le code",
+        "voucherDescription": "Ce code sera envoye directement au fournisseur de paiement.",
+        "billingAddress": "Adresse de facturation",
+        "addressPlaceholder": "Selectionnez une adresse",
+        "addAddressInSettings": "Ajoutez d'abord une adresse de facturation dans les parametres de profil.",
+        "redirecting": "Redirection...",
+        "proceed": "Continuer vers le paiement"
+      }
     },
     "portal": {
       "button": "Gerer la facturation",
@@ -1253,6 +1269,93 @@
         "redeeming": "Utilisation..."
       }
     },
+    "transaction": {
+      "eyebrow": "Facturation transactionnelle",
+      "title": "Acheter un accès",
+      "description": "Sélectionnez des produits, vérifiez votre panier et poursuivez vers le paiement sécurisé.",
+      "loading": "Actualisation de la facturation transactionnelle...",
+      "catalog": {
+        "title": "Produits",
+        "description": "Choisissez des produits d'accès et leurs quantités. Les prix sont hors taxes.",
+        "preTax": "Prix hors taxes",
+        "addOrUpdate": "Ajouter ou mettre à jour",
+        "quantityLabel": "Quantité pour {product} : {quantity}",
+        "decreaseQuantity": "Diminuer la quantité de {product}",
+        "increaseQuantity": "Augmenter la quantité de {product}"
+      },
+      "basket": {
+        "title": "Panier",
+        "description": "Vérifiez votre panier et passez au paiement.",
+        "triggerLabel": "Ouvrir le panier",
+        "triggerLabelWithCount": "Ouvrir le panier, {count, plural, one {# article} other {# articles}}",
+        "close": "Fermer le panier",
+        "loading": "Chargement de votre panier...",
+        "clear": "Vider",
+        "empty": "Votre panier est vide.",
+        "remove": "Retirer {product}",
+        "quantityLabel": "Quantité pour {product} : {quantity}",
+        "decreaseQuantity": "Diminuer la quantité de {product}",
+        "increaseQuantity": "Augmenter la quantité de {product}",
+        "subtotal": "Sous-total",
+        "taxNote": "Les taxes et le total final sont calculés par Dodo lors du paiement.",
+        "checkout": "Payer",
+        "checkoutPending": "Ouverture du paiement...",
+        "retry": "Réessayer"
+      },
+      "errors": {
+        "basketMutation": "Impossible de mettre à jour votre panier. Veuillez réessayer.",
+        "checkout": "Impossible d'ouvrir le paiement. Veuillez réessayer.",
+        "basketQueryInitial": "Impossible de charger votre panier.",
+        "basketQuery": "Impossible d'actualiser votre panier. Le dernier panier disponible est affiché."
+      },
+      "orders": {
+        "title": "Commandes récentes",
+        "description": "Historique des paiements et totaux calculés par le fournisseur.",
+        "empty": "Aucune commande pour le moment.",
+        "order": "Commande {id}",
+        "status": "Statut de la commande : {status}",
+        "date": "Date : {date}",
+        "payment": "Paiement : {id}",
+        "quantity": "Quantité : {quantity}",
+        "subtotal": "Sous-total",
+        "tax": "Taxes",
+        "total": "Total",
+        "statuses": {
+          "pending_payment": "Paiement en attente",
+          "paid": "Payée",
+          "failed": "Échouée",
+          "cancelled": "Annulée",
+          "refund_pending": "Remboursement en attente",
+          "refunded": "Remboursée",
+          "partially_refunded": "Partiellement remboursée"
+        }
+      },
+      "entitlements": {
+        "title": "Droits d'accès",
+        "description": "Accès accordés par les commandes finalisées.",
+        "empty": "Aucun droit d'accès pour le moment.",
+        "status": "Statut du droit : {status}",
+        "order": "Commande : {id}",
+        "created": "Créé le : {date}",
+        "consumed": "Utilisé le : {date}",
+        "refunded": "Remboursé le : {date}",
+        "statuses": {
+          "available": "Disponible",
+          "consumed": "Utilisé",
+          "refunded": "Remboursé"
+        }
+      },
+      "products": {
+        "starterContent": {
+          "name": "Accès au contenu de démarrage",
+          "description": "Un droit d'accès durable au produit de contenu de démarrage."
+        },
+        "premiumContent": {
+          "name": "Accès au contenu premium",
+          "description": "Un droit d'accès durable au produit de contenu premium."
+        }
+      }
+    },
     "subscription": {
       "description": "Choisissez un abonnement pour continuer.",
       "currentTitle": "Abonnement actuel",
@@ -1266,6 +1369,7 @@
       "mostPopular": "Le plus populaire",
       "planDescription": "Accès SaaS récurrent facturé chaque {interval}",
       "choosePlan": "Choisir {plan}",
+      "planNotFound": "Formule d'abonnement introuvable",
       "discount": {
         "label": "Code de reduction",
         "placeholder": "Entrez un code de reduction",
@@ -1292,6 +1396,17 @@
         }
       },
       "checkout": {
+        "title": "S'abonner à {plan}",
+        "description": "Confirmez les details de la formule avant de continuer vers le paiement.",
+        "subtotal": "Sous-total",
+        "discountLabel": "Code bon ou reduction",
+        "discountPlaceholder": "Entrez le code",
+        "discountDescription": "Ce code sera envoye directement au fournisseur de paiement.",
+        "billingAddress": "Adresse de facturation",
+        "addressPlaceholder": "Selectionnez une adresse",
+        "addAddressInSettings": "Ajoutez d'abord une adresse de facturation dans les parametres de profil.",
+        "redirecting": "Redirection...",
+        "proceed": "Continuer vers le paiement",
         "successDescription": "Le paiement de l'abonnement est terminé. Votre abonnement sera mis à jour une fois le paiement traité.",
         "cancelDescription": "Le paiement de l'abonnement a été annulé.",
         "portal": {
@@ -1331,12 +1446,7 @@
     "projects": "Projets",
     "discounts": "Codes de réduction",
     "vouchers": "Bons",
-    "logs": "Journaux",
-    "exams": "Examens",
-    "start": "Démarrer",
-    "results": "Résultats",
-    "profile": "Profil",
-    "attempts": "Tentatives"
+    "logs": "Journaux"
   },
   "creditProgressBar": {
     "creditsOf": "{current} sur {total} crédits",

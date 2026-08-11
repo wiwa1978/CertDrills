@@ -2,10 +2,46 @@
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 type LogContext = Record<string, unknown> | undefined;
+const REDACTED_VALUE = "[REDACTED]";
 
-function toSerializable(value: unknown): unknown {
-  if (value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+function isSensitiveKey(key: string | undefined) {
+  if (!key) return false;
+
+  const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return normalized.includes("password")
+    || normalized === "authorization"
+    || normalized === "cookie"
+    || normalized === "setcookie"
+    || normalized === "apikey"
+    || normalized.endsWith("token")
+    || normalized.endsWith("secret")
+    || normalized === "otp"
+    || normalized === "totp"
+    || normalized === "recoverycode";
+}
+
+function serializeStructuredBody(value: string, key: string | undefined) {
+  if (key !== "body" && key !== "requestBody") return undefined;
+
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed === null || typeof parsed !== "object") return undefined;
+    return JSON.stringify(toSerializable(parsed));
+  } catch {
+    return undefined;
+  }
+}
+
+
+function toSerializable(value: unknown, key?: string): unknown {
+  if (isSensitiveKey(key)) return REDACTED_VALUE;
+
+  if (value == null || typeof value === "number" || typeof value === "boolean") {
     return value;
+  }
+
+  if (typeof value === "string") {
+    return serializeStructuredBody(value, key) ?? value;
   }
 
   if (value instanceof Error) {
@@ -15,7 +51,7 @@ function toSerializable(value: unknown): unknown {
       name: value.name,
       message: value.message,
       stack: value.stack,
-      cause: toSerializable(errorWithCause.cause),
+      cause: toSerializable(errorWithCause.cause, "cause"),
     };
   }
 
@@ -32,7 +68,7 @@ function toSerializable(value: unknown): unknown {
       method: value.method,
       url: value.url,
       credentials: value.credentials,
-      headers: toSerializable(value.headers),
+      headers: toSerializable(value.headers, "headers"),
     };
   }
 
@@ -44,20 +80,20 @@ function toSerializable(value: unknown): unknown {
       redirected: value.redirected,
       type: value.type,
       url: value.url,
-      headers: toSerializable(value.headers),
+      headers: toSerializable(value.headers, "headers"),
     };
   }
 
   if (Array.isArray(value)) {
-    return value.map(toSerializable);
+    return value.map((item) => toSerializable(item));
   }
 
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
     const output: Record<string, unknown> = {};
 
-    for (const key of Object.getOwnPropertyNames(record)) {
-      output[key] = toSerializable(record[key]);
+    for (const propertyName of Object.getOwnPropertyNames(record)) {
+      output[propertyName] = toSerializable(record[propertyName], propertyName);
     }
 
     return output;

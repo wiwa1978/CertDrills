@@ -5,7 +5,6 @@
  * easily modified without changing the core logic.
  */
 
-import { fa } from "zod/v4/locales";
 
 export const aiConfig = {
   /**

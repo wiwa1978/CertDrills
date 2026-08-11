@@ -18,6 +18,7 @@ export const errorCode = {
   conflict: "CONFLICT",
   payloadTooLarge: "PAYLOAD_TOO_LARGE",
   rateLimited: "RATE_LIMITED",
+  badGateway: "BAD_GATEWAY",
   internalServerError: "INTERNAL_SERVER_ERROR",
   // auth
   invalidCredentials: "INVALID_CREDENTIALS",

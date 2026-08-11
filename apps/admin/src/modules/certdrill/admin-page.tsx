@@ -689,30 +689,7 @@ function optionalStringDefault(value?: string | number | null) {
   return value == null ? undefined : String(value);
 }
 
-function csvDefault(values?: string[] | null) {
-  return values && values.length > 0 ? values.join(", ") : undefined;
-}
 
-function SelectionLinks({
-  newLabel,
-  newHref,
-  disabled = false,
-  children,
-}: {
-  newLabel: string;
-  newHref: string;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Button asChild variant="outline" size="sm" disabled={disabled}>
-        <Link href={newHref}>{newLabel}</Link>
-      </Button>
-      {children}
-    </div>
-  );
-}
 
 function CertificationForm({
   action,
@@ -828,16 +805,6 @@ function CategoryFormFields({
 
 
 
-function CertificationSelect({ id, name, options, selectedCertificationId, includeEmpty = false }: { id: string; name: string; options: CertificationOption[]; selectedCertificationId?: string; includeEmpty?: boolean }) {
-  return (
-    <SelectField id={id} name={name} label="Certification" defaultValue={selectedCertificationId ?? ""}>
-      {includeEmpty ? <option value="">Keep current certification</option> : null}
-      {options.length > 0 ? options.map((certification) => (
-        <option key={certification.id} value={certification.id}>{certification.code} - {certification.name}</option>
-      )) : <option value="">Create a certification first</option>}
-    </SelectField>
-  );
-}
 
 function CategorySelect({
   id,
@@ -871,15 +838,6 @@ function CategorySelect({
   );
 }
 
-function QuestionSelect({ id, name, questions, label }: { id: string; name: string; questions: CertDrillAdminQuestion[]; label: string }) {
-  return (
-    <SelectField id={id} name={name} label={label} className="min-w-80">
-      {questions.length > 0 ? questions.map((question) => (
-        <option key={question.id} value={question.id}>{question.id} - {question.stem.slice(0, 80)}</option>
-      )) : <option value="">Create a question first</option>}
-    </SelectField>
-  );
-}
 
 function FeedbackStatusFilter({ feedbackStatus }: { feedbackStatus?: string }) {
   return (
@@ -953,89 +911,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   return <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">{children}</div>;
 }
 
-function CertificationCatalogTable({ certifications }: { certifications: CertDrillCertificationListItem[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Code</TableHead>
-          <TableHead>Vendor</TableHead>
-          <TableHead>Name</TableHead>
-          <TableHead className="text-right">Published count</TableHead>
-          <TableHead className="text-right">Quick Drill count</TableHead>
-          <TableHead className="text-right">Category Drill count</TableHead>
-          <TableHead className="text-right">Exam Simulation count</TableHead>
-          <TableHead className="text-right">Exam Simulation duration</TableHead>
-          <TableHead>Active Exam Forms</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {certifications.map((certification) => {
-          const activeExamForms = (certification.examForms ?? []).filter((form) => form.isActive);
-          const quickDrillCount = certification.quickDrillQuestionCount ?? certification.questionCountDefault;
-          const categoryDrillCount = certification.categoryDrillQuestionCount ?? certification.questionCountDefault;
-          const examSimulationCount = certification.examSimulationQuestionCount ?? certification.questionCountDefault;
-          const examSimulationDurationMinutes = certification.examSimulationDurationMinutes ?? 120;
 
-          return (
-            <TableRow key={certification.id}>
-              <TableCell className="font-medium">{certification.code}</TableCell>
-              <TableCell>{certification.vendor}</TableCell>
-              <TableCell>{certification.name}</TableCell>
-              <TableCell className="text-right">{certification.publishedQuestionCount.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{quickDrillCount.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{categoryDrillCount.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{examSimulationCount.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{examSimulationDurationMinutes.toLocaleString()} min</TableCell>
-              <TableCell>
-                {activeExamForms.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {activeExamForms.map((form) => (
-                      <Badge key={form.id} variant="outline">
-                        {form.name} - {form.questionCount.toLocaleString()} questions - {form.durationMinutes.toLocaleString()} min
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground">None</span>
-                )}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
-}
-
-function AdminCertificationTable({ certifications }: { certifications: CertDrillAdminCertification[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>ID</TableHead>
-          <TableHead>Code</TableHead>
-          <TableHead>Name</TableHead>
-          <TableHead>Active</TableHead>
-          <TableHead className="text-right">Default count</TableHead>
-          <TableHead className="text-right">Timer</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {certifications.map((certification) => (
-          <TableRow key={certification.id}>
-            <TableCell className="font-mono text-xs">{certification.id}</TableCell>
-            <TableCell className="font-medium">{certification.code}</TableCell>
-            <TableCell>{certification.name}</TableCell>
-            <TableCell>{certification.isActive ? "Yes" : "No"}</TableCell>
-            <TableCell className="text-right">{(certification.questionCountDefault ?? 10).toLocaleString()}</TableCell>
-            <TableCell className="text-right">{(certification.examSimulationDurationMinutes ?? 120).toLocaleString()} min</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
 
 function AdminCertificationOverviewTable({ certifications }: { certifications: Array<CertDrillAdminCertification | CertDrillCertificationListItem> }) {
   return (

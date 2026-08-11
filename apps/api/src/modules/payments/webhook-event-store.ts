@@ -2,11 +2,12 @@ import { and, eq, lte, or } from "drizzle-orm";
 
 import type { WebhookEventStore } from "@platform/payments-core";
 import { paymentWebhookEvents } from "@platform/platform-db";
+import type { PlatformDb } from "@platform/platform-db";
 
 import { redactString } from "../../observability/redaction";
 
 type PaymentWebhookEventStoreDeps = {
-  db: any;
+  db: PlatformDb;
 };
 
 const REDACTED = "[redacted]";
@@ -15,6 +16,7 @@ const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
 function sanitizeJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeJson);
+  if (value instanceof Date) return value.toISOString();
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, child]) => [

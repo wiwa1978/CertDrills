@@ -1,0 +1,83 @@
+<h2>Subscription Billing: layout direction</h2>
+<p class="subtitle">Goal: restore upgrade affordance, billing status/history/invoices, and discount code entry while keeping vouchers hidden in subscription mode.</p>
+
+<div class="cards">
+  <div class="card" data-choice="integrated" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;gap:10px;font-size:12px;color:#334155">
+        <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#fff">
+          <strong>Current subscription</strong><br>
+          Starter · Active · Manage portal
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#f8fafc">Starter</div>
+          <div style="border:2px solid #f59e0b;border-radius:10px;padding:10px;background:#fffbeb">Pro</div>
+          <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#f8fafc">Business</div>
+        </div>
+        <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#fff">Discount code</div>
+        <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#fff">Invoices and subscription events</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Integrated Page</h3>
+      <p>Status, plans, discount code, portal button, and history in one page. Best continuity with the old app and lowest navigation friction.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="tabs" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;gap:10px;font-size:12px;color:#334155">
+        <div style="display:flex;gap:8px">
+          <div style="border-radius:999px;background:#0f172a;color:white;padding:6px 10px">Plan</div>
+          <div style="border-radius:999px;background:#e2e8f0;padding:6px 10px">Invoices</div>
+          <div style="border-radius:999px;background:#e2e8f0;padding:6px 10px">Discounts</div>
+        </div>
+        <div style="border:1px solid #cbd5e1;border-radius:10px;padding:12px;background:#fff;min-height:120px">Active tab content</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Tabbed Billing</h3>
+      <p>Separates plan management, invoices, and discounts. Cleaner long term, but more structure and more clicks for a small billing surface.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="portal-first" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;gap:10px;font-size:12px;color:#334155">
+        <div style="border:1px solid #cbd5e1;border-radius:10px;padding:12px;background:#fff">
+          <strong>Starter</strong><br>
+          Upgrade · Manage in billing portal
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#f8fafc">Pro</div>
+          <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px;background:#f8fafc">Business</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Portal-First</h3>
+      <p>Shows only plan state and sends users to Dodo for invoices/history. Fastest, but does not satisfy your request for an in-app overview.</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>Recommended</h4>
+    <ul>
+      <li>Use the Integrated Page.</li>
+      <li>Keep vouchers hidden in subscription mode.</li>
+      <li>Add discount code to subscription checkout only.</li>
+      <li>Sidebar shows “Subscription: Starter” and keeps Upgrade visible.</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Backend implications</h4>
+    <ul>
+      <li>Need user subscription API helper on web.</li>
+      <li>Need customer portal access from subscription wrapper.</li>
+      <li>Need subscription discount validation/checkout payload if not already exposed.</li>
+      <li>Invoices may be portal-linked unless Dodo invoice listing is available.</li>
+    </ul>
+  </div>
+</div>

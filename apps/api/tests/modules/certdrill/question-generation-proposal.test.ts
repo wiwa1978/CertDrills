@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   questionGenerationProposalJsonSchema,
   validateQuestionGenerationProposal,
-} from "../../../src/modules/certdrill/question-generation-proposal";
+} from "../../../src/product/certdrill/question-generation-proposal";
 
 const sourceUrl = "https://docs.example.com/guide";
 const categoryId = "33333333-3333-4333-8333-333333333333";

@@ -4,11 +4,13 @@ import { redirect } from "next/navigation";
 import { BackendBannerNotification } from "@/components/layout/backend/shared/backend-banner-notification"
 import { DashboardSidebar } from "@/components/layout/backend/shared/dashboard-sidebar"
 import { DashboardNavProvider } from "@/components/providers/backend-nav-provider"
+import { TransactionCartProvider } from "@/components/providers/transaction-cart-provider"
+import { getMyApplicationConfigForLayoutServer } from "@/lib/api/me.server";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
-  title: "(Web) - Single Tenant with API SaaS boilerplate",
-  description: "(Web) - Single Tenant with API SaaS boilerplate",
+  title: "Dashboard - CertDrills",
+  description: "CertDrills customer dashboard",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
@@ -25,13 +27,16 @@ export default async function DashboardLayout({
   if (!session?.user) {
     redirect("/login");
   }
+  const applicationConfig = await getMyApplicationConfigForLayoutServer();
 
   return (
-    <DashboardNavProvider>
-      <DashboardSidebar>
-        <BackendBannerNotification locale={locale} />
-        {children}
-      </DashboardSidebar>
+    <DashboardNavProvider initialApplicationConfig={applicationConfig}>
+      <TransactionCartProvider userId={session.user.id} initialApplicationConfig={applicationConfig}>
+        <DashboardSidebar>
+          <BackendBannerNotification locale={locale} />
+          {children}
+        </DashboardSidebar>
+      </TransactionCartProvider>
     </DashboardNavProvider>
   )
 

@@ -185,7 +185,7 @@ export function CategoryDiscoveryControl({ certificationId, defaultUrl = "", ini
       poller.stop();
       if (pollerRef.current === poller) pollerRef.current = null;
     };
-  }, [router, run?.id, shouldPoll]);
+  }, [router, run, shouldPoll]);
 
   function resetTransientState() {
     setRequestError(null);

@@ -17,19 +17,17 @@ import {
 import { LogoWithText } from "@/components/icons/logo";
 import { ThemeToggle } from "@/components/layout/shared/theme-toggle";
 import { LanguageSelector } from "@/components/layout/shared/language-selector";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { FrontendNavItems, FrontendAuthItems } from "@/config/frontend-navbar";
 import { useSession } from "@/lib/auth-client";
 import { useLocale } from "next-intl";
 
 export function Navbar() {
   const t = useTranslations("nav");
-  const pathname = usePathname();
   const locale = useLocale();
   const { data: session } = useSession();
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
-  const [activeHash, setActiveHash] = React.useState("");
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -40,29 +38,6 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Track hash changes for anchor link highlighting
-  React.useEffect(() => {
-    const handleHashChange = () => {
-      setActiveHash(window.location.hash);
-    };
-
-    // Set initial hash
-    setActiveHash(window.location.hash);
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
-
-  // Check if a nav link is active
-  const isLinkActive = (href: string) => {
-    // For hash links like /#features
-    if (href.includes("#")) {
-      const hash = href.split("#")[1];
-      return activeHash === `#${hash}`;
-    }
-    // For regular routes
-    return pathname === href;
-  };
 
   return (
     <header

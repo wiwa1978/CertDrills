@@ -14,7 +14,7 @@ export type CertDrillAdminProgressResetResult = {
   deletedReviewItemCount: number;
 };
 
-const CERTDRILL_ADMIN_BASE_PATH = "/api/admin/certdrill";
+const CERTDRILL_ADMIN_BASE_PATH = "/admin/certdrill";
 
 export type CertDrillAdminCertificationInput = {
   code: string;

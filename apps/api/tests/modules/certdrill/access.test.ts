@@ -4,7 +4,7 @@ import {
   CertDrillAccessDeniedError,
   createAllPurchasedCertificationAccessProvider,
   createStaticCertificationAccessProvider,
-} from "../../../src/modules/certdrill/access";
+} from "../../../src/product/certdrill/access";
 
 describe("CertDrill access", () => {
   it("treats every requested certification as purchased by default", async () => {

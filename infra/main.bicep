@@ -17,12 +17,12 @@ param environmentName string = 'production'
 @description('External PostgreSQL server fully qualified domain name.')
 param postgresServerFqdn string
 
-@description('External PostgreSQL administrator login.')
-param postgresAdminLogin string
+@description('Least-privilege PostgreSQL runtime login used by the API.')
+param postgresRuntimeLogin string
 
 @secure()
-@description('External PostgreSQL administrator password.')
-param postgresAdminPassword string
+@description('Least-privilege PostgreSQL runtime password used by the API.')
+param postgresRuntimePassword string
 
 @description('External PostgreSQL database name.')
 param postgresDatabaseName string
@@ -30,8 +30,8 @@ param postgresDatabaseName string
 @description('Container image for the API app.')
 param apiImage string
 
-@description('Whether to configure the API liveness probe. Disable only for bootstrap deployments that use placeholder images.')
-param enableApiLivenessProbe bool = true
+@description('Whether to configure liveness and readiness probes. Disable only while bootstrap images are running.')
+param enableContainerAppProbes bool = true
 
 @description('Container image for the web app.')
 param webImage string
@@ -39,12 +39,9 @@ param webImage string
 @description('Container image for the admin app.')
 param adminImage string
 
-@description('Optional Azure Container Registry username. First-version bootstrap tradeoff: ACR admin credentials are supported for initial deploys. Leave empty to omit registry credentials.')
-param acrUsername string = ''
-
-@secure()
-@description('Optional Azure Container Registry password. First-version bootstrap tradeoff: ACR admin credentials are supported for initial deploys. Leave empty to omit registry credentials.')
-param acrPassword string = ''
+@minLength(3)
+@description('Email address that receives Azure Monitor production alerts through the shared action group.')
+param alertOperatorEmail string
 
 var resourcesDeploymentName = take('container-apps-resources-${uniqueString(resourceGroupName, appName)}', 64)
 
@@ -65,15 +62,14 @@ module resources 'main.resources.bicep' = {
     appName: appName
     environmentName: environmentName
     postgresServerFqdn: postgresServerFqdn
-    postgresAdminLogin: postgresAdminLogin
-    postgresAdminPassword: postgresAdminPassword
+    postgresRuntimeLogin: postgresRuntimeLogin
+    postgresRuntimePassword: postgresRuntimePassword
     postgresDatabaseName: postgresDatabaseName
     apiImage: apiImage
-    enableApiLivenessProbe: enableApiLivenessProbe
+    enableContainerAppProbes: enableContainerAppProbes
     webImage: webImage
     adminImage: adminImage
-    acrUsername: acrUsername
-    acrPassword: acrPassword
+    alertOperatorEmail: alertOperatorEmail
   }
 }
 
@@ -82,6 +78,8 @@ output acrLoginServer string = resources.outputs.acrLoginServer
 output apiAppName string = resources.outputs.apiAppName
 output webAppName string = resources.outputs.webAppName
 output adminAppName string = resources.outputs.adminAppName
+output privacyExportStorageAccountName string = resources.outputs.privacyExportStorageAccountName
+output privacyExportStorageContainerName string = resources.outputs.privacyExportStorageContainerName
 output apiFqdn string = resources.outputs.apiFqdn
 output webFqdn string = resources.outputs.webFqdn
 output adminFqdn string = resources.outputs.adminFqdn

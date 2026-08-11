@@ -1,21 +1,21 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { createdAt, id, updatedAt } from "./helpers";
 
-export type PendingEmailStatus = "pending" | "sending" | "sent" | "failed";
+export type EmailDeliveryStatus = "pending" | "sending" | "sent" | "failed";
 
-export const pendingEmails = pgTable(
-  "pending_emails",
+export const emailDeliveries = pgTable(
+  "email_deliveries",
   {
     id,
     to: text("to").notNull(),
     subject: text("subject").notNull(),
     html: text("html").notNull(),
     text: text("text"),
-    status: text("status").$type<PendingEmailStatus>().default("pending").notNull(),
+    status: text("status").$type<EmailDeliveryStatus>().default("pending").notNull(),
     attempts: integer("attempts").default(0).notNull(),
-    maxAttempts: integer("max_attempts").default(5).notNull(),
-    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     failedAt: timestamp("failed_at", { withTimezone: true }),
     lastError: text("last_error"),
@@ -25,7 +25,9 @@ export const pendingEmails = pgTable(
     updatedAt,
   },
   (table) => [
-    index("pending_emails_status_next_attempt_idx").on(table.status, table.nextAttemptAt),
-    index("pending_emails_created_idx").on(table.createdAt),
+    index("email_deliveries_status_created_idx").on(table.status, table.createdAt),
+    index("email_deliveries_to_created_idx").on(table.to, table.createdAt),
+    check("email_deliveries_status_check", sql`${table.status} in ('pending', 'sending', 'sent', 'failed')`),
+    check("email_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
   ],
 );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -75,11 +75,14 @@ export function MarkdownTextareaWithPreview({
   onChange,
   ...props
 }: ComponentProps<typeof Textarea> & { id: string; label: string; previewLabel: string; helperText?: string }) {
-  const [markdown, setMarkdown] = useState(String(defaultValue ?? ""));
+  const normalizedDefaultValue = String(defaultValue ?? "");
+  const [previousDefaultValue, setPreviousDefaultValue] = useState(normalizedDefaultValue);
+  const [markdown, setMarkdown] = useState(normalizedDefaultValue);
 
-  useEffect(() => {
-    setMarkdown(String(defaultValue ?? ""));
-  }, [defaultValue]);
+  if (previousDefaultValue !== normalizedDefaultValue) {
+    setPreviousDefaultValue(normalizedDefaultValue);
+    setMarkdown(normalizedDefaultValue);
+  }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
     setMarkdown(event.currentTarget.value);

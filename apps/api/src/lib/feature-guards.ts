@@ -42,3 +42,11 @@ export function ensureSubscriptionBillingEnabled() {
     throw createBillingModeDisabledError("subscriptions");
   }
 }
+
+export function ensureTransactionBillingEnabled() {
+  ensureBillingEnabled();
+
+  if (getBillingMode() !== "transactions") {
+    throw createBillingModeDisabledError("transactions");
+  }
+}

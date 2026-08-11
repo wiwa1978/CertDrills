@@ -6,7 +6,12 @@ import type { AppEnv } from "../context";
 import { env } from "../env";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const SESSION_COOKIE_NAMES = ["better-auth.session_token", "__Secure-better-auth.session_token"];
+const SESSION_COOKIE_NAMES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+  "better-auth-admin.session_token",
+  "__Secure-better-auth-admin.session_token",
+];
 
 function configuredOrigins() {
   return [
@@ -18,6 +23,11 @@ function configuredOrigins() {
 }
 
 const trustedOrigins = new Set(configuredOrigins());
+const adminTrustedOrigins = new Set([env.ADMIN_APP_URL, env.API_URL].filter((origin): origin is string => Boolean(origin)));
+
+function isAdminPath(path: string) {
+  return path === "/admin" || path.startsWith("/admin/") || path === "/admin-auth" || path.startsWith("/admin-auth/");
+}
 
 function isWebhookPath(path: string) {
   return path === "/payments/webhooks/dodo" || path.startsWith("/payments/webhooks/");
@@ -46,14 +56,15 @@ function originFromReferer(referer: string | undefined) {
   }
 }
 
-export function isTrustedRequestOrigin(headers: Headers) {
+export function isTrustedRequestOrigin(headers: Headers, path = "") {
+  const allowedOrigins = isAdminPath(path) ? adminTrustedOrigins : trustedOrigins;
   const origin = headers.get("origin");
   if (origin) {
-    return trustedOrigins.has(origin);
+    return allowedOrigins.has(origin);
   }
 
   const refererOrigin = originFromReferer(headers.get("referer") ?? undefined);
-  return Boolean(refererOrigin && trustedOrigins.has(refererOrigin));
+  return Boolean(refererOrigin && allowedOrigins.has(refererOrigin));
 }
 
 export const originGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -67,7 +78,7 @@ export const originGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
     return next();
   }
 
-  if (!isTrustedRequestOrigin(c.req.raw.headers)) {
+  if (!isTrustedRequestOrigin(c.req.raw.headers, c.req.path)) {
     return c.json(
       {
         success: false,

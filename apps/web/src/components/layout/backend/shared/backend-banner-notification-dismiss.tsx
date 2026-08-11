@@ -1,24 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { authConfig } from "@/config/auth";
-import { webQueryKeys } from "@/lib/query/keys";
 import { markAsRead } from "@/lib/services/notifications";
 
 export function BackendBannerNotificationDismiss({ notificationId }: { notificationId: string }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   async function dismiss() {
     await markAsRead(notificationId);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: webQueryKeys.notifications(authConfig.notificationsDropdownLimit) }),
-      queryClient.invalidateQueries({ queryKey: webQueryKeys.unreadNotifications }),
-    ]);
+    window.dispatchEvent(new Event("notifications:changed"));
     router.refresh();
   }
 

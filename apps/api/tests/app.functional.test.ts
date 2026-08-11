@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { creditPackages } from "../src/config/billing";
+
+const advancedCreditProductId = creditPackages.find((pkg) => pkg.key === "advanced")!.providerProductIds.dodo;
 
 const mocks = vi.hoisted(() => {
   const billingService = {
@@ -40,6 +43,12 @@ const mocks = vi.hoisted(() => {
     upsertUserSubscription: vi.fn(),
     recordSubscriptionEvent: vi.fn(),
   };
+  const transactionService = {
+    handleTransactionPayment: vi.fn(),
+    processTransactionRefund: vi.fn(),
+    createTransactionRefund: vi.fn(),
+  };
+
 
   const adminService = {
     verifyAdminSecret: vi.fn(),
@@ -58,80 +67,15 @@ const mocks = vi.hoisted(() => {
     getCreditsConsumedData: vi.fn(),
     searchUsers: vi.fn(),
     countActiveAdmins: vi.fn(),
+    withGovernanceLock: vi.fn(async (action: () => Promise<unknown>) => action()),
   };
 
   const adminCreditsDashboardService = {
     getDashboard: vi.fn(),
   };
-
-  const certdrillAdminService = {
-    listCertifications: vi.fn(),
-    listVendors: vi.fn(),
-    createCertification: vi.fn(),
-    updateCertification: vi.fn(),
-    archiveCertification: vi.fn(),
-    listCategories: vi.fn(),
-    createCategory: vi.fn(),
-    updateCategory: vi.fn(),
-    archiveCategory: vi.fn(),
-    listQuestionIndex: vi.fn(),
-    listQuestions: vi.fn(),
-    createQuestion: vi.fn(),
-    updateQuestion: vi.fn(),
-    publishQuestion: vi.fn(),
-    updateQuestionStatuses: vi.fn(),
-    previewQuestionImport: vi.fn(),
-    importQuestions: vi.fn(),
-    startCategoryDiscovery: vi.fn(),
-    getBlueprintParseRun: vi.fn(),
-    listBlueprintParseRuns: vi.fn(),
-    processPendingBlueprintParseRuns: vi.fn(),
-    startQuestionGeneration: vi.fn(),
-    getQuestionGenerationJob: vi.fn(),
-    listQuestionGenerationJobs: vi.fn(),
-    processPendingQuestionGenerationJobs: vi.fn(),
-    processPendingScenarioGenerationJobs: vi.fn(),
-    listExamForms: vi.fn(),
-    createExamForm: vi.fn(),
-    updateExamForm: vi.fn(),
-    createResource: vi.fn(),
-    listResources: vi.fn(),
-    updateResource: vi.fn(),
-    ingestResource: vi.fn(),
-    listQuestionFeedbackForAdmin: vi.fn(),
-    updateQuestionFeedback: vi.fn(),
+  const adminTransactionFinanceDashboardService = {
+    getDashboard: vi.fn(),
   };
-  const certdrillService = {
-    listCertifications: vi.fn(),
-    listMyCertifications: vi.fn(),
-    getReadinessSummary: vi.fn(),
-    listDueReviewQueue: vi.fn(),
-    listCategories: vi.fn(),
-    createAttempt: vi.fn(),
-    getAttemptForResume: vi.fn(),
-    answerQuestion: vi.fn(),
-    createQuestionFeedback: vi.fn(),
-    submitAttempt: vi.fn(),
-    reviewAttempt: vi.fn(),
-    listAttempts: vi.fn(),
-  };
-  const jobsRunner = {
-    ensureRegistered: vi.fn(),
-    runDue: vi.fn(),
-  };
-  const state = {
-    certdrillAdminServiceDeps: null as unknown,
-    jobsRunnerDeps: null as unknown,
-  };
-  const createCertDrillAdminService = vi.fn((deps) => {
-    state.certdrillAdminServiceDeps = deps;
-    return certdrillAdminService;
-  });
-  const createCertDrillService = vi.fn(() => certdrillService);
-  const createJobsRunner = vi.fn((deps) => {
-    state.jobsRunnerDeps = deps;
-    return jobsRunner;
-  });
 
   const notificationsService = {
     listForUser: vi.fn(),
@@ -169,6 +113,28 @@ const mocks = vi.hoisted(() => {
   };
   const dodoCustomerPortal = {
     create: vi.fn(),
+  };
+  const dodoCheckoutSessions = {
+    create: vi.fn(),
+  };
+  const dodoCheckout = vi.fn((options: unknown) => ({ plugin: "checkout", options }));
+  const dodoPortal = vi.fn(() => ({ plugin: "portal" }));
+  const dodoWebhooks = vi.fn((options: unknown) => ({ plugin: "webhooks", options }));
+  const paymentPluginFactoryCalls: unknown[] = [];
+  const dodoPaymentsPlugin = vi.fn((options: unknown) => {
+    paymentPluginFactoryCalls.push(options);
+    return { plugin: "dodopayments", options };
+  });
+  const authModuleOptions: Array<{
+    betterAuthOptions?: {
+      baseURL?: string;
+      trustedOrigins?: string[];
+      advanced?: { cookiePrefix?: string };
+      plugins?: Array<{ id?: string; plugin?: string; options?: { use?: Array<{ plugin?: string; options?: { onPayload?: (payload: unknown) => Promise<void> } }> } }>;
+    };
+  }> = [];
+  const paymentWebhookIngestion = {
+    ingestVerifiedPayload: vi.fn(async () => ({ processed: true })),
   };
   const auditService = {
     recordAuditEntry: vi.fn(),
@@ -221,6 +187,10 @@ const mocks = vi.hoisted(() => {
     { processingStatus: "processed", count: 1 },
     { processingStatus: "failed", count: 2 },
   ];
+  const applicationSettingsTable = {
+    key: "key",
+    value: "value",
+  };
   const db = {
     query: {
       paymentWebhookEvents: {
@@ -228,10 +198,11 @@ const mocks = vi.hoisted(() => {
         findFirst: vi.fn(async () => webhookRows[0]),
       },
     },
+    execute: vi.fn(async () => []),
     select: vi.fn((selection?: Record<string, unknown>) => {
       let selectedLanguage = "en";
       const builder = {
-        from: vi.fn(() => builder),
+        from: vi.fn((table?: unknown) => (table === applicationSettingsTable ? [] : builder)),
         where: vi.fn((condition?: { value?: string }) => {
           selectedLanguage = condition?.value ?? "en";
           if (selection && "count" in selection) return [{ count: webhookRows.length }];
@@ -252,36 +223,50 @@ const mocks = vi.hoisted(() => {
     billingService,
     checkoutIntentsService,
     subscriptionService,
+    transactionService,
     adminService,
     adminCreditsDashboardService,
-    certdrillAdminService,
-    certdrillService,
-    jobsRunner,
-    createCertDrillAdminService,
-    createCertDrillService,
-    createJobsRunner,
+    adminTransactionFinanceDashboardService,
     notificationsService,
     discountsService,
     vouchersService,
     auditService,
     adminAuthApi,
     dodoCustomerPortal,
+    dodoCheckoutSessions,
+    dodoCheckout,
+    dodoPortal,
+    dodoWebhooks,
+    dodoPaymentsPlugin,
+    paymentPluginFactoryCalls,
+    authModuleOptions,
+    paymentWebhookIngestion,
     db,
-    state,
+    applicationSettingsTable,
     env: {
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
-      APP_URL: "http://localhost:3200",
-      API_URL: "http://localhost:8877",
+      APP_URL: "http://localhost:3100",
+      ADMIN_APP_URL: "http://localhost:3101",
+      API_URL: "http://localhost:8787",
       ADMIN_ALLOWLIST: "admin@example.com",
+      ADMIN_PORTAL_TOTP_REQUIRED: false,
       LOG_LEVEL: "info" as const,
       DODO_PAYMENTS_ENVIRONMENT: "test_mode" as const,
       DODO_PAYMENTS_API_KEY: "dodo-api-key",
+      DODO_PAYMENTS_WEBHOOK_SECRET: "dodo-webhook-secret",
+      DODO_CREDITS_BRAND_ID: "brnd_credits",
+      DODO_SUBSCRIPTIONS_BRAND_ID: "brnd_subscriptions",
+      DODO_TRANSACTIONS_BRAND_ID: "brnd_transactions",
       BETTER_AUTH_SECRET: "this-is-a-long-enough-secret",
       JWT_SECRET: "this-is-a-long-enough-jwt-secret",
       JWT_ISSUER: "api",
       JWT_AUDIENCE: "mobile-clients",
       JWT_ACCESS_TTL_SECONDS: 900,
       JWT_REFRESH_TTL_SECONDS: 2592000,
+      BETTER_AUTH_ALLOWED_ORIGINS: "http://partner.example",
+      INNGEST_APP_ID: "api-functional-test",
+      AZURE_PRIVACY_EXPORT_STORAGE_CONNECTION_STRING: "UseDevelopmentStorage=true",
+      AZURE_PRIVACY_EXPORT_STORAGE_CONTAINER: "privacy-exports",
     },
   };
 });
@@ -298,14 +283,33 @@ vi.mock("drizzle-orm", () => ({
   ilike: vi.fn((column, value) => ({ column, value, op: "ilike" })),
   lte: vi.fn((column, value) => ({ column, value, op: "lte" })),
   or: vi.fn((...conditions) => ({ type: "or", conditions })),
+  sql: Object.assign(vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })), {
+    raw: vi.fn((value: string) => value),
+  }),
 }));
 
 vi.mock("../src/modules/billing/service", () => ({
   createBillingService: () => mocks.billingService,
 }));
 
+vi.mock("../src/modules/billing/capability-service", () => ({
+  createCapabilityService: (deps: { consumeCredits: (userId: string, input: Record<string, unknown>) => Promise<Record<string, unknown>> }) => ({
+    definitions: new Map(),
+    resolveForUser: vi.fn(async () => []),
+    consume: vi.fn(async (userId: string, capabilityKey: string, input: Record<string, unknown>) => ({
+      capabilityKey,
+      consumption: "credits",
+      ...await deps.consumeCredits(userId, { ...input, featureKey: capabilityKey }),
+    })),
+  }),
+}));
+
 vi.mock("../src/modules/billing/checkout-intents", () => ({
   createCheckoutIntentsService: () => mocks.checkoutIntentsService,
+}));
+
+vi.mock("../src/modules/billing/transaction-service", () => ({
+  createTransactionService: () => mocks.transactionService,
 }));
 
 vi.mock("../src/modules/billing/subscription-service", () => ({
@@ -317,16 +321,12 @@ vi.mock("../src/modules/admin/service", () => ({
   createAdminService: () => mocks.adminService,
 }));
 
-vi.mock("../src/modules/certdrill/admin-service", () => ({
-  createCertDrillAdminService: mocks.createCertDrillAdminService,
-}));
-
-vi.mock("../src/modules/certdrill/service", () => ({
-  createCertDrillService: mocks.createCertDrillService,
-}));
-
 vi.mock("../src/modules/billing/credits-dashboard-service", () => ({
   createAdminCreditsDashboardService: () => mocks.adminCreditsDashboardService,
+}));
+
+vi.mock("../src/modules/billing/transaction-finance-dashboard-service", () => ({
+  createAdminTransactionFinanceDashboardService: () => mocks.adminTransactionFinanceDashboardService,
 }));
 
 vi.mock("../src/modules/notifications/service", () => ({
@@ -341,10 +341,6 @@ vi.mock("../src/modules/vouchers/service", () => ({
   createVouchersService: () => mocks.vouchersService,
 }));
 
-vi.mock("../src/modules/jobs/runner", () => ({
-  createJobsRunner: mocks.createJobsRunner,
-}));
-
 vi.mock("../src/modules/audit/service", () => ({
   createAuditService: () => mocks.auditService,
   getAuditRequestContext: () => ({
@@ -357,7 +353,8 @@ vi.mock("../src/modules/audit/service", () => ({
 
 vi.mock("@platform/auth-core", () => ({
   authAdditionalUserFields: {},
-  createAuthModule: () => {
+  createAuthModule: (options: (typeof mocks.authModuleOptions)[number]) => {
+    mocks.authModuleOptions.push(options);
     const router = new Hono();
     router.post("/sign-in/email", async (c) => {
       const body = (await c.req.json().catch(() => null)) as { email?: string; password?: string } | null;
@@ -366,6 +363,22 @@ vi.mock("@platform/auth-core", () => ({
       }
       return c.json({ success: true, data: { token: "session-token" } });
     });
+    const webhookPlugin = options.betterAuthOptions?.plugins
+      ?.flatMap((plugin) => plugin.options?.use ?? [])
+      .find((plugin) => plugin.plugin === "webhooks");
+    const checkoutPlugin = options.betterAuthOptions?.plugins
+      ?.flatMap((plugin) => plugin.options?.use ?? [])
+      .find((plugin) => plugin.plugin === "checkout");
+    if (checkoutPlugin) {
+      router.post("/dodopayments/checkout", (c) => c.json({ success: true }));
+      router.post("/dodopayments/checkout-session", (c) => c.json({ success: true }));
+    }
+    if (webhookPlugin) {
+      router.post("/dodopayments/webhooks", async (c) => {
+        await webhookPlugin.options?.onPayload?.(await c.req.json().catch(() => ({})));
+        return c.json({ success: true });
+      });
+    }
 
     const mobileRouter = new Hono();
     mobileRouter.post("/token", async (c) => {
@@ -414,6 +427,7 @@ vi.mock("@platform/auth-core", () => ({
 }));
 
 vi.mock("@platform/payments-core", () => ({
+  createPaymentWebhookIngestion: () => mocks.paymentWebhookIngestion,
   createPaymentsModule: () => {
     const router = new Hono();
     router.post("/webhooks/:provider", async (c) => {
@@ -428,6 +442,7 @@ vi.mock("@platform/payments-core", () => ({
     });
     return { router };
   },
+  mapDodoEvent: vi.fn(),
 }));
 
 vi.mock("dodopayments", () => ({
@@ -435,12 +450,35 @@ vi.mock("dodopayments", () => ({
     customers: {
       customerPortal: mocks.dodoCustomerPortal,
     },
+    checkoutSessions: mocks.dodoCheckoutSessions,
   })),
+}));
+
+vi.mock("@dodopayments/better-auth", () => ({
+  checkout: mocks.dodoCheckout,
+  dodopayments: mocks.dodoPaymentsPlugin,
+  portal: mocks.dodoPortal,
+  webhooks: mocks.dodoWebhooks,
+}));
+
+vi.mock("../src/modules/security/postgres-rate-limit-store", () => ({
+  createPostgresRateLimitStore: () => {
+    const counts = new Map<string, number>();
+    return {
+      consume: vi.fn(async (key: string, rule: { max: number; windowMs: number }) => {
+        const count = (counts.get(key) ?? 0) + 1;
+        counts.set(key, count);
+        return { allowed: count <= rule.max, remaining: Math.max(0, rule.max - count), retryAfterSeconds: Math.ceil(rule.windowMs / 1000) };
+      }),
+      cleanupExpired: vi.fn(async () => 0),
+    };
+  },
 }));
 
 vi.mock("@platform/platform-db", () => ({
   createPlatformDb: () => ({ db: mocks.db }),
   account: {},
+  apiKeys: {},
   auditEntries: {},
   checkoutIntents: {},
   creditPurchases: {},
@@ -448,14 +486,24 @@ vi.mock("@platform/platform-db", () => ({
   mobileRefreshToken: {},
   notification: {},
   session: {},
+  jobRuns: {},
+  jobs: {},
+  pendingEmails: {},
+  rateLimitBuckets: {},
   subscriptionPayments: {},
   user: {},
+  transactionBasketItems: {},
+  transactionBaskets: {},
+  transactionEntitlements: {},
+  transactionOrderItems: {},
+  transactionOrders: {},
   userCredits: {},
   userDataExportRequests: {},
   userDiscounts: {},
   userSubscriptions: {},
   voucherAssignments: {},
   voucherRedemptions: {},
+  applicationSettings: mocks.applicationSettingsTable,
   country: {
     id: "id",
     name: "name",
@@ -484,8 +532,8 @@ vi.mock("@platform/email-core", () => ({
 }));
 
 const [
-  { app },
-  { bootstrap },
+  { app, createPlatformApp, services: bootstrap },
+  { createPaymentProviderAuthPlugins },
   { clearRequestGuardrailStateForTests },
   { API_VERSION_POLICY, APP_OWNED_API_ROUTES },
   { applicationConfig },
@@ -497,8 +545,8 @@ const [
   import("../src/config/application"),
 ]);
 
-function setBillingModeForTest(mode: "credits" | "subscriptions") {
-  (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = mode;
+function setBillingModeForTest(mode: "credits" | "subscriptions" | "transactions") {
+  (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = mode;
 }
 
 type RouteSignature = `${string} ${string}`;
@@ -541,10 +589,6 @@ function readRouteSource(fileName: string) {
   return readFileSync(new URL(`../src/routes/${fileName}`, import.meta.url), "utf8");
 }
 
-function readBootstrapSource() {
-  return readFileSync(new URL("../src/bootstrap.ts", import.meta.url), "utf8");
-}
-
 function extractRouterRoutes(fileName: string, prefix = "") {
   const source = readRouteSource(fileName);
   const routes: RouteSignature[] = [];
@@ -572,6 +616,9 @@ function getSourceDefinedAppRoutes() {
     ...extractRouterRoutes("auth.ts", "/auth"),
     ...extractRouterRoutes("me.ts", "/me"),
     ...extractRouterRoutes("admin.ts", "/admin"),
+    ...extractRouterRoutes("admin-logs.ts", "/admin"),
+    ...extractRouterRoutes("admin-operations.ts", "/admin"),
+    ...extractRouterRoutes("admin-webhooks.ts", "/admin"),
     routeSignature("post", "/payments/webhooks/{provider}"),
     routeSignature("post", "/auth/mobile/token"),
     routeSignature("post", "/auth/mobile/refresh"),
@@ -581,9 +628,56 @@ function getSourceDefinedAppRoutes() {
   ].sort();
 }
 
+describe("auth realm bootstrap", () => {
+  it("constructs isolated public and admin auth modules", () => {
+    expect(mocks.authModuleOptions.map((options) => ({
+      baseURL: options.betterAuthOptions?.baseURL,
+      cookiePrefix: options.betterAuthOptions?.advanced?.cookiePrefix,
+      trustedOrigins: options.betterAuthOptions?.trustedOrigins,
+    }))).toEqual([
+      {
+        baseURL: "http://localhost:8787/auth",
+        cookiePrefix: "better-auth",
+        trustedOrigins: [
+          "http://localhost:3100",
+          "http://localhost:8787",
+          "http://localhost:3101",
+          "http://partner.example",
+        ],
+      },
+      {
+        baseURL: "http://localhost:8787/admin-auth",
+        cookiePrefix: "better-auth-admin",
+        trustedOrigins: ["http://localhost:3101", "http://localhost:8787"],
+      },
+    ]);
+    expect(mocks.paymentPluginFactoryCalls).toHaveLength(1);
+    expect(mocks.authModuleOptions[0]?.betterAuthOptions?.plugins).toContainEqual(
+      expect.objectContaining({ plugin: "dodopayments" }),
+    );
+    expect(mocks.authModuleOptions[1]?.betterAuthOptions?.plugins).not.toContainEqual(
+      expect.objectContaining({ plugin: "dodopayments" }),
+    );
+    expect(mocks.authModuleOptions[0]?.betterAuthOptions?.plugins).toContainEqual(
+      expect.objectContaining({ id: "open-api" }),
+    );
+    expect(mocks.authModuleOptions[1]?.betterAuthOptions?.plugins).not.toContainEqual(
+      expect.objectContaining({ id: "open-api" }),
+    );
+    expect(mocks.authModuleOptions[0]?.betterAuthOptions?.plugins).toContainEqual(
+      expect.objectContaining({ id: "admin" }),
+    );
+    expect(mocks.authModuleOptions[1]?.betterAuthOptions?.plugins).toContainEqual(
+      expect.objectContaining({ id: "admin" }),
+    );
+  });
+});
+
 describe("API functional routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.db.execute.mockReset();
+    mocks.db.execute.mockResolvedValue([]);
     setBillingModeForTest("credits");
     mocks.adminService.verifyAdminSecret.mockResolvedValue({ success: true });
     mocks.adminAuthApi.verifyTotp.mockResolvedValue(null);
@@ -591,6 +685,9 @@ describe("API functional routes", () => {
     mocks.auditService.recordAuditEntry.mockResolvedValue({ success: true, entry: { id: "audit-1" } });
     mocks.auditService.listAuditEntries.mockResolvedValue([]);
     mocks.subscriptionService.getLatestProviderCustomerId.mockResolvedValue(null);
+    mocks.dodoCheckoutSessions.create.mockResolvedValue({
+      checkout_url: "https://checkout.test/session/cs_functional",
+    });
     clearRequestGuardrailStateForTests();
   });
 
@@ -598,84 +695,121 @@ describe("API functional routes", () => {
     expect(bootstrap.auditService).toBe(mocks.auditService);
   });
 
-  it("derives the Foundry Responses URL from AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in bootstrap source", () => {
-    const source = readBootstrapSource();
-
-    expect(source).toMatch(/buildFoundryResponsesUrl\(\s*env\.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT\s*\)/s);
-    expect(source).not.toContain("AZURE_AI_FOUNDRY_RESPONSES_URL");
+  it("exports the transaction finance dashboard service from bootstrap", () => {
+    expect(bootstrap.adminTransactionFinanceDashboardService).toBe(mocks.adminTransactionFinanceDashboardService);
   });
 
-  it("injects a not-configured blueprint parser into the CertDrill admin service bootstrap wiring", async () => {
-    const deps = mocks.state.certdrillAdminServiceDeps as {
-      blueprintParser?: {
-        provider: string;
-        model: string;
-        parse: (input: unknown) => Promise<unknown>;
-      };
-    } | null;
-    expect(deps).toBeTruthy();
-    expect(deps?.blueprintParser).toBeTruthy();
-    const parser = deps!.blueprintParser!;
+  it.each(["credits", "subscriptions", "transactions"] as const)(
+    "mounts only Better Auth portal and webhooks in %s billing mode",
+    (mode) => {
+      setBillingModeForTest(mode);
 
-    expect(parser).toMatchObject({
-      provider: "not-configured",
-      model: "not-configured",
+      expect(() => createPaymentProviderAuthPlugins({} as never, mocks.paymentWebhookIngestion)).not.toThrow();
+
+      expect(mocks.dodoCheckout).not.toHaveBeenCalled();
+      expect(mocks.dodoPortal).toHaveBeenCalledTimes(1);
+      expect(mocks.dodoWebhooks).toHaveBeenCalledTimes(1);
+      expect(mocks.dodoPaymentsPlugin).toHaveBeenCalledWith(expect.objectContaining({
+        createCustomerOnSignUp: true,
+        getCustomerParams: expect.any(Function),
+        use: [expect.objectContaining({ plugin: "portal" }), expect.objectContaining({ plugin: "webhooks" })],
+      }));
+    },
+  );
+
+  it.each(["/auth/dodopayments/checkout", "/auth/dodopayments/checkout-session"])(
+    "does not expose Better Auth checkout endpoint %s",
+    async (path) => {
+      const res = await app.request(path, { method: "POST" });
+
+      expect(res.status).toBe(404);
+    },
+  );
+
+  it("mounts the Better Auth Dodo webhook endpoint", async () => {
+    const res = await app.request("/auth/dodopayments/webhooks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "webhook-id": "evt_better_auth",
+        "webhook-timestamp": "1785844800",
+        "x-correlation-id": "corr_better_auth",
+      },
+      body: JSON.stringify({ type: "payment.succeeded", data: { payment_id: "pay_better_auth" } }),
     });
-    await expect(parser.parse({})).rejects.toMatchObject({
-      code: "BLUEPRINT_PARSER_NOT_CONFIGURED",
-      message: "Blueprint parser is not configured.",
-    });
+
+    expect(res.status).not.toBe(404);
+    expect(mocks.paymentWebhookIngestion.ingestVerifiedPayload).toHaveBeenCalledWith(
+      {
+        id: "evt_better_auth",
+        type: "payment.succeeded",
+        data: { payment_id: "pay_better_auth" },
+      },
+      expect.objectContaining({
+        correlationId: "corr_better_auth",
+        signatureTimestamp: new Date("2026-08-04T12:00:00.000Z"),
+      }),
+    );
   });
 
-  it("registers CertDrill background workers without removing existing jobs", async () => {
-    const deps = mocks.state.jobsRunnerDeps as {
-      jobs: Array<{
-        name: string;
-        intervalSeconds: number;
-        handler: () => Promise<unknown>;
-        lockTimeoutSeconds?: number;
-      }>;
-    } | null;
-    expect(deps).toBeTruthy();
-    const jobNames = deps!.jobs.map((job) => job.name);
-    const blueprintJob = deps!.jobs.find((job) => job.name === "certdrill-blueprint-parser");
-    const generationJob = deps!.jobs.find((job) => job.name === "certdrill-question-generator");
-    const scenarioGenerationJob = deps!.jobs.find((job) => job.name === "certdrill-scenario-generator");
-    const processResult = { checked: 5, completed: 4, failed: 1 };
-    mocks.certdrillAdminService.processPendingBlueprintParseRuns.mockResolvedValueOnce(processResult);
-    mocks.certdrillAdminService.processPendingQuestionGenerationJobs.mockResolvedValueOnce(processResult);
-    mocks.certdrillAdminService.processPendingScenarioGenerationJobs.mockResolvedValueOnce(processResult);
+  // Liveness must not depend on the database or other downstream services.
+  it("returns liveness status", async () => {
 
-    expect(jobNames).toEqual(expect.arrayContaining([
-      "billing-reconciliation",
-      "webhook-recovery",
-      "expire-user-data-exports",
-      "process-pending-emails",
-      "certdrill-blueprint-parser",
-      "certdrill-question-generator",
-      "certdrill-scenario-generator",
-    ]));
-    expect(jobNames).toHaveLength(7);
-    expect(blueprintJob?.intervalSeconds).toBe(30);
-    expect(generationJob?.intervalSeconds).toBe(30);
-    expect(scenarioGenerationJob?.intervalSeconds).toBe(30);
-    expect(scenarioGenerationJob?.lockTimeoutSeconds).toBe(900);
-    await expect(blueprintJob!.handler()).resolves.toEqual(processResult);
-    await expect(generationJob!.handler()).resolves.toEqual(processResult);
-    await expect(scenarioGenerationJob!.handler()).resolves.toEqual(processResult);
-    expect(mocks.certdrillAdminService.processPendingBlueprintParseRuns).toHaveBeenCalledWith(5);
-    expect(mocks.certdrillAdminService.processPendingQuestionGenerationJobs).toHaveBeenCalledWith(3);
-    expect(mocks.certdrillAdminService.processPendingScenarioGenerationJobs).toHaveBeenCalledWith(1);
-  });
-
-  // Verifies the health endpoint always reports service readiness.
-  it("returns health status", async () => {
     const res = await app.request("/health");
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
       success: true,
       data: { status: "ok" },
     });
+    expect(mocks.db.execute).not.toHaveBeenCalled();
+  });
+
+  it("returns readiness status when dependencies are available", async () => {
+    const res = await app.request("/ready");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      data: { status: "ready", checks: [] },
+    });
+    expect(mocks.db.execute).toHaveBeenCalledOnce();
+  });
+
+  it("gates readiness when the database is unavailable", async () => {
+    mocks.db.execute.mockRejectedValueOnce(new Error("database unavailable"));
+
+    const res = await app.request("/ready");
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ success: false, status: "not_ready" });
+  });
+
+  it("mounts capability-gated product routes and OpenAPI contributions", async () => {
+    const productRouter = new Hono().get("/", (c) => c.json({ success: true, data: { module: "catalog" } }));
+    const composedApp = createPlatformApp(bootstrap, [{
+      id: "catalog",
+      capabilities: [{ key: "catalog.read", defaultAccess: "allowed" }],
+      routes: [{
+        id: "catalog-api",
+        mountPath: "/catalog",
+        access: "user",
+        requiredCapability: "catalog.read",
+        router: productRouter,
+      }],
+      openApiRoutes: [{
+        method: "get",
+        path: "/catalog",
+        operation: { responses: { "200": { description: "Catalog" } } },
+      }],
+    }]);
+
+    const routeResponse = await composedApp.request("/catalog");
+    expect(routeResponse.status).toBe(200);
+    await expect(routeResponse.json()).resolves.toEqual({ success: true, data: { module: "catalog" } });
+
+    const specResponse = await composedApp.request("/openapi.json");
+    expect(specResponse.status).toBe(200);
+    await expect(specResponse.json()).resolves.toMatchObject({ paths: { "/catalog": { get: {} } } });
   });
 
   // Verifies authenticated clients can discover application capabilities before
@@ -692,11 +826,18 @@ describe("API functional routes", () => {
           mode: "credits",
           creditSurfacesEnabled: true,
           subscriptionSurfacesEnabled: false,
+          transactionSurfacesEnabled: false,
         },
         features: {
           vouchers: true,
           discounts: true,
           notifications: true,
+        },
+        capabilities: ["aiGeneration", "apiCall", "exportPdf", "chatText", "chatAudio", "chatVideo"],
+        ui: {
+          "ui.notificationsDropdownLimit": 5,
+          "ui.notificationsPollingIntervalMs": 30000,
+          "ui.deleteAccountCountdownSeconds": 10,
         },
       },
     });
@@ -867,11 +1008,12 @@ describe("API functional routes", () => {
     expect(rootSpec.info?.title).toBe("SaaS Platform API");
     expect(rootSpec.servers).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ url: "http://localhost:8877" }),
-        expect.objectContaining({ url: `http://localhost:8877${API_VERSION_POLICY.nextStablePrefix}` }),
+        expect.objectContaining({ url: "http://localhost:8787" }),
+        expect.objectContaining({ url: `http://localhost:8787${API_VERSION_POLICY.nextStablePrefix}` }),
       ]),
     );
     expect(rootSpec.paths?.["/auth/sign-in/email"]?.post).toBeTruthy();
+    expect(rootSpec.paths?.["/payments/checkout"]?.post?.responses?.["502"]).toBeTruthy();
     expect(apiSpec).toEqual(rootSpec);
 
     for (const route of APP_OWNED_API_ROUTES) {
@@ -916,6 +1058,21 @@ describe("API functional routes", () => {
     );
     expect(sendUsersOperation?.responses?.["200"]?.content?.["application/json"]?.schema?.properties?.data?.properties).not.toHaveProperty("batchId");
 
+    const transactionDashboardOperation = rootSpec.paths?.["/admin/billing/transaction-dashboard"]?.get;
+    expect(transactionDashboardOperation?.parameters?.map((parameter: { name?: string }) => parameter.name)).toEqual([
+      "range",
+      "startDate",
+      "endDate",
+      "grouping",
+      "currency",
+      "status",
+      "productKey",
+      "search",
+      "page",
+    ]);
+    expect(Object.keys(transactionDashboardOperation?.responses ?? {}).sort()).toEqual(["200", "400", "401", "403"]);
+    expect(transactionDashboardOperation?.responses?.["200"]?.content?.["application/json"]?.schema?.properties?.data?.properties).toHaveProperty("warnings");
+
     const documentedAppRoutes = APP_OWNED_API_ROUTES.map((route) => `${route.method.toUpperCase()} ${route.path}`);
     expect(new Set(documentedAppRoutes).size).toBe(documentedAppRoutes.length);
     expect(documentedAppRoutes.sort()).toEqual(getSourceDefinedAppRoutes());
@@ -937,11 +1094,9 @@ describe("API functional routes", () => {
     await expect(res.json()).resolves.toEqual({ success: true, data: { totalUsers: 99 } });
   });
 
-  // Verifies checkout endpoint returns package-specific dodo checkout URL
-  // with userId firmly bound into the metadata query params (see PR 0.3 —
-  // metadata.userId is the authoritative tie-back used by the webhook
-  // handler to credit the correct account).
-  it("returns checkout URL with userId metadata bound for known package", async () => {
+  // Verifies checkout endpoint creates a package-specific session with userId
+  // firmly bound into metadata for webhook ownership checks.
+  it("returns checkout session with userId metadata bound for known package", async () => {
     const res = await app.request("/payments/checkout", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -951,25 +1106,42 @@ describe("API functional routes", () => {
     expect(res.status).toBe(200);
     const payload = (await res.json()) as { success: boolean; data: { checkoutUrl: string } };
     expect(payload.success).toBe(true);
-    const url = new URL(payload.data.checkoutUrl);
-    expect(url.origin + url.pathname).toBe(
-      "https://test.checkout.dodopayments.com/buy/pdt_0NeNLCAY7sLmCDqKfD2wK",
-    );
-    expect(url.searchParams.get("metadata_userId")).toBe("auth-user");
-    expect(url.searchParams.get("metadata_packageKey")).toBe("advanced");
-    expect(url.searchParams.get("metadata_referenceId")).toBe("checkout-ref-functional");
-    expect(url.searchParams.get("metadata_checkoutReferenceId")).toBe("checkout-ref-functional");
-    expect(url.searchParams.get("redirect_url")).toBe("http://localhost:3200/billing?success=true");
-    expect(url.searchParams.get("cancel_url")).toBe("http://localhost:3200/billing?cancel=true");
+    expect(payload.data.checkoutUrl).toBe("https://checkout.test/session/cs_functional");
+    expect(mocks.dodoCheckoutSessions.create).toHaveBeenCalledWith(expect.objectContaining({
+      brand_id: "brnd_credits",
+      product_cart: [{ product_id: advancedCreditProductId, quantity: 1 }],
+      metadata: expect.objectContaining({
+        userId: "auth-user",
+        packageKey: "advanced",
+        referenceId: "checkout-ref-functional",
+        checkoutReferenceId: "checkout-ref-functional",
+      }),
+      return_url: "http://localhost:3100/billing?success=true",
+      cancel_url: "http://localhost:3100/billing?cancel=true",
+    }));
     expect(mocks.checkoutIntentsService.create).toHaveBeenCalledWith({
       userId: "auth-user",
       billingMode: "credits",
       packageKey: "advanced",
       planKey: undefined,
-      productId: "pdt_0NeNLCAY7sLmCDqKfD2wK",
+      productId: advancedCreditProductId,
       discountCode: undefined,
       metadata: expect.objectContaining({ source: "payments.checkout" }),
     });
+  });
+
+  it("uses admin return URLs for admin checkout", async () => {
+    const res = await app.request("/admin/payments/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packageKey: "advanced" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.dodoCheckoutSessions.create).toHaveBeenCalledWith(expect.objectContaining({
+      return_url: "http://localhost:3101/billing?success=true",
+      cancel_url: "http://localhost:3101/billing?cancel=true",
+    }));
   });
 
   // Verifies checkout ignores client-controlled return URLs and uses server config.
@@ -985,10 +1157,37 @@ describe("API functional routes", () => {
     });
 
     expect(res.status).toBe(200);
-    const payload = (await res.json()) as { success: boolean; data: { checkoutUrl: string } };
-    const url = new URL(payload.data.checkoutUrl);
-    expect(url.searchParams.get("redirect_url")).toBe("http://localhost:3200/billing?success=true");
-    expect(url.searchParams.get("cancel_url")).toBe("http://localhost:3200/billing?cancel=true");
+    expect(mocks.dodoCheckoutSessions.create).toHaveBeenCalledWith(expect.objectContaining({
+      return_url: "http://localhost:3100/billing?success=true",
+      cancel_url: "http://localhost:3100/billing?cancel=true",
+    }));
+  });
+
+  it("does not leak provider checkout failures and leaves the intent pending", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.dodoCheckoutSessions.create.mockRejectedValueOnce(
+      Object.assign(new Error("Dodo product pdt_secret is invalid"), { status: 422 }),
+    );
+
+    const res = await app.request("/payments/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packageKey: "advanced" }),
+    });
+
+    expect(res.status).toBe(502);
+    const payload = await res.json();
+    expect(payload).toMatchObject(expectApiError("Failed to create checkout", "BAD_GATEWAY"));
+    expect(JSON.stringify(payload)).not.toContain("Dodo");
+    expect(JSON.stringify(payload)).not.toContain("pdt_secret");
+    expect(mocks.checkoutIntentsService.markFailed).not.toHaveBeenCalled();
+
+    const output = errorSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(output).toContain("billing_checkout.create.failed");
+    expect(output).toContain("auth-user");
+    expect(output).toContain("credits");
+    expect(output).toContain("Dodo checkout rejected the configured products");
+    errorSpy.mockRestore();
   });
 
   // Verifies customer portal endpoint creates a provider portal session for the authenticated user's known customer.
@@ -1005,7 +1204,7 @@ describe("API functional routes", () => {
     });
     expect(mocks.billingService.getLatestProviderCustomerId).toHaveBeenCalledWith("auth-user");
     expect(mocks.dodoCustomerPortal.create).toHaveBeenCalledWith("cus_auth_user", {
-      return_url: "http://localhost:3200/billing",
+      return_url: "http://localhost:3100/billing",
     });
   });
 
@@ -1263,6 +1462,114 @@ describe("API functional routes", () => {
     await expect(res.json()).resolves.toEqual({ success: true, data: dashboard });
   });
 
+  it("returns the transaction finance dashboard and forwards every parsed filter", async () => {
+    setBillingModeForTest("transactions");
+    const dashboard = {
+      filters: {
+        range: "custom",
+        startDate: "2026-07-01",
+        endDate: "2026-07-31",
+        grouping: "week",
+        currency: "EUR",
+        status: "failed",
+        productKey: "starterContent",
+        search: "alice@example.com",
+        page: 3,
+        pageSize: 20,
+        extra: "strip-me",
+      },
+      warnings: [{ source: "payment-provider-payments", message: "Provider unavailable", extra: "strip-me" }],
+      overview: {
+        amounts: [],
+        successfulOrders: 0,
+        pendingAttempts: 0,
+        failedAttempts: 0,
+        cancelledAttempts: 0,
+        refundedOrders: 0,
+        conversionRate: 0,
+        totalAttempts: 0,
+      },
+      revenue: [],
+      attempts: [],
+      successRate: [],
+      orderTrends: [],
+      orders: { rows: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 } },
+      refunds: {
+        refundableRows: [],
+        localRows: [],
+        providerRows: [{
+          provider: "dodo",
+          refundId: "refund-1",
+          paymentId: "payment-1",
+          status: "succeeded",
+          amount: null,
+          createdAt: null,
+          reason: null,
+          raw: { secret: true },
+        }],
+        totalAmounts: [],
+      },
+      products: { rows: [], providerRows: [] },
+      extra: "strip-me",
+    };
+    mocks.adminTransactionFinanceDashboardService.getDashboard.mockResolvedValueOnce(dashboard);
+
+    const res = await app.request(
+      "/admin/billing/transaction-dashboard?range=custom&startDate=2026-07-01&endDate=2026-07-31&grouping=week&currency=EUR&status=failed&productKey=starterContent&search=alice%40example.com&page=3",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(mocks.adminTransactionFinanceDashboardService.getDashboard).toHaveBeenCalledWith({
+      range: "custom",
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      grouping: "week",
+      currency: "EUR",
+      status: "failed",
+      productKey: "starterContent",
+      search: "alice@example.com",
+      page: 3,
+    });
+    const body = await res.json();
+    expect(body).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        warnings: [{ source: "payment-provider-payments", message: "Provider unavailable" }],
+        refunds: expect.objectContaining({
+          providerRows: [expect.not.objectContaining({ raw: expect.anything() })],
+        }),
+      }),
+    });
+    expect(body.data).not.toHaveProperty("extra");
+    expect(body.data.filters).not.toHaveProperty("extra");
+  });
+
+  it.each(["credits", "subscriptions"] as const)("rejects the transaction dashboard in %s mode", async (mode) => {
+    setBillingModeForTest(mode);
+
+    const res = await app.request("/admin/billing/transaction-dashboard");
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject(expectApiError("Billing mode disabled: transactions"));
+    expect(mocks.adminTransactionFinanceDashboardService.getDashboard).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "range=custom&startDate=2026-07-31&endDate=2026-07-01",
+    "range=custom&startDate=2026-07-01",
+    "page=not-a-number",
+    "status=processing",
+  ])("rejects malformed transaction dashboard query %s without calling the service", async (query) => {
+    setBillingModeForTest("transactions");
+
+    const res = await app.request(`/admin/billing/transaction-dashboard?${query}`);
+
+    expect(res.status).toBe(400);
+    await expectValidationError(res, "Invalid transaction finance dashboard query");
+    expect(mocks.adminTransactionFinanceDashboardService.getDashboard).not.toHaveBeenCalled();
+  });
+
   it("creates credit refunds through the admin billing endpoint", async () => {
     mocks.billingService.createCreditRefund.mockResolvedValueOnce({
       purchase: {
@@ -1328,6 +1635,74 @@ describe("API functional routes", () => {
     await expectValidationError(res, "Invalid credit refund payload");
     expect(mocks.billingService.createCreditRefund).not.toHaveBeenCalled();
   });
+  it("creates transaction refunds through the admin billing endpoint", async () => {
+    setBillingModeForTest("transactions");
+    mocks.transactionService.createTransactionRefund.mockResolvedValueOnce({
+      order: {
+        id: "00000000-0000-4000-8000-000000000001",
+        userId: "user_1",
+        paymentId: "pay_transaction_1",
+        status: "refunded",
+      },
+      refund: {
+        refundId: "ref_transaction_1",
+        paymentId: "pay_transaction_1",
+        status: "pending",
+        amount: 2500,
+        currency: "EUR",
+      },
+    });
+
+    const res = await app.request("/admin/billing/transaction-refunds", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderId: "00000000-0000-4000-8000-000000000001", reason: "Duplicate purchase", secret: "admin-secret-value" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.transactionService.createTransactionRefund).toHaveBeenCalledWith({
+      orderId: "00000000-0000-4000-8000-000000000001",
+      reason: "Duplicate purchase",
+      actorUserId: "auth-user",
+    });
+    expect(mocks.auditService.recordAuditEntry).toHaveBeenCalledWith(expect.objectContaining({
+      action: "billing.transaction_refund.create",
+      targetType: "transaction_order",
+      targetId: "00000000-0000-4000-8000-000000000001",
+    }));
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      data: {
+        order: {
+          id: "00000000-0000-4000-8000-000000000001",
+          userId: "user_1",
+          paymentId: "pay_transaction_1",
+          status: "refunded",
+        },
+        refund: {
+          refundId: "ref_transaction_1",
+          paymentId: "pay_transaction_1",
+          status: "pending",
+          amount: 2500,
+          currency: "EUR",
+        },
+      },
+    });
+  });
+
+  it("validates transaction refund payloads", async () => {
+    setBillingModeForTest("transactions");
+    const res = await app.request("/admin/billing/transaction-refunds", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderId: "not-a-uuid" }),
+    });
+
+    expect(res.status).toBe(400);
+    await expectValidationError(res, "Invalid transaction refund payload");
+    expect(mocks.transactionService.createTransactionRefund).not.toHaveBeenCalled();
+  });
+
 
   it("passes pagination and search to subscription billing endpoint", async () => {
     setBillingModeForTest("subscriptions");
@@ -2000,7 +2375,7 @@ describe("API functional routes", () => {
   it("records audit entry when stopping admin impersonation", async () => {
     mocks.adminAuthApi.stopImpersonating.mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
-    const res = await app.request("/auth/admin/stop-impersonating", {
+    const res = await app.request("/admin-auth/admin/stop-impersonating", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
@@ -2762,8 +3137,8 @@ describe("API functional routes", () => {
     await expectValidationError(res, "Invalid invoice payload");
   });
 
-  // Verifies invoice endpoint normalizes thrown service errors into 400 responses.
-  it("maps invoice errors to 400 response", async () => {
+  // Verifies ownership failures do not reveal whether a payment exists.
+  it("maps missing invoices to a private 404 response", async () => {
     mocks.billingService.downloadInvoice.mockRejectedValueOnce(new Error("Unauthorized"));
 
     const res = await app.request("/me/credits/invoice", {
@@ -2772,8 +3147,8 @@ describe("API functional routes", () => {
       body: JSON.stringify({ paymentId: "pay_1" }),
     });
 
-    expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toMatchObject(expectApiError("Unauthorized"));
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toMatchObject(expectApiError("Invoice not found", "NOT_FOUND"));
     expect(mocks.billingService.downloadInvoice).toHaveBeenCalledWith("auth-user", "pay_1");
   });
 
@@ -3032,10 +3407,10 @@ describe("API functional routes", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         level: "info",
-        message: 'client payload password: "abc}def" {"password":"abc}def"}',
-        userAgent: String.raw`agent client_secret = 'abc}def' \"password\":\"abc}def\"`,
+        message: 'client payload password: "abc}quotedSecretSuffix9Qx7" {"password":"abc}quotedSecretSuffix9Qx7"}',
+        userAgent: String.raw`agent client_secret = 'abc}quotedSecretSuffix9Qx7' \"password\":\"abc}quotedSecretSuffix9Qx7\"`,
         context: {
-          detail: 'password: "abc}def"',
+          detail: 'password: "abc}quotedSecretSuffix9Qx7"',
         },
       }),
     });
@@ -3049,7 +3424,7 @@ describe("API functional routes", () => {
     expect(output).not.toContain('password: \\"abc');
     expect(output).not.toContain('\\"password\\":\\"abc');
     expect(output).not.toContain("client_secret = abc");
-    expect(output).not.toContain("def");
+    expect(output).not.toContain("quotedSecretSuffix9Qx7");
     infoSpy.mockRestore();
   });
 
@@ -3062,10 +3437,10 @@ describe("API functional routes", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         level: "info",
-        message: String.raw`client payload \"password\":\"abc\\\"def\"`,
-        userAgent: String.raw`agent \"password\"=\"abc\\\"def\"`,
+        message: String.raw`client payload \"password\":\"abc\\\"escapedSecretSuffix9Qx7\"`,
+        userAgent: String.raw`agent \"password\"=\"abc\\\"escapedSecretSuffix9Qx7\"`,
         context: {
-          detail: String.raw`\'client_secret\':\'abc\\\'def\'`,
+          detail: String.raw`\'client_secret\':\'abc\\\'escapedSecretSuffix9Qx7\'`,
         },
       }),
     });
@@ -3078,7 +3453,7 @@ describe("API functional routes", () => {
     expect(output).not.toContain('\\\\\\"password\\\\\\":\\\\\\"abc');
     expect(output).not.toContain('\\\\\\"password\\\\\\"=\\"abc');
     expect(output).not.toContain("\\\\'client_secret\\\\':\\\\'abc");
-    expect(output).not.toContain("def");
+    expect(output).not.toContain("escapedSecretSuffix9Qx7");
     infoSpy.mockRestore();
   });
 
@@ -3240,7 +3615,7 @@ describe("API functional routes", () => {
     expect(mocks.discountsService.validateDiscountCode).toHaveBeenCalledWith("SAVE10", "11111111-1111-4111-8111-111111111111");
   });
 
-  // Verifies POST /me/credits/consume successfully consumes credits and returns result.
+  // Verifies capability consumption resolves the server-owned credit cost.
   it("consumes credits and returns transaction result", async () => {
     mocks.billingService.consumeCredits.mockResolvedValueOnce({
       transactionId: "tx-1",
@@ -3250,25 +3625,24 @@ describe("API functional routes", () => {
       alreadyProcessed: false,
     });
 
-    const res = await app.request("/me/credits/consume", {
+    const res = await app.request("/me/capabilities/aiGeneration/consume", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        featureKey: "ai-query",
-        amount: 5,
         idempotencyKey: "idem-key-12345678",
       }),
     });
 
     expect(res.status).toBe(200);
     expect(mocks.billingService.consumeCredits).toHaveBeenCalledWith("auth-user", {
-      featureKey: "ai-query",
-      amount: 5,
+      featureKey: "aiGeneration",
       idempotencyKey: "idem-key-12345678",
     });
     await expect(res.json()).resolves.toEqual({
       success: true,
       data: {
+        capabilityKey: "aiGeneration",
+        consumption: "credits",
         transactionId: "tx-1",
         idempotencyKey: "idem-key-12345678",
         balanceBefore: "100.00",
@@ -3278,16 +3652,14 @@ describe("API functional routes", () => {
     });
   });
 
-  // Verifies POST /me/credits/consume returns 400 when service throws (e.g. insufficient credits).
-  it("returns 400 when consuming credits fails", async () => {
+  // Verifies capability consumption surfaces insufficient-credit failures.
+  it("returns 400 when consuming a capability fails", async () => {
     mocks.billingService.consumeCredits.mockRejectedValueOnce(new Error("Insufficient credits"));
 
-    const res = await app.request("/me/credits/consume", {
+    const res = await app.request("/me/capabilities/aiGeneration/consume", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        featureKey: "ai-query",
-        amount: 1000,
         idempotencyKey: "idem-key-12345678",
       }),
     });
@@ -3298,16 +3670,15 @@ describe("API functional routes", () => {
     });
   });
 
-  // Verifies POST /me/credits/consume validates the request body.
-  it("validates consume credits payload", async () => {
-    const res = await app.request("/me/credits/consume", {
+  // Verifies capability consumption validates the request body.
+  it("validates capability consumption payloads", async () => {
+    const res = await app.request("/me/capabilities/aiGeneration/consume", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ featureKey: "ai-query" }),
+      body: JSON.stringify({}),
     });
 
-    expect(res.status).toBe(400);
-    await expectValidationError(res, "Invalid credit usage payload");
+    await expectValidationError(res, "Invalid capability consumption payload");
     expect(mocks.billingService.consumeCredits).not.toHaveBeenCalled();
   });
 

@@ -8,6 +8,9 @@ vi.mock("@platform/platform-db", async (importOriginal) => {
       id: { name: "id" },
       userId: { name: "user_id" },
       status: { name: "status" },
+      downloadTokenHash: { name: "download_token_hash" },
+      expiresAt: { name: "expires_at" },
+      storageKey: { name: "storage_key" },
       createdAt: { name: "created_at" },
     },
   };
@@ -33,7 +36,7 @@ function makeRequest(overrides: Record<string, unknown> = {}) {
     fileName: "user-data-export-export-1.json",
     fileSizeBytes: 123,
     downloadTokenHash: hashExportToken("download-token"),
-    exportData: { profile: { id: "user-1" } },
+    storageKey: "privacy-exports/export-1.json",
     expiresAt,
     downloadedAt: null,
     failedReason: null,
@@ -159,6 +162,7 @@ describe("privacy data export redaction", () => {
       voucherRedemptions: [],
       discountAssignments: [],
       auditReferences: [{ action: "auth.login", error: "stack trace" }],
+      productData: { catalog: [{ contentKey: "starter-content" }] },
     });
 
     const serialized = JSON.stringify(bundle);
@@ -175,6 +179,7 @@ describe("privacy data export redaction", () => {
     expect(serialized).not.toContain('"error":');
     expect(bundle.profile.role).toBe("admin");
     expect(bundle.profile.twoFactorEnabled).toBe(true);
+    expect(bundle.productData).toEqual({ catalog: [{ contentKey: "starter-content" }] });
   });
 });
 
@@ -201,7 +206,7 @@ describe("downloadUserDataExportCore", () => {
     expect(result).toEqual({ ok: false, error: "EXPORT_NOT_FOUND" });
   });
 
-  it("returns serialized JSON for ready exports owned by the current user", () => {
+  it("authorizes ready export storage metadata without loading a database payload", () => {
     const result = downloadUserDataExportCore({
       userId: "user-1",
       request: makeRequest(),
@@ -213,7 +218,7 @@ describe("downloadUserDataExportCore", () => {
       ok: true,
       id: "export-1",
       fileName: "user-data-export-export-1.json",
-      contents: JSON.stringify({ profile: { id: "user-1" } }, null, 2),
+      storageKey: "privacy-exports/export-1.json",
     });
   });
 });
@@ -224,9 +229,93 @@ describe("createPrivacyService", () => {
     const where = vi.fn().mockReturnValue({ returning });
     const set = vi.fn().mockReturnValue({ where });
     const update = vi.fn().mockReturnValue({ set });
-    const service = createPrivacyService({ db: { update } as any, now: () => fixedNow });
+    const service = createPrivacyService({
+      db: { update } as any,
+      now: () => fixedNow,
+      enqueueExport: vi.fn(),
+      storage: { put: vi.fn(), get: vi.fn(), delete: vi.fn() },
+      exportProductData: vi.fn(),
+    });
 
     await expect(service.cancelExport("user-1", "export-1")).resolves.toEqual({ ok: false, error: "EXPORT_NOT_FOUND" });
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: "expired" }));
+  });
+
+  it("reads and deletes the stored object after consuming a download token", async () => {
+    const request = makeRequest();
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([request]) }),
+      }),
+    });
+    const returning = vi.fn().mockResolvedValue([{ id: request.id }]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const storage = {
+      put: vi.fn(),
+      get: vi.fn().mockResolvedValue('{"profile":{"id":"user-1"}}'),
+      delete: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = createPrivacyService({
+      db: { select, update } as any,
+      now: () => fixedNow,
+      storage,
+      enqueueExport: vi.fn(),
+      exportProductData: vi.fn(),
+    });
+
+    await expect(service.downloadExport("user-1", "export-1", "download-token")).resolves.toEqual({
+      ok: true,
+      id: "export-1",
+      fileName: "user-data-export-export-1.json",
+      contents: '{"profile":{"id":"user-1"}}',
+    });
+    expect(storage.get).toHaveBeenCalledWith("privacy-exports/export-1.json");
+    expect(storage.delete).toHaveBeenCalledWith("privacy-exports/export-1.json");
+  });
+
+  it("deletes a ready export object when its owner cancels", async () => {
+    const request = makeRequest();
+    const returning = vi.fn().mockResolvedValue([request]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const storage = { put: vi.fn(), get: vi.fn(), delete: vi.fn().mockResolvedValue(undefined) };
+    const service = createPrivacyService({
+      db: { update } as any,
+      now: () => fixedNow,
+      storage,
+      enqueueExport: vi.fn(),
+      exportProductData: vi.fn(),
+    });
+
+    await expect(service.cancelExport("user-1", "export-1")).resolves.toEqual(
+      expect.objectContaining({ ok: true }),
+    );
+    expect(storage.delete).toHaveBeenCalledWith("privacy-exports/export-1.json");
+  });
+
+  it("deletes every object expired by the retention sweep", async () => {
+    const returning = vi.fn().mockResolvedValue([
+      { id: "export-1", storageKey: "privacy-exports/export-1.json" },
+      { id: "export-2", storageKey: "privacy-exports/export-2.json" },
+    ]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const storage = { put: vi.fn(), get: vi.fn(), delete: vi.fn().mockResolvedValue(undefined) };
+    const service = createPrivacyService({
+      db: { update } as any,
+      now: () => fixedNow,
+      storage,
+      enqueueExport: vi.fn(),
+      exportProductData: vi.fn(),
+    });
+
+    await expect(service.expireExports()).resolves.toEqual({ expired: 2 });
+    expect(storage.delete).toHaveBeenCalledTimes(2);
+    expect(storage.delete).toHaveBeenCalledWith("privacy-exports/export-1.json");
+    expect(storage.delete).toHaveBeenCalledWith("privacy-exports/export-2.json");
   });
 });

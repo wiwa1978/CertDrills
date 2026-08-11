@@ -14,11 +14,14 @@ const publicCorsOrigins = new Set(
   ],
 );
 
-const adminCorsOrigins = new Set(env.ADMIN_APP_URL ? [env.ADMIN_APP_URL] : []);
+const adminAppUrl = env.ADMIN_APP_URL;
+if (!adminAppUrl) throw new Error("ADMIN_APP_URL is required for admin CORS");
+
+const adminCorsOrigins = new Set([adminAppUrl]);
 const appUrlHostname = new URL(env.APP_URL).hostname;
 
 function isAdminPath(path: string) {
-  return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/auth/admin/");
+  return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/auth/admin/") || path === "/admin-auth" || path.startsWith("/admin-auth/");
 }
 
 function isAllowedCorsOrigin(origin: string, path: string) {
@@ -54,7 +57,7 @@ function isAllowedCorsOrigin(origin: string, path: string) {
 export const corsMiddleware = cors({
   origin: (origin, c) => {
     if (!origin) {
-      return isAdminPath(c.req.path) ? (env.ADMIN_APP_URL ?? null) : env.APP_URL;
+      return isAdminPath(c.req.path) ? adminAppUrl : env.APP_URL;
     }
 
     return isAllowedCorsOrigin(origin, c.req.path) ? origin : null;

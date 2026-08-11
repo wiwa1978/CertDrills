@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ResourceExtractionError } from "../../../src/modules/certdrill/resource-extraction";
-import { ResourceFetchError } from "../../../src/modules/certdrill/resource-fetch";
-import { createResourceIngestor } from "../../../src/modules/certdrill/resource-ingestion";
+import { ResourceExtractionError } from "../../../src/product/certdrill/resource-extraction";
+import { ResourceFetchError } from "../../../src/product/certdrill/resource-fetch";
+import { createResourceIngestor } from "../../../src/product/certdrill/resource-ingestion";
 
 const textEncoder = new TextEncoder();
 

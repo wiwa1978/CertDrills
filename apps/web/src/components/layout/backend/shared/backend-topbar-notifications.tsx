@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { Bell, Check, Trash2, X } from "lucide-react";
+import { Bell, Check, Trash2 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { formatDistanceToNow } from "date-fns";
 import { translateNotification } from "@/lib/notifications";
@@ -22,6 +22,7 @@ import {
   markAllAsRead,
   markAsRead,
 } from "@/lib/services/notifications";
+import { getMyApplicationConfig } from "@/lib/api/me";
 import { useSession } from "@/lib/auth-client";
 import { webQueryKeys } from "@/lib/query/keys";
 
@@ -31,18 +32,25 @@ export function BackendTopbarNotifications() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = React.useState(false);
   const queryClient = useQueryClient();
+  const applicationConfigQuery = useQuery({
+    queryKey: webQueryKeys.applicationConfig,
+    queryFn: getMyApplicationConfig,
+    staleTime: 60_000,
+  });
+  const notificationsDropdownLimit = applicationConfigQuery.data?.ui.notificationsDropdownLimit ?? authConfig.notificationsDropdownLimit;
+  const notificationsPollingInterval = applicationConfigQuery.data?.ui.notificationsPollingIntervalMs ?? authConfig.notificationsPollingInterval;
 
   const notificationsQuery = useQuery({
-    queryKey: webQueryKeys.notifications(authConfig.notificationsDropdownLimit),
+    queryKey: webQueryKeys.notifications(notificationsDropdownLimit),
     queryFn: async () => {
-      const result = await getNotifications(authConfig.notificationsDropdownLimit);
+      const result = await getNotifications(notificationsDropdownLimit);
       if (!result.success || !result.data) {
         throw new Error(result.error || "Failed to fetch notifications");
       }
       return result.data as Notification[];
     },
     enabled: Boolean(session?.user?.id),
-    refetchInterval: authConfig.notificationsPollingInterval > 0 ? authConfig.notificationsPollingInterval : false,
+    refetchInterval: notificationsPollingInterval > 0 ? notificationsPollingInterval : false,
   });
 
   const unreadCountQuery = useQuery({
@@ -55,15 +63,20 @@ export function BackendTopbarNotifications() {
       return result.count;
     },
     enabled: Boolean(session?.user?.id),
-    refetchInterval: authConfig.notificationsPollingInterval > 0 ? authConfig.notificationsPollingInterval : false,
+    refetchInterval: notificationsPollingInterval > 0 ? notificationsPollingInterval : false,
   });
 
   const refreshNotifications = React.useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: webQueryKeys.notifications(authConfig.notificationsDropdownLimit) }),
+      queryClient.invalidateQueries({ queryKey: webQueryKeys.notifications(notificationsDropdownLimit) }),
       queryClient.invalidateQueries({ queryKey: webQueryKeys.unreadNotifications }),
     ]);
-  }, [queryClient]);
+  }, [notificationsDropdownLimit, queryClient]);
+
+  React.useEffect(() => {
+    window.addEventListener("notifications:changed", refreshNotifications);
+    return () => window.removeEventListener("notifications:changed", refreshNotifications);
+  }, [refreshNotifications]);
 
   const markAsReadMutation = useMutation({
     mutationFn: markAsRead,

@@ -14,4 +14,12 @@ describe("queryKeys", () => {
     expect(queryKeys.notifications.unreadCount).toEqual(["me", "notifications", "unread-count"]);
     expect(queryKeys.notifications.activeBanner).toEqual(["me", "notifications", "active-banner"]);
   });
+
+  it("provides stable transaction keys", () => {
+    expect(queryKeys.transactions.basket("user-1")).toEqual(["me", "user-1", "transactions", "basket"]);
+    expect(queryKeys.transactions.orders("user-1")).toEqual(["me", "user-1", "transactions", "orders"]);
+    expect(queryKeys.transactions.order("user-1", "order/1")).toEqual(["me", "user-1", "transactions", "orders", "order/1"]);
+    expect(queryKeys.transactions.entitlements("user-1")).toEqual(["me", "user-1", "transactions", "entitlements"]);
+    expect(queryKeys.transactions.basket("user-2")).not.toEqual(queryKeys.transactions.basket("user-1"));
+  });
 });

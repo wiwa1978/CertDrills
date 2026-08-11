@@ -9,7 +9,7 @@ import {
   scoreScenario,
   toExamQuestionPayload,
   toExamScenarioPayload,
-} from "../../../src/modules/certdrill/snapshot";
+} from "../../../src/product/certdrill/snapshot";
 
 const mediaAsset = {
   url: "https://docs.example.com/diagram.png",

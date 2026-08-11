@@ -1,14 +1,14 @@
 import { apiRoutes } from "@platform/contracts/ts";
 import type {
   AdminCreditsDashboard,
-  AdminJobRunStatus,
-  AdminJobRunsList,
-  AdminJobsList,
-  AdminJobStatus,
+  AdminBackgroundEventsList,
+  AdminBackgroundEventStatus,
+  AdminEmailDeliveriesList,
+  AdminEmailDeliveryStatus,
   AdminOperationsStats,
-  AdminPendingEmailStatus,
-  AdminPendingEmailsList,
   AdminSubscriptionFinanceDashboard,
+  AdminTransactionFinanceDashboard,
+  AdminTransactionFinanceDashboardQuery,
   AdminDashboardStats,
   AdminUserDetail,
   AdminUserStats,
@@ -19,6 +19,7 @@ import type {
   CreditPurchase,
   CreditTransaction,
   CreditsConsumedPoint,
+  NotificationSendHistoryItem,
   RevenuePoint,
   SubscriptionEvent,
   SubscriptionFinanceSummary,
@@ -28,6 +29,7 @@ import type {
   SubscriptionsList,
   TransactionPoint,
 } from "@platform/contracts";
+import type { RuntimeApplicationSettingsPayload } from "@platform/contracts/ts";
 
 import { serverApiRequest } from "./client.server";
 
@@ -45,25 +47,18 @@ export type AdminWebhookEventsQuery = {
   dateTo?: string;
 };
 
-export type AdminJobsQuery = {
+export type AdminBackgroundEventsQuery = {
   limit?: number;
   offset?: number;
-  name?: string;
-  status?: AdminJobStatus;
+  eventName?: string;
+  status?: AdminBackgroundEventStatus;
 };
 
-export type AdminJobRunsQuery = {
-  limit?: number;
-  offset?: number;
-  jobName?: string;
-  status?: AdminJobRunStatus;
-};
-
-export type AdminPendingEmailsQuery = {
+export type AdminEmailDeliveriesQuery = {
   limit?: number;
   offset?: number;
   text?: string;
-  status?: AdminPendingEmailStatus;
+  status?: AdminEmailDeliveryStatus;
 };
 
 export type LogFileList = {
@@ -88,23 +83,14 @@ function adminWebhookQueryString(query: AdminWebhookEventsQuery = {}) {
   return params.toString();
 }
 
-function adminOperationsQueryString(query: Record<string, string | number | undefined> = {}) {
-  const params = new URLSearchParams({
-    limit: String(query.limit ?? 50),
-    offset: String(query.offset ?? 0),
-  });
-
-  for (const [key, value] of Object.entries(query)) {
-    if (key !== "limit" && key !== "offset" && value !== undefined && String(value).length > 0) {
-      params.set(key, String(value));
-    }
-  }
-
-  return params.toString();
-}
 
 export async function getAdminDashboardStatsServer(): Promise<AdminDashboardStats> {
   const result = await serverApiRequest<{ success: boolean; data: AdminDashboardStats }>("/admin/dashboard/stats");
+  return result.data;
+}
+
+export async function getAdminApplicationSettingsServer(): Promise<RuntimeApplicationSettingsPayload> {
+  const result = await serverApiRequest<{ success: boolean; data: RuntimeApplicationSettingsPayload }>(apiRoutes.admin.applicationSettings);
   return result.data;
 }
 
@@ -154,23 +140,16 @@ export async function getAdminOperationsStatsServer(): Promise<AdminOperationsSt
   return result.data;
 }
 
-export async function getAdminJobsServer(query: AdminJobsQuery = {}): Promise<AdminJobsList> {
-  const result = await serverApiRequest<{ success: boolean; data: AdminJobsList }>(
-    `${apiRoutes.admin.jobs()}?${adminOperationsQueryString(query)}`,
+export async function getAdminBackgroundEventsServer(query: AdminBackgroundEventsQuery = {}): Promise<AdminBackgroundEventsList> {
+  const result = await serverApiRequest<{ success: boolean; data: AdminBackgroundEventsList }>(
+    apiRoutes.admin.backgroundEvents(query),
   );
   return result.data;
 }
 
-export async function getAdminJobRunsServer(query: AdminJobRunsQuery = {}): Promise<AdminJobRunsList> {
-  const result = await serverApiRequest<{ success: boolean; data: AdminJobRunsList }>(
-    `${apiRoutes.admin.jobRuns()}?${adminOperationsQueryString(query)}`,
-  );
-  return result.data;
-}
-
-export async function getAdminPendingEmailsServer(query: AdminPendingEmailsQuery = {}): Promise<AdminPendingEmailsList> {
-  const result = await serverApiRequest<{ success: boolean; data: AdminPendingEmailsList }>(
-    `${apiRoutes.admin.pendingEmails()}?${adminOperationsQueryString(query)}`,
+export async function getAdminEmailDeliveriesServer(query: AdminEmailDeliveriesQuery = {}): Promise<AdminEmailDeliveriesList> {
+  const result = await serverApiRequest<{ success: boolean; data: AdminEmailDeliveriesList }>(
+    apiRoutes.admin.emailDeliveries(query),
   );
   return result.data;
 }
@@ -241,6 +220,11 @@ export async function getAdminBillingSubscriptionFinanceDashboardServer(query: A
   return result.data;
 }
 
+export async function getAdminBillingTransactionFinanceDashboardServer(query: Partial<AdminTransactionFinanceDashboardQuery> = {}): Promise<AdminTransactionFinanceDashboard> {
+  const result = await serverApiRequest<{ success: boolean; data: AdminTransactionFinanceDashboard }>(apiRoutes.admin.billingTransactionFinanceDashboard(query));
+  return result.data;
+}
+
 export async function getAdminBillingSubscriptionPlanDistributionServer(): Promise<SubscriptionPlanDistributionPoint[]> {
   const result = await serverApiRequest<{ success: boolean; data: SubscriptionPlanDistributionPoint[] }>(apiRoutes.admin.billingSubscriptionPlanDistribution);
   return result.data;
@@ -248,5 +232,10 @@ export async function getAdminBillingSubscriptionPlanDistributionServer(): Promi
 
 export async function getAdminBillingSubscriptionEventsServer(limit = 50): Promise<SubscriptionEvent[]> {
   const result = await serverApiRequest<{ success: boolean; data: SubscriptionEvent[] }>(apiRoutes.admin.billingSubscriptionEvents(limit));
+  return result.data;
+}
+
+export async function getNotificationSendHistoryServer(limit = 50): Promise<NotificationSendHistoryItem[]> {
+  const result = await serverApiRequest<{ success: boolean; data: NotificationSendHistoryItem[] }>(apiRoutes.admin.notificationSends(limit));
   return result.data;
 }

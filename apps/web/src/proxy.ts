@@ -8,7 +8,7 @@ import { getPathLocale } from "./i18n/path-locale";
 import { getSessionCookie } from "better-auth/cookies";
 
 const intlMiddleware = createMiddleware(routing);
-const AUTHENTICATED_ONLY = ["/dashboard", "/billing", "/settings", "/exams", "/profile/attempts"];
+const AUTHENTICATED_ONLY = ["/dashboard", "/billing", "/settings"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -32,5 +32,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|static|.*\\..*).*)"],
+  matcher: ["/((?!api|health|ready|_next|_vercel|static|.*\\..*).*)"],
 };

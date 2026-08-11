@@ -36,6 +36,10 @@ export type NormalizedPaymentEvent = {
   customerEmail?: string;
   customerId?: string;
   productId?: string;
+  cartItems?: Array<{
+    productId: string;
+    quantity: number;
+  }>;
   metadata?: Record<string, string>;
   currency?: string;
   totalAmount?: number;
@@ -59,7 +63,7 @@ export type PaymentWebhookProviderConfig = {
   mapEvent(payload: unknown): NormalizedPaymentEvent | null;
 };
 
-export type WebhookEventProcessingStatus = "processing" | "processed" | "failed";
+export type WebhookEventProcessingStatus = "processing" | "processed" | "failed" | "dead_lettered";
 
 export type WebhookEventStore = {
   claim: (event: {
@@ -83,6 +87,33 @@ export type WebhookFailureAuditEvent = {
   paymentId?: string | null;
   outcome: "failure";
   error: string;
+};
+
+export type VerifiedWebhookContext = {
+  requestId?: string | null;
+  correlationId?: string | null;
+  signatureTimestamp?: Date;
+};
+
+export type PaymentWebhookIngestionResult = {
+  processed: boolean;
+  duplicate?: boolean;
+  status?: WebhookEventProcessingStatus;
+};
+
+export type PaymentWebhookIngestion = {
+  ingestVerifiedPayload: (
+    payload: unknown,
+    context?: VerifiedWebhookContext,
+  ) => Promise<PaymentWebhookIngestionResult>;
+};
+
+export type CreatePaymentWebhookIngestionOptions = {
+  provider: string;
+  mapEvent: (payload: unknown) => NormalizedPaymentEvent | null;
+  webhookEventStore?: WebhookEventStore;
+  onWebhookFailure?: (event: WebhookFailureAuditEvent) => Promise<void> | void;
+  onPaymentEvent: PaymentEventHandler;
 };
 
 export type CreatePaymentsModuleOptions = {

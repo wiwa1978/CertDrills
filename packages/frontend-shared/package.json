@@ -7,6 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "test": "vitest run tests",
+    "test:coverage": "vitest run tests --coverage",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
@@ -18,6 +19,7 @@
     "./notifications": "./src/notifications.ts",
     "./query": "./src/query.tsx",
     "./query-keys": "./src/query-keys.ts",
+    "./social-auth-buttons": "./src/social-auth-buttons.tsx",
     "./url": "./src/url.ts"
   },
   "dependencies": {

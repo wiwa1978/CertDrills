@@ -2,63 +2,89 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, haveIBeenPwned, magicLink, openAPI, twoFactor } from "better-auth/plugins";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { passkey } from "@better-auth/passkey";
-import { checkout, dodopayments, portal } from "@dodopayments/better-auth";
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { dodopayments, portal } from "@dodopayments/better-auth";
+import { and, eq, gt, isNull, lte } from "drizzle-orm";
 import DodoPayments from "dodopayments";
 
 import { authAdditionalUserFields, createAuthModule } from "@platform/auth-core";
 import { createEmailModule, createResendProvider } from "@platform/email-core";
-import { createPaymentsModule } from "@platform/payments-core";
+import {
+  createPaymentWebhookIngestion,
+  createPaymentsModule,
+  mapDodoEvent,
+  type PaymentWebhookIngestion,
+  type WebhookFailureAuditEvent,
+} from "@platform/payments-core";
+import type { PlatformProductDefinition } from "@platform/module-contracts";
 import { createPlatformDb, mobileRefreshToken, user } from "@platform/platform-db";
 
 import { authConfig } from "./config/auth";
+import { createAuthRealmConfig } from "./config/auth-realms";
 import { buildSocialProviders } from "./config/auth-social-providers";
 import { creditPackages } from "./config/billing";
+import { dodoBrandsFromEnvironment } from "./config/dodo-brands";
 import { env } from "./env";
-import { getBillingMode } from "./lib/billing-mode";
-import { getDodoCheckoutProductsForBillingMode } from "./lib/dodo-billing-products";
 import { createAdminService } from "./modules/admin/service";
 import { createAuditService } from "./modules/audit/service";
+import { createCapabilityService } from "./modules/billing/capability-service";
+import { createApplicationSettingsService } from "./modules/application-settings/service";
 import { createCheckoutIntentsService } from "./modules/billing/checkout-intents";
 import { createBillingReconciliationService } from "./modules/billing/reconciliation";
 import { createAdminCreditsDashboardService } from "./modules/billing/credits-dashboard-service";
 import { createAdminSubscriptionFinanceDashboardService } from "./modules/billing/subscription-finance-dashboard-service";
+import { createAdminTransactionFinanceDashboardService } from "./modules/billing/transaction-finance-dashboard-service";
 import { createBillingService } from "./modules/billing/service";
 import { createDiscountsService } from "./modules/discounts/service";
 import { createPaymentEventHandler } from "./modules/billing/payment-event-handler";
 import { createSubscriptionService } from "./modules/billing/subscription-service";
 import { createSubscriptionWebhookHandler } from "./modules/billing/subscription-webhooks";
+import { createTransactionService } from "./modules/billing/transaction-service";
 import { createPaymentProviderRegistry } from "./modules/payments/provider";
 import { createDodoPaymentProvider } from "./modules/payments/providers/dodo";
 import { createStripePaymentProvider } from "./modules/payments/providers/stripe";
 import { createPaymentWebhookEventStore } from "./modules/payments/webhook-event-store";
+import { createBetterAuthDodoWebhook } from "./modules/payments/better-auth-webhook-context";
 import { createNotificationsService } from "./modules/notifications/service";
 import { createPrivacyService } from "./modules/privacy/service";
+import { createAzureBlobPrivacyExportStorage } from "./modules/privacy/storage";
 import { createVouchersService } from "./modules/vouchers/service";
 import { createApiKeysService } from "./modules/api-keys/service";
-import { createEmailQueue } from "./modules/email/queue";
-import { createJobsRunner } from "./modules/jobs/runner";
+import { createEmailDeliveryService } from "./modules/email/delivery";
+import { buildActionEmail } from "./modules/email/templates";
+import { createPlatformInngestFunctions } from "./inngest/functions";
+import { inngest } from "./inngest/client";
+import { createOutboxPublisher, insertOutboxEvent } from "./modules/background/outbox";
 import { createWebhookRecoveryService } from "./modules/payments/webhook-recovery";
-import { createAllPurchasedCertificationAccessProvider } from "./modules/certdrill/access";
-import { createCertDrillAdminService } from "./modules/certdrill/admin-service";
-import {
-  BlueprintParserError,
-  buildFoundryResponsesUrl,
-  createFoundryBlueprintParser,
-  type BlueprintParser,
-} from "./modules/certdrill/blueprint-parser";
-import {
-  createFoundryQuestionGenerator,
-  QuestionGeneratorError,
-  type QuestionGenerator,
-} from "./modules/certdrill/question-generator";
-import {
-  createFoundryScenarioGenerator,
-  ScenarioGeneratorError,
-  type ScenarioGenerator,
-} from "./modules/certdrill/scenario-generator";
-import { createCertDrillService } from "./modules/certdrill/service";
+import { createPostgresRateLimitStore } from "./modules/security/postgres-rate-limit-store";
+import { createProductLifecycleCoordinator } from "./composition/product-lifecycle";
 
+export function createPaymentProviderAuthPlugins(
+  client: DodoPayments | null,
+  dodoWebhookIngestion: PaymentWebhookIngestion,
+) {
+  if (!client) {
+    return [];
+  }
+
+  const getCustomerParams = (authUser: { id: string }) => ({
+    metadata: {
+      userId: authUser.id,
+    },
+  });
+  const webhookPlugins = env.DODO_PAYMENTS_WEBHOOK_SECRET
+    ? [createBetterAuthDodoWebhook(env.DODO_PAYMENTS_WEBHOOK_SECRET, dodoWebhookIngestion)]
+    : [];
+
+  return [
+    dodopayments({
+      client,
+      createCustomerOnSignUp: true,
+      getCustomerParams,
+      use: [portal(), ...webhookPlugins],
+    }),
+  ];
+}
+export function createPlatformServices(productDefinition: PlatformProductDefinition) {
 const adminAllowlist = new Set(
   (env.ADMIN_ALLOWLIST ?? "")
     .split(",")
@@ -69,7 +95,10 @@ const adminAllowlist = new Set(
 const { db } = createPlatformDb({
   connectionString: env.DATABASE_URL,
 });
+const productLifecycle = createProductLifecycleCoordinator();
+const rateLimitStore = createPostgresRateLimitStore(db);
 const auditService = createAuditService({ db });
+const applicationSettingsService = createApplicationSettingsService({ db });
 
 const emailProvider = env.RESEND_API_KEY
   ? createResendProvider({
@@ -82,17 +111,42 @@ const emailProvider = env.RESEND_API_KEY
       },
     };
 
-const emailQueue = createEmailQueue({ db, provider: emailProvider });
+const outboxPublisher = createOutboxPublisher({
+  db,
+  send: (event) => inngest.send(event),
+});
+const emailDeliveryService = createEmailDeliveryService({
+  db,
+  provider: emailProvider,
+  publishOutbox: outboxPublisher.publishById,
+});
 
 const emailModule = createEmailModule({
   provider: {
-    send: emailQueue.sendEmail,
+    send: emailDeliveryService.sendEmail,
   },
   defaultFrom: env.RESEND_FROM_EMAIL ?? "noreply@example.com",
 });
 
 const notificationsService = createNotificationsService({ db });
-const privacyService = createPrivacyService({ db });
+const privacyExportStorageConnectionString = env.AZURE_PRIVACY_EXPORT_STORAGE_CONNECTION_STRING;
+if (!privacyExportStorageConnectionString) {
+  throw new Error("AZURE_PRIVACY_EXPORT_STORAGE_CONNECTION_STRING is required to start the API");
+}
+const privacyExportStorage = createAzureBlobPrivacyExportStorage({
+  connectionString: privacyExportStorageConnectionString,
+  containerName: env.AZURE_PRIVACY_EXPORT_STORAGE_CONTAINER,
+});
+const privacyService = createPrivacyService({
+  db,
+  storage: privacyExportStorage,
+  enqueueExport: (executor, input) => insertOutboxEvent(executor, {
+    name: "platform/privacy.export.requested",
+    data: input,
+    dedupeKey: `privacy-export:${input.exportId}`,
+  }),
+  exportProductData: productLifecycle.exportUserData,
+});
 const apiKeysService = createApiKeysService({ db });
 
 const dodoPaymentsClient = env.DODO_PAYMENTS_API_KEY
@@ -102,37 +156,13 @@ const dodoPaymentsClient = env.DODO_PAYMENTS_API_KEY
     })
   : null;
 
-function createPaymentProviderAuthPlugins(client: DodoPayments | null) {
-  if (!client) {
-    return [];
-  }
-
-  return [
-    dodopayments({
-      client,
-      createCustomerOnSignUp: true,
-      getCustomerParams: (authUser) => ({
-        metadata: {
-          userId: authUser.id,
-        },
-      }),
-      use: [
-        checkout({
-          products: getDodoCheckoutProductsForBillingMode(getBillingMode()),
-          successUrl: `${env.APP_URL}/billing?success=true`,
-          authenticatedUsersOnly: true,
-        }),
-        portal(),
-      ],
-    }),
-  ];
-}
 
 const paymentProviders = createPaymentProviderRegistry(
   env.PAYMENT_PROVIDER === "stripe" ? createStripePaymentProvider() : createDodoPaymentProvider({
     apiKey: env.DODO_PAYMENTS_API_KEY,
     environment: env.DODO_PAYMENTS_ENVIRONMENT,
     appUrl: env.APP_URL,
+    brands: dodoBrandsFromEnvironment(env),
     client: dodoPaymentsClient,
   }),
   [
@@ -140,6 +170,7 @@ const paymentProviders = createPaymentProviderRegistry(
       apiKey: env.DODO_PAYMENTS_API_KEY,
       environment: env.DODO_PAYMENTS_ENVIRONMENT,
       appUrl: env.APP_URL,
+      brands: dodoBrandsFromEnvironment(env),
       client: dodoPaymentsClient,
     }),
     createStripePaymentProvider(),
@@ -149,17 +180,32 @@ const paymentProviders = createPaymentProviderRegistry(
 const billingService = createBillingService({
   db,
   paymentProvider: paymentProviders.activeProvider,
+  capabilities: productDefinition.capabilities,
   notifications: notificationsService,
+});
+const capabilityService = createCapabilityService({
+  db,
+  definitions: productDefinition.capabilities,
+  consumeCredits: billingService.consumeCredits,
 });
 const billingReconciliationService = createBillingReconciliationService({ db, paymentProvider: paymentProviders.activeProvider });
 const subscriptionService = createSubscriptionService({ db, paymentProvider: paymentProviders.activeProvider });
 const checkoutIntentsService = createCheckoutIntentsService({ db });
+const transactionService = createTransactionService({
+  db,
+  paymentProvider: paymentProviders.activeProvider,
+  checkoutIntents: checkoutIntentsService,
+});
 const adminService = createAdminService({
   db,
   adminSecret: env.ADMIN_SECRET,
 });
 const adminCreditsDashboardService = createAdminCreditsDashboardService({ adminService });
 const adminSubscriptionFinanceDashboardService = createAdminSubscriptionFinanceDashboardService({
+  db,
+  paymentProvider: paymentProviders.activeProvider,
+});
+const adminTransactionFinanceDashboardService = createAdminTransactionFinanceDashboardService({
   db,
   paymentProvider: paymentProviders.activeProvider,
 });
@@ -172,138 +218,101 @@ const vouchersService = createVouchersService({
   notifications: notificationsService,
 });
 const paymentWebhookEventStore = createPaymentWebhookEventStore({ db });
-const webhookRecoveryService = createWebhookRecoveryService({ db });
-const certdrillAccessProvider = createAllPurchasedCertificationAccessProvider();
-const certdrillBlueprintParser = createCertDrillBlueprintParser();
-const certdrillQuestionGenerator = createCertDrillQuestionGenerator();
-const certdrillScenarioGenerator = createCertDrillScenarioGenerator();
-const certdrillAdminService = createCertDrillAdminService({
-  db,
-  blueprintParser: certdrillBlueprintParser,
-  questionGenerator: certdrillQuestionGenerator,
-  scenarioGenerator: certdrillScenarioGenerator,
+const onWebhookFailure = async (event: WebhookFailureAuditEvent) => {
+  try {
+    await auditService.recordAuditEntry({
+      action: "billing.webhook.failure",
+      outcome: "failure",
+      targetType: "payment_webhook_event",
+      targetId: event.providerEventId ?? null,
+      metadata: {
+        provider: event.provider,
+        providerEventId: event.providerEventId ?? null,
+        eventType: event.eventType ?? null,
+        paymentId: event.paymentId ?? null,
+        error: event.error,
+      },
+    });
+  } catch {
+    // Webhook audit failures must not mask webhook response behavior.
+  }
+};
+const paymentEventHandler = createPaymentEventHandler({
+  creditPackages,
+  billing: billingService,
+  checkoutIntents: checkoutIntentsService,
+  subscriptions: {
+    handleSubscriptionWebhook: createSubscriptionWebhookHandler({
+      subscriptions: subscriptionService,
+    }),
+    recordSubscriptionPayment: subscriptionService.recordSubscriptionPayment,
+  },
+  transactions: {
+    handleTransactionPayment: transactionService.handleTransactionPayment,
+    processTransactionRefund: transactionService.processTransactionRefund,
+  },
 });
-const certdrillService = createCertDrillService({ db, accessProvider: certdrillAccessProvider });
-const jobsRunner = createJobsRunner({
+const dodoWebhookIngestion = createPaymentWebhookIngestion({
+  provider: "dodo",
+  mapEvent: mapDodoEvent,
+  webhookEventStore: paymentWebhookEventStore,
+  onWebhookFailure,
+  onPaymentEvent: paymentEventHandler,
+});
+const webhookRecoveryService = createWebhookRecoveryService({
   db,
-  jobs: [
-    {
-      name: "billing-reconciliation",
-      intervalSeconds: 3600,
-      handler: () => billingReconciliationService.reconcileProviderBillingStateSafely(),
-    },
-    {
-      name: "webhook-recovery",
-      intervalSeconds: 300,
-      handler: () => webhookRecoveryService.recoverFailed(),
-    },
-    {
-      name: "expire-user-data-exports",
-      intervalSeconds: 3600,
-      handler: () => privacyService.expireExports(),
-    },
-    {
-      name: "process-pending-emails",
-      intervalSeconds: 60,
-      handler: () => emailQueue.processPending(),
-    },
-    {
-      name: "certdrill-blueprint-parser",
-      intervalSeconds: 30,
-      lockTimeoutSeconds: 900,
-      handler: () => certdrillAdminService.processPendingBlueprintParseRuns(5),
-    },
-    {
-      name: "certdrill-question-generator",
-      intervalSeconds: 30,
-      lockTimeoutSeconds: 600,
-      handler: () => certdrillAdminService.processPendingQuestionGenerationJobs(3),
-    },
-    {
-      name: "certdrill-scenario-generator",
-      intervalSeconds: 30,
-      lockTimeoutSeconds: 900,
-      handler: () => certdrillAdminService.processPendingScenarioGenerationJobs(1),
-    },
-  ],
+  replay: async (provider, payload) => {
+    if (provider !== "dodo") throw new Error(`Unsupported webhook recovery provider: ${provider}`);
+    const event = mapDodoEvent(payload);
+    if (!event) throw new Error("Stored webhook payload is no longer supported");
+    await paymentEventHandler(event);
+  },
+  onRecoveryFailure: ({ provider, providerEventId, error }) => onWebhookFailure({
+    provider,
+    providerEventId,
+    outcome: "failure",
+    error,
+  }),
+});
+const inngestFunctions = createPlatformInngestFunctions({
+  billingReconciliation: () => billingReconciliationService.reconcileProviderBillingStateSafely(),
+  recoverWebhooks: () => webhookRecoveryService.recoverFailed(),
+  expirePrivacyExports: () => privacyService.expireExports(),
+  generatePrivacyExport: privacyService.generateExport,
+  deliverEmail: emailDeliveryService.deliver,
+  publishPendingEvents: outboxPublisher.publishPending,
+  cleanupEmails: emailDeliveryService.cleanupCompleted,
+  cleanupOutbox: outboxPublisher.cleanupPublished,
+  cleanupRateLimits: () => rateLimitStore.cleanupExpired(),
 });
 
-function createCertDrillBlueprintParser(): BlueprintParser {
-  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
-    return createFoundryBlueprintParser({
-      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
-      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
-      model: env.AZURE_AI_FOUNDRY_MODEL,
-      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
-    });
-  }
+type AuthModuleOptions = Parameters<typeof createAuthModule>[0];
+type BetterAuthOptions = NonNullable<AuthModuleOptions["betterAuthOptions"]>;
 
+function createBetterAuthOptions(realmConfig: ReturnType<typeof createAuthRealmConfig>): BetterAuthOptions {
   return {
-    provider: "not-configured",
-    model: "not-configured",
-    async parse() {
-      throw new BlueprintParserError(
-        "BLUEPRINT_PARSER_NOT_CONFIGURED",
-        "Blueprint parser is not configured.",
-      );
-    },
-  };
-}
-
-function createCertDrillQuestionGenerator(): QuestionGenerator {
-  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
-    return createFoundryQuestionGenerator({
-      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
-      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
-      model: env.AZURE_AI_FOUNDRY_MODEL,
-      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
-    });
-  }
-
-  return {
-    provider: "not-configured",
-    model: "not-configured",
-    async generate() {
-      throw new QuestionGeneratorError(
-        "QUESTION_GENERATOR_NOT_CONFIGURED",
-        "Question generator is not configured.",
-      );
-    },
-  };
-}
-
-function createCertDrillScenarioGenerator(): ScenarioGenerator {
-  if (env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT && env.AZURE_AI_FOUNDRY_API_KEY && env.AZURE_AI_FOUNDRY_MODEL) {
-    return createFoundryScenarioGenerator({
-      responsesUrl: buildFoundryResponsesUrl(env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT),
-      apiKey: env.AZURE_AI_FOUNDRY_API_KEY,
-      model: env.AZURE_AI_FOUNDRY_MODEL,
-      timeoutMs: env.AZURE_AI_FOUNDRY_TIMEOUT_MS,
-    });
-  }
-  return {
-    provider: "not-configured",
-    model: "not-configured",
-    async generate() {
-      throw new ScenarioGeneratorError("SCENARIO_GENERATOR_NOT_CONFIGURED", "Scenario generator is not configured.");
-    },
-  };
-}
-
-const authModule = createAuthModule({
-  betterAuthOptions: {
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: `${env.API_URL}/auth`,
-    trustedOrigins: [
-      env.APP_URL,
-      env.API_URL,
-      ...(env.ADMIN_APP_URL ? [env.ADMIN_APP_URL] : []),
-      ...(env.BETTER_AUTH_ALLOWED_ORIGINS?.split(",").map((item) => item.trim()).filter(Boolean) ?? []),
-    ],
+    baseURL: `${env.API_URL}${realmConfig.basePath}`,
+    trustedOrigins: realmConfig.includePublicPlugins
+      ? [
+          env.APP_URL,
+          env.API_URL,
+          ...(env.ADMIN_APP_URL ? [env.ADMIN_APP_URL] : []),
+          ...(env.BETTER_AUTH_ALLOWED_ORIGINS?.split(",").map((item) => item.trim()).filter(Boolean) ?? []),
+        ]
+      : [realmConfig.applicationUrl, env.API_URL],
     database: drizzleAdapter(db, {
       provider: "pg",
     }),
+    databaseHooks: {
+      user: {
+        delete: {
+          before: async (user) => productLifecycle.deleteUserData(user.id),
+        },
+      },
+    },
     advanced: {
+      cookiePrefix: realmConfig.cookiePrefix,
       database: {
         generateId: () => crypto.randomUUID(),
       },
@@ -339,8 +348,7 @@ const authModule = createAuthModule({
         await emailModule.sendTemplate({
           to: user.email,
           subject: "Reset your password",
-          html: `<p>Hello ${user.name ?? "there"}, reset your password: <a href=\"${url}\">${url}</a></p>`,
-          text: `Reset your password: ${url}`,
+          ...buildActionEmail({ greetingName: user.name, instruction: "Reset your password", url }),
         });
       },
     },
@@ -352,8 +360,7 @@ const authModule = createAuthModule({
         await emailModule.sendTemplate({
           to: user.email,
           subject: "Verify your email",
-          html: `<p>Hello ${user.name ?? "there"}, verify your email: <a href=\"${url}\">${url}</a></p>`,
-          text: `Verify your email: ${url}`,
+          ...buildActionEmail({ greetingName: user.name, instruction: "Verify your email", url }),
         });
       },
     },
@@ -389,8 +396,8 @@ const authModule = createAuthModule({
         ? [
             passkey({
               rpName: authConfig.twoFactorIssuer,
-              rpID: new URL(env.APP_URL).hostname,
-              origin: env.APP_URL,
+              rpID: new URL(realmConfig.applicationUrl).hostname,
+              origin: realmConfig.applicationUrl,
             }),
           ]
         : []),
@@ -402,8 +409,7 @@ const authModule = createAuthModule({
                 await emailModule.sendTemplate({
                   to: email,
                   subject: "Your magic link",
-                  html: `<p>Use this magic link: <a href=\"${url}\">${url}</a></p>`,
-                  text: `Use this magic link: ${url}`,
+                  ...buildActionEmail({ instruction: "Use this magic link", url }),
                 });
               },
             }),
@@ -418,150 +424,154 @@ const authModule = createAuthModule({
           admin: adminAc,
         },
       }),
-      openAPI({
-        disableDefaultReference: true,
-      }),
-      ...createPaymentProviderAuthPlugins(dodoPaymentsClient),
+      ...(realmConfig.includePublicPlugins
+        ? [
+            openAPI({ disableDefaultReference: true }),
+            ...createPaymentProviderAuthPlugins(dodoPaymentsClient, dodoWebhookIngestion),
+          ]
+        : []),
     ],
-  },
-  users: {
-    async findById(userId) {
-      const [record] = await db
-        .select({
-          id: user.id,
-          role: user.role,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          twoFactorEnabled: user.twoFactorEnabled,
-          banned: user.banned,
-          banExpires: user.banExpires,
-        })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1);
+  };
+}
 
-      return record ?? null;
-    },
-  },
-  admin: {
-    allowlist: adminAllowlist,
-  },
-  jwt: {
-    secret: env.JWT_SECRET,
-    issuer: env.JWT_ISSUER,
-    audience: env.JWT_AUDIENCE,
-    accessTokenTtlSeconds: env.JWT_ACCESS_TTL_SECONDS,
-    refreshTokenTtlSeconds: env.JWT_REFRESH_TTL_SECONDS,
-  },
-  refreshTokens: {
-    async create({ tokenHash, userId, expiresAt }) {
-      await db.insert(mobileRefreshToken).values({
-        tokenHash,
-        userId,
-        expiresAt,
-      });
-    },
-    async findActiveByHash(tokenHash) {
-      const [record] = await db
-        .select({ userId: mobileRefreshToken.userId })
-        .from(mobileRefreshToken)
-        .where(and(eq(mobileRefreshToken.tokenHash, tokenHash), isNull(mobileRefreshToken.revokedAt)));
+function createAuthModuleOptions(betterAuthOptions: BetterAuthOptions): AuthModuleOptions {
+  return {
+    betterAuthOptions,
+    users: {
+      async findById(userId) {
+        const [record] = await db
+          .select({
+            id: user.id,
+            role: user.role,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            twoFactorEnabled: user.twoFactorEnabled,
+            banned: user.banned,
+            banExpires: user.banExpires,
+          })
+          .from(user)
+          .where(eq(user.id, userId))
+          .limit(1);
 
-      return record ?? null;
+        return record ?? null;
+      },
     },
-    async rotate({ currentTokenHash, nextTokenHash, userId, nextExpiresAt }) {
-      const now = new Date();
-
-      const updatedRows = await db
-        .update(mobileRefreshToken)
-        .set({ revokedAt: now, replacedByTokenHash: nextTokenHash })
-        .where(and(eq(mobileRefreshToken.tokenHash, currentTokenHash), isNull(mobileRefreshToken.revokedAt)))
-        .returning({ id: mobileRefreshToken.id });
-
-      if (updatedRows.length === 0) {
-        return false;
-      }
-
-      await db.insert(mobileRefreshToken).values({
-        tokenHash: nextTokenHash,
-        userId,
-        expiresAt: nextExpiresAt,
-      });
-
-      return true;
+    admin: {
+      allowlist: adminAllowlist,
+      totpRequired: env.ADMIN_PORTAL_TOTP_REQUIRED,
     },
-    async revokeByHash(tokenHash) {
-      await db
-        .update(mobileRefreshToken)
-        .set({ revokedAt: new Date() })
-        .where(and(eq(mobileRefreshToken.tokenHash, tokenHash), isNull(mobileRefreshToken.revokedAt)));
+    jwt: {
+      secret: env.JWT_SECRET,
+      issuer: env.JWT_ISSUER,
+      audience: env.JWT_AUDIENCE,
+      accessTokenTtlSeconds: env.JWT_ACCESS_TTL_SECONDS,
+      refreshTokenTtlSeconds: env.JWT_REFRESH_TTL_SECONDS,
     },
-    async cleanupExpired() {
-      await db
-        .delete(mobileRefreshToken)
-        .where(lte(mobileRefreshToken.expiresAt, new Date()));
+    refreshTokens: {
+      async create({ tokenHash, userId, expiresAt }) {
+        await db.insert(mobileRefreshToken).values({
+          tokenHash,
+          userId,
+          expiresAt,
+        });
+      },
+      async findActiveByHash(tokenHash) {
+        const [record] = await db
+          .select({ userId: mobileRefreshToken.userId })
+          .from(mobileRefreshToken)
+          .where(and(
+            eq(mobileRefreshToken.tokenHash, tokenHash),
+            isNull(mobileRefreshToken.revokedAt),
+            gt(mobileRefreshToken.expiresAt, new Date()),
+          ));
+
+        return record ?? null;
+      },
+      async rotate({ currentTokenHash, nextTokenHash, userId, nextExpiresAt }) {
+        return db.transaction(async (tx) => {
+          const now = new Date();
+          const updatedRows = await tx
+            .update(mobileRefreshToken)
+            .set({ revokedAt: now, replacedByTokenHash: nextTokenHash })
+            .where(and(
+              eq(mobileRefreshToken.tokenHash, currentTokenHash),
+              eq(mobileRefreshToken.userId, userId),
+              isNull(mobileRefreshToken.revokedAt),
+              gt(mobileRefreshToken.expiresAt, now),
+            ))
+            .returning({ id: mobileRefreshToken.id });
+
+          if (updatedRows.length === 0) return false;
+
+          await tx.insert(mobileRefreshToken).values({
+            tokenHash: nextTokenHash,
+            userId,
+            expiresAt: nextExpiresAt,
+          });
+          return true;
+        });
+      },
+      async revokeByHash(tokenHash) {
+        await db
+          .update(mobileRefreshToken)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(mobileRefreshToken.tokenHash, tokenHash), isNull(mobileRefreshToken.revokedAt)));
+      },
+      async cleanupExpired() {
+        await db
+          .delete(mobileRefreshToken)
+          .where(lte(mobileRefreshToken.expiresAt, new Date()));
+      },
     },
-  },
-});
+  };
+}
+
+const authModule = createAuthModule(
+  createAuthModuleOptions(createBetterAuthOptions(createAuthRealmConfig("public"))),
+);
+const adminAuthModule = createAuthModule(
+  createAuthModuleOptions(createBetterAuthOptions(createAuthRealmConfig("admin"))),
+);
 
 const paymentsModule = createPaymentsModule({
   dodoWebhookSecret: env.DODO_PAYMENTS_WEBHOOK_SECRET,
   webhookEventStore: paymentWebhookEventStore,
-  async onWebhookFailure(event) {
-    try {
-      await auditService.recordAuditEntry({
-        action: "billing.webhook.failure",
-        outcome: "failure",
-        targetType: "payment_webhook_event",
-        targetId: event.providerEventId ?? null,
-        metadata: {
-          provider: event.provider,
-          providerEventId: event.providerEventId ?? null,
-          eventType: event.eventType ?? null,
-          paymentId: event.paymentId ?? null,
-          error: event.error,
-        },
-      });
-    } catch {
-      // Webhook audit failures must not mask webhook response behavior.
-    }
-  },
-  onPaymentEvent: createPaymentEventHandler({
-    creditPackages,
-    billing: billingService,
-    checkoutIntents: checkoutIntentsService,
-    subscriptions: {
-      handleSubscriptionWebhook: createSubscriptionWebhookHandler({
-        subscriptions: subscriptionService,
-      }),
-      recordSubscriptionPayment: subscriptionService.recordSubscriptionPayment,
-    },
-  }),
+  onWebhookFailure,
+  onPaymentEvent: paymentEventHandler,
 });
 
-export const bootstrap = {
+return {
   db,
+  rateLimitStore,
   authModule,
+  adminAuthModule,
   adminService,
   adminCreditsDashboardService,
   adminSubscriptionFinanceDashboardService,
+  adminTransactionFinanceDashboardService,
   apiKeysService,
   auditService,
+  applicationSettingsService,
   billingService,
   billingReconciliationService,
+  capabilityService,
+
   checkoutIntentsService,
   subscriptionService,
+  transactionService,
   discountsService,
-  emailQueue,
-  jobsRunner,
+  emailDeliveryService,
+  outboxPublisher,
+  inngestFunctions,
   notificationsService,
   privacyService,
+  productLifecycle,
   vouchersService,
   paymentsModule,
   paymentProviders,
   webhookRecoveryService,
-  certdrillAccessProvider,
-  certdrillAdminService,
-  certdrillService,
   dodoPaymentsClient,
 };
+}
+
+export type PlatformServices = ReturnType<typeof createPlatformServices>;

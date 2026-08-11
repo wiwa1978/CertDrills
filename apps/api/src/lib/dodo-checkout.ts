@@ -19,6 +19,14 @@ export function buildDodoCheckoutUrl(args: {
   referenceId?: string;
   discountCode?: string;
   customerEmail?: string | null;
+  billingAddress?: {
+    street: string;
+    number: string;
+    zipcode: string;
+    town: string;
+    countryCode: string;
+    countryName?: string | null;
+  } | null;
   successUrl?: string;
   cancelUrl?: string;
 }) {
@@ -40,9 +48,20 @@ export function buildDodoCheckoutUrl(args: {
   }
   if (args.discountCode) {
     url.searchParams.set("metadata_discountCode", args.discountCode);
+    url.searchParams.set("discount_code", args.discountCode);
+    url.searchParams.set("allow_discount_code", "true");
   }
   if (args.customerEmail) {
     url.searchParams.set("customer_email", args.customerEmail);
+  }
+  if (args.billingAddress) {
+    url.searchParams.set("billing_address_country", args.billingAddress.countryCode);
+    url.searchParams.set("billing_address_city", args.billingAddress.town);
+    url.searchParams.set("billing_address_street", `${args.billingAddress.street} ${args.billingAddress.number}`.trim());
+    url.searchParams.set("billing_address_zipcode", args.billingAddress.zipcode);
+    if (args.billingAddress.countryName) {
+      url.searchParams.set("billing_address_state", args.billingAddress.countryName);
+    }
   }
   if (args.successUrl) {
     url.searchParams.set("redirect_url", args.successUrl);

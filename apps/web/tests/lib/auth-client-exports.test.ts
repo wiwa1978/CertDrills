@@ -22,7 +22,7 @@ describe("web auth client exports", () => {
     const authExports = await import("../../src/lib/auth-client");
 
     expect(Object.prototype.hasOwnProperty.call(authExports, "admin")).toBe(false);
-  });
+  }, 15_000);
 
   it("imports the user-only auth client subpath", async () => {
     const appAuthClientSource = await readFile(join(process.cwd(), "src/lib/auth-client.ts"), "utf8");

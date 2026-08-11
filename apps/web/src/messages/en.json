@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Build faster, ship smarter",
-    "description": "The modern platform for building exceptional products. Streamline your workflow, collaborate seamlessly, and deliver outstanding results."
+    "title": "CertDrills - Composable SaaS starter",
+    "description": "A single-tenant SaaS starter with separate web, admin, and API applications plus authentication and billing primitives."
   },
   "nav": {
     "features": "Features",
@@ -13,28 +13,27 @@
     "toggleMenu": "Toggle menu"
   },
   "hero": {
-    "badge": "New",
-    "badgeText": "CertDrills",
+    "badge": "Boilerplate",
+    "badgeText": "A composable platform foundation",
     "titleBuild": "Build",
     "titleFaster": "faster",
     "titleShip": ", ship",
     "titleSmarter": "smarter",
     "description": "The modern platform for building exceptional products. Streamline your workflow, collaborate seamlessly, and deliver outstanding results.",
     "cta": "Get Started",
-    "watchDemo": "Watch Demo",
-    "socialProof": "Trusted by {count}+ developers and teams worldwide"
+    "watchDemo": "Watch Demo"
   },
   "features": {
     "title": "Everything you need to succeed",
-    "description": "Powerful features designed to help you build, launch, and scale your products faster than ever.",
+    "description": "Reusable platform capabilities that can be composed with product-owned routes, data, and workflows.",
     "items": {
       "lightningFast": {
         "title": "Lightning Fast",
         "description": "Optimized performance that keeps your application running at peak speed, no matter the scale."
       },
       "enterpriseSecurity": {
-        "title": "Enterprise Security",
-        "description": "Bank-grade security with end-to-end encryption and compliance with industry standards."
+        "title": "Security Controls",
+        "description": "Authentication, administrator authorization, audit logging, and signed payment webhooks are built into the platform layer."
       },
       "advancedAnalytics": {
         "title": "Advanced Analytics",
@@ -49,14 +48,14 @@
         "description": "Grow without limits. Our infrastructure scales automatically with your needs."
       },
       "support": {
-        "title": "24/7 Support",
-        "description": "Round-the-clock support from our expert team to help you succeed."
+        "title": "Operational Visibility",
+        "description": "Administration surfaces expose billing, webhook, audit, and background-work state."
       }
     }
   },
   "pricing": {
     "title": "Simple, transparent pricing",
-    "description": "Choose the plan that's right for you. All plans include a 14-day free trial.",
+    "description": "Example billing surfaces demonstrate how products can compose credits, subscriptions, or one-time transactions.",
     "mostPopular": "Most Popular",
     "perMonth": "/month",
     "plans": {
@@ -109,8 +108,8 @@
     "subtitle": "We're on a mission to help teams build better products, faster.",
     "mission": {
       "title": "Our Mission",
-      "paragraph1": "We believe that building great products shouldn't be complicated. Our platform empowers teams of all sizes to collaborate effectively, ship faster, and focus on what matters most — creating value for their users.",
-      "paragraph2": "Founded in 2024, we've helped thousands of teams streamline their workflows and deliver exceptional results. Our commitment to simplicity and developer experience drives everything we do."
+      "paragraph1": "This repository provides reusable platform mechanisms while keeping product routes, data, capabilities, and policies outside the platform layer.",
+      "paragraph2": "Use it as a starting point, replace the product composition, and validate the resulting application before launch."
     },
     "values": {
       "title": "Our Values",
@@ -130,25 +129,19 @@
         "title": "Continuous Improvement",
         "description": "We ship fast, learn faster, and never stop improving."
       }
-    },
-    "stats": {
-      "activeUsers": "Active Users",
-      "companies": "Companies",
-      "uptimeSla": "Uptime SLA",
-      "support": "Support"
     }
   },
   "cta": {
     "title": "Ready to get started?",
-    "description": "Join thousands of teams already using our platform to build amazing products. Start your free trial today.",
-    "primaryButton": "Start Free Trial",
-    "secondaryButton": "Contact Sales",
-    "disclaimer": "No credit card required · 14-day free trial · Cancel anytime"
+    "description": "Explore the platform foundation, then connect your own product modules and billing catalog.",
+    "primaryButton": "Get Started",
+    "secondaryButton": "View Documentation",
+    "disclaimer": "Configure authentication, billing, operations, and product policies for your deployment"
   },
   "footer": {
-    "description": "Building the future of product development. Empowering teams to create exceptional experiences.",
-    "copyright": "Acme Inc. All rights reserved.",
-    "madeWith": "Made with ❤️ for developers",
+    "description": "A composable foundation for single-tenant SaaS products.",
+    "copyright": "CertDrills. All rights reserved.",
+    "madeWith": "Built for product teams",
     "groups": {
       "product": {
         "title": "Product",
@@ -291,9 +284,7 @@
       "settings": "Settings",
       "billing": "Billing Portal",
       "userManagement": "User Management",
-      "admin": "Admin Panel",
-      "exams": "Exams",
-      "attempts": "Attempt history"
+      "admin": "Admin Panel"
     },
     "signOut": "Sign out",
     "topNav": {
@@ -1142,6 +1133,11 @@
         "name": "Pro",
         "description": "Maximum credits with the biggest bonus.",
         "cta": "Buy Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "The largest credit bundle for high-volume usage.",
+        "cta": "Buy Max"
       }
     },
     "features": {
@@ -1190,6 +1186,26 @@
       "successDescription": "Your credits will appear once payment processing completes.",
       "cancelTitle": "Checkout canceled",
       "cancelDescription": "No credits were purchased."
+    },
+    "credits": {
+      "checkout": {
+        "title": "Buy {package}",
+        "description": "Confirm your package details before continuing to payment.",
+        "packageNotFound": "Credit package not found",
+        "baseCredits": "{count} credits",
+        "bonusCredits": "+{count} bonus credits",
+        "totalCredits": "{count} total credits",
+        "creditsNeverExpire": "Credits never expire",
+        "subtotal": "Subtotal",
+        "voucherLabel": "Voucher or discount code",
+        "voucherPlaceholder": "Enter code",
+        "voucherDescription": "This code will be sent directly to the payment provider.",
+        "billingAddress": "Billing address",
+        "addressPlaceholder": "Select an address",
+        "addAddressInSettings": "Add a billing address in your profile settings before continuing.",
+        "redirecting": "Redirecting...",
+        "proceed": "Proceed to payment"
+      }
     },
     "portal": {
       "button": "Manage billing",
@@ -1253,6 +1269,93 @@
         "redeeming": "Redeeming..."
       }
     },
+    "transaction": {
+      "eyebrow": "Transaction billing",
+      "title": "Purchase access",
+      "description": "Select products, review your cart, and continue to secure checkout.",
+      "loading": "Refreshing transaction billing...",
+      "catalog": {
+        "title": "Products",
+        "description": "Choose access products and quantities. Prices exclude tax.",
+        "preTax": "Pre-tax price",
+        "addOrUpdate": "Add or update",
+        "quantityLabel": "{product} quantity: {quantity}",
+        "decreaseQuantity": "Decrease {product} quantity",
+        "increaseQuantity": "Increase {product} quantity"
+      },
+      "basket": {
+        "title": "Cart",
+        "description": "Review your cart and continue to checkout.",
+        "triggerLabel": "Open cart",
+        "triggerLabelWithCount": "Open cart, {count, plural, one {# item} other {# items}}",
+        "close": "Close cart",
+        "loading": "Loading your cart...",
+        "clear": "Clear",
+        "empty": "Your cart is empty.",
+        "remove": "Remove {product}",
+        "quantityLabel": "{product} quantity: {quantity}",
+        "decreaseQuantity": "Decrease {product} quantity",
+        "increaseQuantity": "Increase {product} quantity",
+        "subtotal": "Subtotal",
+        "taxNote": "Tax and final total are calculated by Dodo at checkout.",
+        "checkout": "Checkout",
+        "checkoutPending": "Opening checkout...",
+        "retry": "Try again"
+      },
+      "errors": {
+        "basketMutation": "We couldn't update your cart. Please try again.",
+        "checkout": "We couldn't open checkout. Please try again.",
+        "basketQueryInitial": "We couldn't load your cart.",
+        "basketQuery": "We couldn't refresh your cart. Showing the last available cart."
+      },
+      "orders": {
+        "title": "Recent orders",
+        "description": "Payment history and provider-calculated totals.",
+        "empty": "No orders yet.",
+        "order": "Order {id}",
+        "status": "Order status: {status}",
+        "date": "Date: {date}",
+        "payment": "Payment: {id}",
+        "quantity": "Quantity: {quantity}",
+        "subtotal": "Subtotal",
+        "tax": "Tax",
+        "total": "Total",
+        "statuses": {
+          "pending_payment": "Pending payment",
+          "paid": "Paid",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "refund_pending": "Refund pending",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded"
+        }
+      },
+      "entitlements": {
+        "title": "Entitlements",
+        "description": "Access granted by completed orders.",
+        "empty": "No entitlements yet.",
+        "status": "Entitlement status: {status}",
+        "order": "Order: {id}",
+        "created": "Created: {date}",
+        "consumed": "Consumed: {date}",
+        "refunded": "Refunded: {date}",
+        "statuses": {
+          "available": "Available",
+          "consumed": "Consumed",
+          "refunded": "Refunded"
+        }
+      },
+      "products": {
+        "starterContent": {
+          "name": "Starter content access",
+          "description": "One durable entitlement for the starter content product."
+        },
+        "premiumContent": {
+          "name": "Premium content access",
+          "description": "One durable entitlement for the premium content product."
+        }
+      }
+    },
     "subscription": {
       "description": "Choose a subscription plan to continue.",
       "currentTitle": "Current subscription",
@@ -1266,6 +1369,7 @@
       "mostPopular": "Most popular",
       "planDescription": "Recurring SaaS access billed every {interval}",
       "choosePlan": "Choose {plan}",
+      "planNotFound": "Subscription plan not found",
       "discount": {
         "label": "Discount code",
         "placeholder": "Enter discount code",
@@ -1292,6 +1396,17 @@
         }
       },
       "checkout": {
+        "title": "Subscribe to {plan}",
+        "description": "Confirm your plan details before continuing to payment.",
+        "subtotal": "Subtotal",
+        "discountLabel": "Voucher or discount code",
+        "discountPlaceholder": "Enter code",
+        "discountDescription": "This code will be sent directly to the payment provider.",
+        "billingAddress": "Billing address",
+        "addressPlaceholder": "Select an address",
+        "addAddressInSettings": "Add a billing address in your profile settings before continuing.",
+        "redirecting": "Redirecting...",
+        "proceed": "Proceed to payment",
         "successDescription": "Subscription checkout completed. Your subscription will update once payment processing completes.",
         "cancelDescription": "Subscription checkout was canceled.",
         "portal": {
@@ -1331,12 +1446,7 @@
     "projects": "Projects",
     "discounts": "Discounts",
     "vouchers": "Vouchers",
-    "logs": "Logs",
-    "exams": "Exams",
-    "start": "Start",
-    "results": "Results",
-    "profile": "Profile",
-    "attempts": "Attempts"
+    "logs": "Logs"
   },
   "creditProgressBar": {
     "creditsOf": "{current} of {total} credits",

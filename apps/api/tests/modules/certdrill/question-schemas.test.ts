@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { questionCreateSchema, questionUpdateSchema } from "../../../src/modules/certdrill/question-schemas";
+import { questionCreateSchema, questionUpdateSchema } from "../../../src/product/certdrill/question-schemas";
 
 const ids = {
   certification: "11111111-1111-4111-8111-111111111111",

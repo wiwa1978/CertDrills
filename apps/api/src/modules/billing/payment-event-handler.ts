@@ -1,7 +1,7 @@
 import type { NormalizedPaymentEvent, PaymentEventHandler } from "@platform/payments-core";
 
 import { subscriptionPlans, type creditPackages as CreditPackagesList } from "../../config/billing";
-import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled } from "../../lib/feature-guards";
+import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled, ensureTransactionBillingEnabled } from "../../lib/feature-guards";
 import type { CheckoutIntentRecord, CheckoutIntentsService } from "./checkout-intents";
 import { isProviderSubscriptionWebhookEvent } from "./subscription-webhooks";
 
@@ -50,6 +50,21 @@ export type PaymentEventHandlerDeps = {
         currency: string;
       };
     }) => Promise<unknown>;
+  };
+  transactions?: {
+    handleTransactionPayment: (input: {
+      userId: string;
+      orderId: string;
+      checkoutReferenceId: string;
+      paymentId: string;
+      paymentStatus: "completed" | "pending" | "failed";
+      providerCustomerId?: string | null;
+      currency: string;
+      totalAmount: number;
+      taxAmount: number;
+      cartItems?: Array<{ productId: string; quantity: number }>;
+    }) => Promise<unknown>;
+    processTransactionRefund: (paymentId: string, refundId?: string) => Promise<unknown>;
   };
 };
 
@@ -173,6 +188,18 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
       return;
     }
 
+    if (event.eventType === "refund.succeeded" && event.metadata?.billingMode === "transactions") {
+      ensureTransactionBillingEnabled();
+      if (event.refundIsPartial) {
+        throw new Error(`Refusing payment ${event.paymentId}: partial transaction refunds require manual reconciliation.`);
+      }
+      if (!deps.transactions) {
+        throw new Error(`Refusing payment ${event.paymentId}: transaction refund handler is not configured.`);
+      }
+      await deps.transactions.processTransactionRefund(event.paymentId, event.refundId);
+      return;
+    }
+
     if (event.eventType === "refund.succeeded") {
       ensureCreditBillingEnabled();
       if (event.refundIsPartial) {
@@ -200,10 +227,6 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
       return;
     }
 
-    if (!event.productId) {
-      throw new Error("Missing product id");
-    }
-
     const metadataUserId =
       typeof event.metadata?.userId === "string" ? event.metadata.userId : undefined;
 
@@ -211,6 +234,53 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
       throw new Error(
         `Refusing payment ${event.paymentId}: metadata.userId missing. Checkout URLs must bind userId.`,
       );
+    }
+
+    if (event.metadata?.billingMode === "transactions") {
+      ensureTransactionBillingEnabled();
+
+      const orderId = getMetadataString(event.metadata, "orderId");
+      const checkoutReferenceId = getCheckoutReferenceId(event.metadata);
+      if (!orderId) throw new Error(`Refusing payment ${event.paymentId}: metadata.orderId missing.`);
+      if (!checkoutReferenceId) throw new Error(`Refusing payment ${event.paymentId}: checkout intent reference missing.`);
+      if (!event.currency) throw new Error(`Refusing payment ${event.paymentId}: currency missing.`);
+      if (!Number.isFinite(event.totalAmount) || event.totalAmount === undefined || event.totalAmount <= 0) {
+        throw new Error(`Refusing payment ${event.paymentId}: invalid total amount.`);
+      }
+      if (!Number.isFinite(event.taxAmount) || event.taxAmount === undefined || event.taxAmount < 0 || event.taxAmount > event.totalAmount) {
+        throw new Error(`Refusing payment ${event.paymentId}: invalid tax amount.`);
+      }
+
+      const foundUser = await deps.billing.getUserById(metadataUserId);
+      if (!foundUser) {
+        throw new Error(
+          `Refusing payment ${event.paymentId}: metadata.userId ${metadataUserId} did not resolve to a known user.`,
+        );
+      }
+
+      const paymentStatus = event.eventType === "payment.succeeded"
+        ? "completed"
+        : event.eventType === "payment.processing"
+          ? "pending"
+          : "failed";
+
+      if (!deps.transactions) {
+        throw new Error(`Refusing payment ${event.paymentId}: transaction payment handler is not configured.`);
+      }
+
+      await deps.transactions.handleTransactionPayment({
+        userId: foundUser.id,
+        orderId,
+        checkoutReferenceId,
+        paymentId: event.paymentId,
+        paymentStatus,
+        providerCustomerId: event.customerId ?? null,
+        currency: event.currency,
+        totalAmount: event.totalAmount,
+        taxAmount: event.taxAmount,
+        cartItems: event.cartItems,
+      });
+      return;
     }
 
     if (event.metadata?.billingMode === "subscriptions") {
@@ -242,6 +312,10 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
         throw new Error(
           `Refusing payment ${event.paymentId}: metadata.userId ${metadataUserId} did not resolve to a known user.`,
         );
+      }
+
+      if (!event.productId) {
+        throw new Error("Missing product id");
       }
 
       const paymentStatus = event.eventType === "payment.succeeded"
@@ -316,27 +390,20 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
       );
     }
 
-    const matchedPackage = deps.creditPackages.find((item) => productIdForProvider(item, event.provider) === event.productId);
-    if (!matchedPackage) {
-      throw new Error(`Unknown product id: ${event.productId}`);
+    let matchedPackage: CreditPackage | undefined;
+    if (event.productId) {
+      matchedPackage = deps.creditPackages.find((item) => productIdForProvider(item, event.provider) === event.productId);
+      if (!matchedPackage) {
+        throw new Error(`Unknown product id: ${event.productId}`);
+      }
     }
 
     if (!event.currency) {
       throw new Error(`Refusing payment ${event.paymentId}: currency missing.`);
     }
 
-    if (event.currency !== matchedPackage.currency) {
-      throw new Error(`Refusing payment ${event.paymentId}: expected ${matchedPackage.currency}, received ${event.currency}.`);
-    }
-
     if (!Number.isFinite(event.totalAmount) || event.totalAmount === undefined || event.totalAmount <= 0) {
       throw new Error(`Refusing payment ${event.paymentId}: invalid total amount.`);
-    }
-
-    if (event.totalAmount !== matchedPackage.price) {
-      throw new Error(
-        `Refusing payment ${event.paymentId}: expected amount ${matchedPackage.price}, received ${event.totalAmount}.`,
-      );
     }
 
     if (!Number.isFinite(event.taxAmount) || event.taxAmount === undefined || event.taxAmount < 0) {
@@ -345,6 +412,28 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
 
     if (event.taxAmount > event.totalAmount) {
       throw new Error(`Refusing payment ${event.paymentId}: tax amount exceeds total amount.`);
+    }
+
+    const metadataPackageKey = getMetadataString(event.metadata, "packageKey");
+    const packageForValidation = matchedPackage ?? deps.creditPackages.find((item) => item.key === metadataPackageKey);
+
+    if (packageForValidation && event.currency !== packageForValidation.currency) {
+      throw new Error(`Refusing payment ${event.paymentId}: expected ${packageForValidation.currency}, received ${event.currency}.`);
+    }
+
+    const discountCode = getMetadataString(event.metadata, "discountCode");
+    if (packageForValidation && !discountCode && event.totalAmount !== packageForValidation.price) {
+      throw new Error(
+        `Refusing payment ${event.paymentId}: expected amount ${packageForValidation.price}, received ${event.totalAmount}.`,
+      );
+    }
+
+    if (!event.productId) {
+      throw new Error("Missing product id");
+    }
+
+    if (!matchedPackage) {
+      throw new Error(`Unknown product id: ${event.productId}`);
     }
 
     const paymentStatus = event.eventType === "payment.succeeded"
@@ -357,7 +446,6 @@ export function createPaymentEventHandler(deps: PaymentEventHandlerDeps): Paymen
       throw new Error(`Refusing payment ${event.paymentId}: metadata.billingMode mismatch.`);
     }
 
-    const metadataPackageKey = getMetadataString(event.metadata, "packageKey");
     if (metadataPackageKey !== matchedPackage.key) {
       throw new Error(`Refusing payment ${event.paymentId}: metadata.packageKey mismatch.`);
     }

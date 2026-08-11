@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 
+import type { PlatformOpenApiOperation } from "@platform/module-contracts";
 import type { AppEnv } from "../context";
-import { bootstrap } from "../bootstrap";
+import type { PlatformServices } from "../bootstrap";
 import { env } from "../env";
 import { resolveAdminAuthApi } from "../lib/auth-admin";
-import { createFallbackOpenApiSpec, mergeOpenApiSpecs } from "../openapi";
+import { createFallbackOpenApiSpec, mergeOpenApiSpecs, type MergeableOpenApiSpec } from "../openapi";
 
 function buildScalarHtml(specUrl: string) {
   return `<!doctype html>
@@ -46,28 +47,28 @@ function buildSwaggerHtml(specUrl: string) {
 </html>`;
 }
 
-async function buildOpenApiSpec() {
-  const adminAuthApi = resolveAdminAuthApi(bootstrap.authModule);
+async function buildOpenApiSpec(services: PlatformServices, additionalRoutes: readonly PlatformOpenApiOperation[]) {
+  const adminAuthApi = resolveAdminAuthApi(services.authModule);
   if (!adminAuthApi) {
-    return createFallbackOpenApiSpec();
+    return createFallbackOpenApiSpec(additionalRoutes);
   }
 
   const authSpec = await adminAuthApi.generateOpenAPISchema({});
-  return mergeOpenApiSpecs(authSpec as Record<string, any>);
+  return mergeOpenApiSpecs(authSpec as MergeableOpenApiSpec, additionalRoutes);
 }
 
-export function createDocsRouter() {
+export function createDocsRouter(services: PlatformServices, additionalRoutes: readonly PlatformOpenApiOperation[] = []) {
   const router = new Hono<AppEnv>();
 
   const openApiHandler = async (c: Context<AppEnv>) => {
-    return c.json(await buildOpenApiSpec());
+    return c.json(await buildOpenApiSpec(services, additionalRoutes));
   };
 
   if (env.NODE_ENV === "production") {
-    router.use("/openapi.json", bootstrap.authModule.requireAuth, bootstrap.authModule.requireAdminAccess);
-    router.use("/api/openapi.json", bootstrap.authModule.requireAuth, bootstrap.authModule.requireAdminAccess);
-    router.use("/docs", bootstrap.authModule.requireAuth, bootstrap.authModule.requireAdminAccess);
-    router.use("/api/docs", bootstrap.authModule.requireAuth, bootstrap.authModule.requireAdminAccess);
+    router.use("/openapi.json", services.authModule.requireAuth, services.authModule.requireAdminAccess);
+    router.use("/api/openapi.json", services.authModule.requireAuth, services.authModule.requireAdminAccess);
+    router.use("/docs", services.authModule.requireAuth, services.authModule.requireAdminAccess);
+    router.use("/api/docs", services.authModule.requireAuth, services.authModule.requireAdminAccess);
   }
 
   router.get("/openapi.json", openApiHandler);

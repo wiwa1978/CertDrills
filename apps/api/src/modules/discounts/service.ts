@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 
-import { and, desc, eq, gt, gte, like, lt, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, like, lt, lte, sql, type SQL } from "drizzle-orm";
 
 import { discounts } from "@platform/platform-db";
+import type { PlatformDb } from "@platform/platform-db";
 
 import type { PaymentProvider, ProviderCreateDiscountInput, ProviderUpdateDiscountInput } from "../payments/provider";
 
@@ -30,7 +31,7 @@ type UpdateDiscountInput = {
 };
 
 type DiscountsServiceDeps = {
-  db: any;
+  db: PlatformDb;
   paymentProvider: PaymentProvider;
 };
 
@@ -40,8 +41,8 @@ function inferDiscountStatus(startDate: Date, endDate: Date, now = new Date()): 
   return "active";
 }
 
-function getStatusWhereClause(status: DiscountStatus, now: Date) {
-  if (status === "active") return and(lte(discounts.startDate, now), gte(discounts.endDate, now));
+function getStatusWhereClause(status: DiscountStatus, now: Date): SQL {
+  if (status === "active") return and(lte(discounts.startDate, now), gte(discounts.endDate, now))!;
   if (status === "inactive") return gt(discounts.startDate, now);
   return lt(discounts.endDate, now);
 }
@@ -155,7 +156,7 @@ export function createDiscountsService(deps: DiscountsServiceDeps) {
     const normalizedLimit = normalizeLimit(limit, 100);
     const normalizedOffset = normalizeOffset(offset);
     const now = new Date();
-    const whereConditions = [] as any[];
+    const whereConditions: SQL[] = [];
 
     if (search?.trim()) whereConditions.push(like(discounts.code, `%${search.trim().toUpperCase()}%`));
     if (status) whereConditions.push(getStatusWhereClause(status, now));
@@ -183,7 +184,7 @@ export function createDiscountsService(deps: DiscountsServiceDeps) {
     });
 
     const refreshedDiscountsList = await Promise.all(
-      discountsList.map((discount: any) => refreshDiscountStatus(discount, now)),
+      discountsList.map((discount) => refreshDiscountStatus(discount, now)),
     );
 
     const totalResult = await deps.db
@@ -260,7 +261,7 @@ export function createDiscountsService(deps: DiscountsServiceDeps) {
 
     let created;
     try {
-      created = await deps.db.transaction(async (tx: DiscountsServiceDeps["db"]) => {
+      created = await deps.db.transaction(async (tx) => {
         const [createdDiscount] = await tx
           .insert(discounts)
           .values({

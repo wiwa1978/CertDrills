@@ -1,23 +1,31 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
+import { eq } from "drizzle-orm";
 
 import {
+  capabilityKeyParamSchema,
+  consumeCapabilityRequestSchema,
   createApiKeySchema,
-  consumeCreditsRequestSchema,
+  dataExportIdParamSchema,
   revokeApiKeyParamSchema,
   invoiceRequestSchema,
   notificationIdParamSchema,
   optionalLimitQuerySchema,
   redeemVoucherSchema,
+  transactionBasketItemRequestSchema,
+  transactionEntitlementConsumeParamsSchema,
+  transactionOrderParamsSchema,
+  transactionProductKeyParamsSchema,
 } from "@platform/contracts/wire";
+import { user } from "@platform/platform-db";
 
 import type { AppEnv } from "../context";
-import { bootstrap } from "../bootstrap";
+import type { PlatformServices } from "../bootstrap";
 import { applicationConfig } from "../config/application";
 import { env } from "../env";
-import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled, getBillingModeDisabledErrorMessage } from "../lib/feature-guards";
+import { ensureCreditBillingEnabled, ensureSubscriptionBillingEnabled, ensureTransactionBillingEnabled, getBillingModeDisabledErrorMessage } from "../lib/feature-guards";
 import { badRequest, fail, notFound, ok, parseJsonBody, parseParams, parseQuery, validationError } from "../lib/http";
-import { isCreditBillingMode, isSubscriptionBillingMode } from "../lib/billing-mode";
+import { isCreditBillingMode, isSubscriptionBillingMode, isTransactionBillingMode } from "../lib/billing-mode";
 import { logger } from "../observability/logger";
 
 function getAuthUser(c: Context<AppEnv>) {
@@ -30,18 +38,18 @@ function getAuthUser(c: Context<AppEnv>) {
 }
 
 function billingModeErrorResponse(c: Context<AppEnv>, error: unknown) {
-    const billingModeError = getBillingModeDisabledErrorMessage(error);
-    if (billingModeError) {
-      return badRequest(c, billingModeError);
-    }
+  const billingModeError = getBillingModeDisabledErrorMessage(error);
+  if (billingModeError) {
+    return badRequest(c, billingModeError);
+  }
 
   throw error;
 }
 
-async function getLatestProviderCustomerId(userId: string) {
+async function getLatestProviderCustomerId(services: PlatformServices, userId: string) {
   const [subscriptionCustomerId, creditCustomerId] = await Promise.all([
-    bootstrap.subscriptionService.getLatestProviderCustomerId(userId),
-    bootstrap.billingService.getLatestProviderCustomerId(userId),
+    services.subscriptionService.getLatestProviderCustomerId(userId),
+    services.billingService.getLatestProviderCustomerId(userId),
   ]);
 
   return subscriptionCustomerId ?? creditCustomerId ?? null;
@@ -51,28 +59,62 @@ function createPortalReturnUrl() {
   return new URL("/billing", env.APP_URL).toString();
 }
 
-export function createMeRouter() {
+export function createMeRouter(services: PlatformServices, options: {
+  requireAuth?: MiddlewareHandler<AppEnv> | false;
+  resolveCapabilities?: (userId: string) => Promise<readonly string[]>;
+} = {}) {
   const router = new Hono<AppEnv>();
-  router.use("/*", bootstrap.authModule.requireAuth);
+  if (options.requireAuth !== false) {
+    router.use("/*", options.requireAuth ?? services.authModule.requireAuth);
+  }
 
   router.get("/session", (c) => {
     return ok(c, getAuthUser(c));
   });
 
   router.get("/application-config", (c) => {
+    return getApplicationConfigResponse(c);
+  });
+
+  async function getApplicationConfigResponse(c: Context<AppEnv>) {
+    const runtimeSettings = await services.applicationSettingsService.getRuntimeSettingsPayload();
+    const capabilities = options.resolveCapabilities
+      ? await options.resolveCapabilities(getAuthUser(c).id)
+      : [];
+
     return ok(c, {
       billing: {
         enabled: applicationConfig.features.billing,
         mode: applicationConfig.billing.mode,
         creditSurfacesEnabled: applicationConfig.features.billing && isCreditBillingMode(),
         subscriptionSurfacesEnabled: applicationConfig.features.billing && isSubscriptionBillingMode(),
+        transactionSurfacesEnabled: applicationConfig.features.billing && isTransactionBillingMode(),
       },
       features: {
         vouchers: applicationConfig.features.vouchers,
         discounts: applicationConfig.features.discounts,
         notifications: applicationConfig.features.notifications,
       },
+      ui: runtimeSettings.effective,
+      capabilities,
     });
+  }
+
+  router.get("/profile-address", async (c) => {
+    const authUser = getAuthUser(c);
+    const [profile] = await services.db
+      .select({
+        street: user.street,
+        number: user.number,
+        zipcode: user.zipcode,
+        town: user.town,
+        countryId: user.countryId,
+      })
+      .from(user)
+      .where(eq(user.id, authUser.id))
+      .limit(1);
+
+    return ok(c, profile ?? null);
   });
 
   router.post("/customer-portal", async (c) => {
@@ -81,12 +123,12 @@ export function createMeRouter() {
     }
 
     const authUser = getAuthUser(c);
-    const providerCustomerId = await getLatestProviderCustomerId(authUser.id);
+    const providerCustomerId = await getLatestProviderCustomerId(services, authUser.id);
     if (!providerCustomerId) {
       return notFound(c, "No billing customer found");
     }
 
-    const paymentProvider = bootstrap.paymentProviders.activeProvider;
+    const paymentProvider = services.paymentProviders.activeProvider;
     if (!paymentProvider.createCustomerPortal) {
       return fail(c, "Customer portal is not configured", 503);
     }
@@ -113,24 +155,26 @@ export function createMeRouter() {
 
   router.get("/data-exports", async (c) => {
     const authUser = getAuthUser(c);
-    const exports = await bootstrap.privacyService.listExports(authUser.id);
+    const exports = await services.privacyService.listExports(authUser.id);
     return c.json({ success: true, data: exports });
   });
 
   router.post("/data-exports", async (c) => {
     const authUser = getAuthUser(c);
-    const result = await bootstrap.privacyService.createExport(authUser.id);
+    const result = await services.privacyService.createExport(authUser.id);
     if (!result.ok) {
       return badRequest(c, result.error ?? "Failed to create data export");
     }
 
-    return c.json({ success: true, data: result.data }, 201);
+    return c.json({ success: true, data: result.data }, 202);
   });
 
   router.delete("/data-exports/:exportId", async (c) => {
     const authUser = getAuthUser(c);
-    const exportId = c.req.param("exportId");
-    const result = await bootstrap.privacyService.cancelExport(authUser.id, exportId);
+    const parsedParams = parseParams(dataExportIdParamSchema, { exportId: c.req.param("exportId") });
+    if (!parsedParams.success) return validationError(c, "Invalid data export id");
+
+    const result = await services.privacyService.cancelExport(authUser.id, parsedParams.data.exportId);
     if (!result.ok) {
       return notFound(c, result.error);
     }
@@ -140,7 +184,7 @@ export function createMeRouter() {
 
   router.get("/api-keys", async (c) => {
     const authUser = getAuthUser(c);
-    const keys = await bootstrap.apiKeysService.list(authUser.id);
+    const keys = await services.apiKeysService.list(authUser.id);
     return ok(c, keys);
   });
 
@@ -150,7 +194,7 @@ export function createMeRouter() {
     const parsedBody = parseJsonBody(createApiKeySchema, body);
     if (!parsedBody.success) return validationError(c, "Invalid API key payload");
 
-    const result = await bootstrap.apiKeysService.create({
+    const result = await services.apiKeysService.create({
       userId: authUser.id,
       name: parsedBody.data.name,
       scopes: parsedBody.data.scopes,
@@ -164,26 +208,27 @@ export function createMeRouter() {
     const parsedParams = parseParams(revokeApiKeyParamSchema, { keyId: c.req.param("keyId") });
     if (!parsedParams.success) return validationError(c, "Invalid API key id");
 
-    const key = await bootstrap.apiKeysService.revoke(authUser.id, parsedParams.data.keyId);
+    const key = await services.apiKeysService.revoke(authUser.id, parsedParams.data.keyId);
     if (!key) return notFound(c, "API key not found");
     return ok(c, key);
   });
 
   router.get("/data-exports/:exportId/download", async (c) => {
     const authUser = getAuthUser(c);
-    const exportId = c.req.param("exportId");
-    const token = c.req.query("token") ?? "";
+    const parsedParams = parseParams(dataExportIdParamSchema, { exportId: c.req.param("exportId") });
+    if (!parsedParams.success) return validationError(c, "Invalid data export id");
 
-    const result = await bootstrap.privacyService.downloadExport(authUser.id, exportId, token);
+    const token = c.req.header("x-data-export-token") ?? "";
+    const result = await services.privacyService.downloadExport(authUser.id, parsedParams.data.exportId, token);
     if (!result.ok) {
-      const status = result.error === "EXPORT_EXPIRED" ? 410 : result.error === "EXPORT_NOT_READY" ? 409 : 404;
-      return fail(c, result.error, status);
+      return fail(c, result.error, 404);
     }
 
     return new Response(result.contents, {
       headers: {
         "content-type": "application/json; charset=utf-8",
         "content-disposition": `attachment; filename="${result.fileName}"`,
+        "cache-control": "no-store",
       },
     });
   });
@@ -196,7 +241,7 @@ export function createMeRouter() {
     }
 
     const authUser = getAuthUser(c);
-    const balance = await bootstrap.billingService.getCreditBalance(authUser.id);
+    const balance = await services.billingService.getCreditBalance(authUser.id);
     return c.json({ success: true, data: balance });
   });
 
@@ -214,7 +259,7 @@ export function createMeRouter() {
       return validationError(c, "Invalid history query");
     }
 
-    const history = await bootstrap.billingService.getCreditHistory(authUser.id, parsedQuery.data.limit);
+    const history = await services.billingService.getCreditHistory(authUser.id, parsedQuery.data.limit);
     return c.json({ success: true, data: history });
   });
 
@@ -232,24 +277,28 @@ export function createMeRouter() {
       return validationError(c, "Invalid purchases query");
     }
 
-    const purchases = await bootstrap.billingService.getCreditPurchases(authUser.id, parsedQuery.data.limit);
+    const purchases = await services.billingService.getCreditPurchases(authUser.id, parsedQuery.data.limit);
     return c.json({ success: true, data: purchases });
   });
 
-  router.post("/credits/consume", async (c) => {
+  router.post("/capabilities/:capabilityKey/consume", async (c) => {
     const authUser = getAuthUser(c);
-    const body = await c.req.json().catch(() => null);
-    const parsedBody = parseJsonBody(consumeCreditsRequestSchema, body);
+    const parsedParams = parseParams(capabilityKeyParamSchema, { capabilityKey: c.req.param("capabilityKey") });
+    if (!parsedParams.success) return validationError(c, "Invalid capability key");
 
-    if (!parsedBody.success) {
-      return validationError(c, "Invalid credit usage payload");
-    }
+    const body = await c.req.json().catch(() => null);
+    const parsedBody = parseJsonBody(consumeCapabilityRequestSchema, body);
+    if (!parsedBody.success) return validationError(c, "Invalid capability consumption payload");
 
     try {
-      const result = await bootstrap.billingService.consumeCredits(authUser.id, parsedBody.data);
+      const result = await services.capabilityService.consume(
+        authUser.id,
+        parsedParams.data.capabilityKey,
+        parsedBody.data,
+      );
       return c.json({ success: true, data: result });
     } catch (error) {
-      return badRequest(c, error instanceof Error ? error.message : "Failed to consume credits");
+      return badRequest(c, error instanceof Error ? error.message : "Failed to consume capability");
     }
   });
 
@@ -269,10 +318,10 @@ export function createMeRouter() {
     }
 
     try {
-      const invoice = await bootstrap.billingService.downloadInvoice(authUser.id, parsedBody.data.paymentId);
+      const invoice = await services.billingService.downloadInvoice(authUser.id, parsedBody.data.paymentId);
       return c.json(invoice);
-    } catch (error) {
-      return badRequest(c, error instanceof Error ? error.message : "Invoice not found");
+    } catch {
+      return notFound(c, "Invoice not found");
     }
   });
 
@@ -291,7 +340,7 @@ export function createMeRouter() {
       return validationError(c, "Invalid voucher payload");
     }
 
-    const result = await bootstrap.vouchersService.redeemVoucher(authUser.id, parsedBody.data.code);
+    const result = await services.vouchersService.redeemVoucher(authUser.id, parsedBody.data.code);
     if (!result.success) {
       return badRequest(c, result.error ?? "Voucher redemption failed");
     }
@@ -307,7 +356,7 @@ export function createMeRouter() {
     }
 
     const authUser = getAuthUser(c);
-    const subscription = await bootstrap.subscriptionService.getUserSubscription(authUser.id);
+    const subscription = await services.subscriptionService.getUserSubscription(authUser.id);
     return c.json({ success: true, data: subscription ?? null });
   });
 
@@ -325,7 +374,7 @@ export function createMeRouter() {
       return validationError(c, "Invalid subscription payments query");
     }
 
-    const payments = await bootstrap.subscriptionService.listUserSubscriptionPayments(authUser.id, parsedQuery.data.limit);
+    const payments = await services.subscriptionService.listUserSubscriptionPayments(authUser.id, parsedQuery.data.limit);
     return c.json({ success: true, data: payments });
   });
 
@@ -345,10 +394,140 @@ export function createMeRouter() {
     }
 
     try {
-      const invoice = await bootstrap.subscriptionService.downloadSubscriptionInvoice(authUser.id, parsedBody.data.paymentId);
+      const invoice = await services.subscriptionService.downloadSubscriptionInvoice(authUser.id, parsedBody.data.paymentId);
       return c.json(invoice);
     } catch (error) {
       return notFound(c, "Invoice not found");
+    }
+  });
+
+  router.get("/transaction-basket", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    return ok(c, await services.transactionService.getOrCreateDraftBasket(authUser.id));
+  });
+
+  router.put("/transaction-basket/items", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    const body = await c.req.json().catch(() => null);
+    const parsedBody = parseJsonBody(transactionBasketItemRequestSchema, body);
+    if (!parsedBody.success) return validationError(c, "Invalid transaction basket item payload");
+
+    try {
+      return ok(c, await services.transactionService.upsertBasketItem(authUser.id, parsedBody.data));
+    } catch (error) {
+      return badRequest(c, error instanceof Error ? error.message : "Failed to update transaction basket");
+    }
+  });
+
+  router.delete("/transaction-basket/items/:productKey", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    const parsedParams = parseParams(transactionProductKeyParamsSchema, { productKey: c.req.param("productKey") });
+    if (!parsedParams.success) return validationError(c, "Invalid transaction product key");
+    return ok(c, await services.transactionService.removeBasketItem(authUser.id, parsedParams.data.productKey));
+  });
+
+  router.delete("/transaction-basket", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    return ok(c, await services.transactionService.clearBasket(authUser.id));
+  });
+
+  router.post("/transaction-basket/checkout", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    try {
+      return ok(c, await services.transactionService.checkoutBasket({ userId: authUser.id, customerEmail: authUser.email ?? null }));
+    } catch (error) {
+      logger.error({
+        requestId: c.get("requestId"),
+        userId: authUser.id,
+        error,
+      }, "transaction_checkout.create.failed");
+      return badRequest(c, "Failed to create transaction checkout");
+    }
+  });
+
+  router.get("/transaction-orders", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    return ok(c, await services.transactionService.listOrders(authUser.id));
+  });
+
+  router.get("/transaction-orders/:orderId", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    const parsedParams = parseParams(transactionOrderParamsSchema, { orderId: c.req.param("orderId") });
+    if (!parsedParams.success) return validationError(c, "Invalid transaction order id");
+
+    const order = await services.transactionService.getOrder(authUser.id, parsedParams.data.orderId);
+    if (!order) return notFound(c, "Transaction order not found");
+    return ok(c, order);
+  });
+
+  router.get("/transaction-entitlements", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    return ok(c, await services.transactionService.listEntitlements(authUser.id));
+  });
+
+  router.post("/transaction-entitlements/:entitlementId/consume", async (c) => {
+    try {
+      ensureTransactionBillingEnabled();
+    } catch (error) {
+      return billingModeErrorResponse(c, error);
+    }
+
+    const authUser = getAuthUser(c);
+    const parsedParams = parseParams(transactionEntitlementConsumeParamsSchema, { entitlementId: c.req.param("entitlementId") });
+    if (!parsedParams.success) return validationError(c, "Invalid transaction entitlement id");
+
+    try {
+      return ok(c, await services.transactionService.consumeEntitlement(authUser.id, parsedParams.data.entitlementId));
+    } catch (error) {
+      return badRequest(c, error instanceof Error ? error.message : "Failed to consume transaction entitlement");
     }
   });
 
@@ -360,19 +539,19 @@ export function createMeRouter() {
       return validationError(c, "Invalid notifications query");
     }
 
-    const list = await bootstrap.notificationsService.listForUser(authUser.id, parsedQuery.data.limit);
+    const list = await services.notificationsService.listForUser(authUser.id, parsedQuery.data.limit);
     return c.json({ success: true, data: list });
   });
 
   router.get("/notifications/unread-count", async (c) => {
     const authUser = getAuthUser(c);
-    const count = await bootstrap.notificationsService.unreadCount(authUser.id);
+    const count = await services.notificationsService.unreadCount(authUser.id);
     return c.json({ success: true, data: { count } });
   });
 
   router.get("/notifications/active-banner", async (c) => {
     const authUser = getAuthUser(c);
-    const banner = await bootstrap.notificationsService.getActiveBannerForUser(authUser.id);
+    const banner = await services.notificationsService.getActiveBannerForUser(authUser.id);
     return c.json({ success: true, data: banner });
   });
 
@@ -384,7 +563,7 @@ export function createMeRouter() {
       return validationError(c, "Invalid notification id");
     }
 
-    await bootstrap.notificationsService.markAsRead(authUser.id, parsedParams.data.notificationId);
+    await services.notificationsService.markAsRead(authUser.id, parsedParams.data.notificationId);
     return c.json({ success: true, data: { marked: true } });
   });
 
@@ -396,13 +575,13 @@ export function createMeRouter() {
       return validationError(c, "Invalid notification id");
     }
 
-    await bootstrap.notificationsService.deleteNotification(authUser.id, parsedParams.data.notificationId);
+    await services.notificationsService.deleteNotification(authUser.id, parsedParams.data.notificationId);
     return c.json({ success: true, data: { deleted: true } });
   });
 
   router.post("/notifications/read-all", async (c) => {
     const authUser = getAuthUser(c);
-    await bootstrap.notificationsService.markAllAsRead(authUser.id);
+    await services.notificationsService.markAllAsRead(authUser.id);
     return c.json({ success: true, data: { marked: true } });
   });
 

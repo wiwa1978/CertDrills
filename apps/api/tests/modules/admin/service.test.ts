@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import { createAdminService } from "../../../src/modules/admin/service";
 
@@ -122,7 +123,10 @@ describe("createAdminService", () => {
 
   // Verifies paginated transaction responses include hasMore based on total count.
   it("builds pagination response for transactions", async () => {
-    const transactionRows = [{ id: "t1" }, { id: "t2" }];
+    const transactionRows = [
+      { id: "t1", createdAt: new Date("2026-08-01T00:00:00.000Z") },
+      { id: "t2", createdAt: new Date("2026-08-02T00:00:00.000Z") },
+    ];
 
     const select = vi
       .fn()
@@ -153,9 +157,54 @@ describe("createAdminService", () => {
     });
 
     const result = await service.getAllTransactions(2, 0);
-    expect(result.transactions).toEqual(transactionRows);
+    expect(result.transactions).toEqual(transactionRows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+    })));
     expect(result.total).toBe(10);
     expect(result.hasMore).toBe(true);
+  });
+
+  it("returns every credit purchase status for an admin user lookup", async () => {
+    const purchases = ["pending", "completed", "failed", "refunded"].map((paymentStatus) => ({ paymentStatus }));
+    const limit = vi.fn().mockResolvedValue(purchases);
+    const orderBy = vi.fn().mockReturnValue({ limit });
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const service = createAdminService({
+      db: { select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where }) }) } as any,
+    });
+
+    await expect(service.getUserCreditPurchases("user-1")).resolves.toEqual(purchases);
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0]![0]);
+    expect(query.params).toEqual(["user-1"]);
+    expect(query.sql).not.toContain("payment_status");
+  });
+
+  it("returns every credit purchase status in an unfiltered admin list", async () => {
+    const purchases = ["pending", "completed", "failed", "refunded"].map((paymentStatus, index) => ({
+      paymentStatus,
+      createdAt: new Date(`2026-08-0${index + 1}T00:00:00.000Z`),
+    }));
+    const listWhere = vi.fn().mockReturnValue({
+      orderBy: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({ offset: vi.fn().mockResolvedValue(purchases) }),
+      }),
+    });
+    const countWhere = vi.fn().mockResolvedValue([{ count: purchases.length }]);
+    const select = vi.fn()
+      .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ innerJoin: vi.fn().mockReturnValue({ where: listWhere }) }) })
+      .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ innerJoin: vi.fn().mockReturnValue({ where: countWhere }) }) });
+    const service = createAdminService({ db: { select } as any });
+
+    await expect(service.getAllPurchases()).resolves.toMatchObject({
+      purchases: purchases.map((purchase) => ({
+        ...purchase,
+        createdAt: purchase.createdAt.toISOString(),
+      })),
+      total: purchases.length,
+    });
+    expect(listWhere).toHaveBeenCalledWith(undefined);
+    expect(countWhere).toHaveBeenCalledWith(undefined);
   });
 
   // Verifies transaction pagination inputs are normalized before reaching the query builder.

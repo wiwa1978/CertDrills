@@ -1,8 +1,6 @@
-import type { BetterAuthClientPlugin } from "better-auth";
 
-export type CreateWebAuthClientOptions<Plugins extends BetterAuthClientPlugin[] = BetterAuthClientPlugin[]> = {
+export type CreateWebAuthClientOptions = {
   baseURL: string;
-  plugins?: Plugins;
   features?: {
     billing?: boolean;
     twoFactor?: boolean;
@@ -12,11 +10,34 @@ export type CreateWebAuthClientOptions<Plugins extends BetterAuthClientPlugin[] 
   onError?: (ctx: { error: unknown; context: unknown }) => void;
 };
 
+export type MobileTokenPair = {
+  accessToken: string;
+  refreshToken: string;
+  expiresInSeconds: number;
+  tokenType: "Bearer";
+};
+
+export type MobileTokenStorage = {
+  getTokens: () => Promise<MobileTokenPair | null>;
+  setTokens: (tokens: MobileTokenPair) => Promise<void>;
+  clearTokens: () => Promise<void>;
+};
+
+export type MobileSecureStore = {
+  getItemAsync(key: string): Promise<string | null>;
+  setItemAsync(key: string, value: string): Promise<void>;
+  deleteItemAsync(key: string): Promise<void>;
+};
+
+export type CreateMobileTokenStorageOptions = {
+  store: MobileSecureStore;
+  key?: string;
+};
+
+export type MobileFetch = (input: string, init?: RequestInit) => Promise<Response>;
+
 export type CreateMobileAuthClientOptions = {
   baseURL: string;
-  storage?: {
-    get: (key: string) => Promise<string | null> | string | null;
-    set: (key: string, value: string) => Promise<void> | void;
-    del: (key: string) => Promise<void> | void;
-  };
+  storage: MobileTokenStorage;
+  fetch?: MobileFetch;
 };

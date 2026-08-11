@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 
 import { checkoutIntents } from "@platform/platform-db";
+import type { PlatformDb, PlatformDbExecutor } from "@platform/platform-db";
 
-export type CheckoutBillingMode = "credits" | "subscriptions";
+export type CheckoutBillingMode = "credits" | "subscriptions" | "transactions";
 export type CheckoutIntentStatus = "pending" | "completed" | "failed" | "cancelled" | "expired";
 
 export type CheckoutIntentRecord = {
@@ -34,15 +35,15 @@ export type CreateCheckoutIntentInput = {
 };
 
 export type CheckoutIntentsService = {
-  create: (input: CreateCheckoutIntentInput) => Promise<CheckoutIntentRecord>;
+  create: (input: CreateCheckoutIntentInput, executor?: PlatformDbExecutor) => Promise<CheckoutIntentRecord>;
   findByReferenceId: (referenceId: string) => Promise<CheckoutIntentRecord | null>;
-  markPending: (input: { id: string; paymentId: string }) => Promise<unknown>;
-  markCompleted: (input: { id: string; paymentId: string }) => Promise<unknown>;
-  markFailed: (input: { id: string; paymentId?: string | null }) => Promise<unknown>;
+  markPending: (input: { id: string; paymentId: string }, executor?: PlatformDbExecutor) => Promise<unknown>;
+  markCompleted: (input: { id: string; paymentId: string }, executor?: PlatformDbExecutor) => Promise<unknown>;
+  markFailed: (input: { id: string; paymentId?: string | null }, executor?: PlatformDbExecutor) => Promise<unknown>;
 };
 
 type CheckoutIntentsServiceDeps = {
-  db: any;
+  db: PlatformDb;
 };
 
 export function createCheckoutIntentReference() {
@@ -50,8 +51,8 @@ export function createCheckoutIntentReference() {
 }
 
 export function createCheckoutIntentsService(deps: CheckoutIntentsServiceDeps): CheckoutIntentsService {
-  async function create(input: CreateCheckoutIntentInput) {
-    const [intent] = await deps.db
+  async function create(input: CreateCheckoutIntentInput, executor: PlatformDbExecutor = deps.db) {
+    const [intent] = await executor
       .insert(checkoutIntents)
       .values({
         userId: input.userId,
@@ -70,13 +71,13 @@ export function createCheckoutIntentsService(deps: CheckoutIntentsServiceDeps): 
   }
 
   async function findByReferenceId(referenceId: string) {
-    return deps.db.query.checkoutIntents.findFirst({
+    return (await deps.db.query.checkoutIntents.findFirst({
       where: eq(checkoutIntents.referenceId, referenceId),
-    });
+    })) ?? null;
   }
 
-  async function markPending(input: { id: string; paymentId: string }) {
-    return deps.db
+  async function markPending(input: { id: string; paymentId: string }, executor: PlatformDbExecutor = deps.db) {
+    return executor
       .update(checkoutIntents)
       .set({
         status: "pending",
@@ -86,9 +87,9 @@ export function createCheckoutIntentsService(deps: CheckoutIntentsServiceDeps): 
       .where(eq(checkoutIntents.id, input.id));
   }
 
-  async function markCompleted(input: { id: string; paymentId: string }) {
+  async function markCompleted(input: { id: string; paymentId: string }, executor: PlatformDbExecutor = deps.db) {
     const now = new Date();
-    return deps.db
+    return executor
       .update(checkoutIntents)
       .set({
         status: "completed",
@@ -99,9 +100,9 @@ export function createCheckoutIntentsService(deps: CheckoutIntentsServiceDeps): 
       .where(eq(checkoutIntents.id, input.id));
   }
 
-  async function markFailed(input: { id: string; paymentId?: string | null }) {
+  async function markFailed(input: { id: string; paymentId?: string | null }, executor: PlatformDbExecutor = deps.db) {
     const now = new Date();
-    return deps.db
+    return executor
       .update(checkoutIntents)
       .set({
         status: "failed",

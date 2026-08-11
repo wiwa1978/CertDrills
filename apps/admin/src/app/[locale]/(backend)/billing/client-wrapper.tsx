@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode, createContext, useContext, useEffect } from "react";
-import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -26,7 +25,6 @@ export function useBilling() {
 }
 
 export function BillingClientWrapper({ children }: BillingClientWrapperProps) {
-  const t = useTranslations("creditPricing");
   const { data: session } = authClient.useSession();
   const pathname = usePathname();
   const router = useRouter();

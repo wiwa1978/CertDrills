@@ -29,7 +29,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tabbed Settings */}
-      <Tabs idBase="settings" defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />

@@ -6,12 +6,10 @@ import { Container } from "@/components/ui/container";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
-import { ClientOnly } from "@/components/client-only";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   getAdminCreditsConsumedDataServer,
@@ -34,7 +32,7 @@ export default async function AdminDashboardPage() {
   const showCreditBillingCharts = applicationConfig.billing.creditSurfacesEnabled;
 
   return (
-    <Container className="py-6">
+    <Container className="max-w-[100rem] py-6 2xl:max-w-[112rem]">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">{t("title")}</h1>
         <p className="text-muted-foreground mt-2">{t("description")}</p>
@@ -126,14 +124,12 @@ async function TransactionsChartSection() {
     getAdminTransactionDataServer("yearly"),
   ]);
   return (
-    <ClientOnly fallback={<ChartSkeleton />}>
-      <TransactionsChart
-        dailyData={dailyData}
-        weeklyData={weeklyData}
-        monthlyData={monthlyData}
-        yearlyData={yearlyData}
-      />
-    </ClientOnly>
+    <TransactionsChart
+      dailyData={dailyData}
+      weeklyData={weeklyData}
+      monthlyData={monthlyData}
+      yearlyData={yearlyData}
+    />
   );
 }
 
@@ -145,14 +141,12 @@ async function CreditsConsumedChartSection() {
     getAdminCreditsConsumedDataServer("yearly"),
   ]);
   return (
-    <ClientOnly fallback={<ChartSkeleton />}>
-      <CreditsConsumedChart
-        dailyData={dailyData}
-        weeklyData={weeklyData}
-        monthlyData={monthlyData}
-        yearlyData={yearlyData}
-      />
-    </ClientOnly>
+    <CreditsConsumedChart
+      dailyData={dailyData}
+      weeklyData={weeklyData}
+      monthlyData={monthlyData}
+      yearlyData={yearlyData}
+    />
   );
 }
 
@@ -164,14 +158,12 @@ async function RevenueChartSection() {
     getAdminRevenueDataServer("yearly"),
   ]);
   return (
-    <ClientOnly fallback={<ChartSkeleton />}>
-      <RevenueChart
-        dailyData={dailyData}
-        weeklyData={weeklyData}
-        monthlyData={monthlyData}
-        yearlyData={yearlyData}
-      />
-    </ClientOnly>
+    <RevenueChart
+      dailyData={dailyData}
+      weeklyData={weeklyData}
+      monthlyData={monthlyData}
+      yearlyData={yearlyData}
+    />
   );
 }
 

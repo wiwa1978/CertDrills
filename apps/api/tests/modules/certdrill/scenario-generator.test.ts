@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createFoundryScenarioGenerator, ScenarioGeneratorError } from "../../../src/modules/certdrill/scenario-generator";
+import { createFoundryScenarioGenerator, ScenarioGeneratorError } from "../../../src/product/certdrill/scenario-generator";
 
 const contentJson = {
   initialNodeKey: "start",

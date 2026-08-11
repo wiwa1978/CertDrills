@@ -180,4 +180,30 @@ describe("createPaymentWebhookEventStore", () => {
       },
     }));
   });
+
+  it("serializes Date values in sanitized payloads as ISO strings", async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: "row-1" }]);
+    const values = vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnValue({ returning }),
+    });
+    const db = {
+      insert: vi.fn().mockReturnValue({ values }),
+    };
+    const store = createPaymentWebhookEventStore({ db } as any);
+    const timestamp = new Date("2026-08-04T12:00:00.000Z");
+
+    await store.claim({
+      provider: "dodo",
+      providerEventId: "evt_date",
+      eventType: "payment.succeeded",
+      sanitizedPayload: { timestamp, nested: { createdAt: timestamp } },
+    });
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      sanitizedPayload: {
+        timestamp: "2026-08-04T12:00:00.000Z",
+        nested: { createdAt: "2026-08-04T12:00:00.000Z" },
+      },
+    }));
+  });
 });

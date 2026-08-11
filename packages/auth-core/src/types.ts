@@ -1,4 +1,4 @@
-import type { BetterAuthOptions } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import type { MiddlewareHandler } from "hono";
 
 import type { AuthRole } from "@platform/auth-shared";
@@ -30,11 +30,13 @@ export type AuthUserRecord = {
 
 export type AuthModuleOptions = {
   betterAuthOptions: BetterAuthOptions;
+  auth?: ReturnType<typeof betterAuth>;
   users: {
     findById: (userId: string) => Promise<AuthUserRecord | null>;
   };
   admin: {
     allowlist: Set<string>;
+    totpRequired: boolean;
   };
   jwt: {
     secret: string;

@@ -3,7 +3,7 @@ import "dotenv/config";
 import { createPlatformDb } from "@platform/platform-db";
 
 import { env } from "../env";
-import { seedCertDrillDemoData } from "../modules/certdrill/seed-demo";
+import { seedCertDrillDemoData } from "../product/certdrill/seed-demo";
 
 const { db, sql } = createPlatformDb({ connectionString: env.DATABASE_URL });
 

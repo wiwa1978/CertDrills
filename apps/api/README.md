@@ -31,6 +31,7 @@ bun run dev
 ### Browser clients
 
 - Better Auth endpoints are hosted at `/auth/*`
+- Better Auth is mounted at `/auth`, not `/api/auth`
 - current user endpoint: `GET /me/session`
 - current admin endpoint: `GET /admin/session`
 - browser clients typically use session cookies
@@ -110,6 +111,42 @@ Typical required values include:
 - `BETTER_AUTH_SECRET`
 - `JWT_SECRET`
 - `ADMIN_ALLOWLIST`
+
+## Dodo Transaction Billing
+
+Transaction products are one-time purchases. Their configured prices are
+tax-exclusive subtotals in minor currency units; Dodo determines tax and the
+final customer total during checkout. Create each product in Dodo and configure
+its provider product ID in
+`packages/contracts/src/ts/billing/transaction-products.ts`.
+
+Configure Dodo to send webhooks to:
+
+```text
+${PUBLIC_API_URL}/auth/dodopayments/webhooks
+```
+
+This path reflects the repository's `/auth` Better Auth mount. Do not use
+`/api/auth/dodopayments/webhooks`. The following custom route remains available
+temporarily for compatibility and uses the same idempotent processing pipeline:
+
+```text
+${PUBLIC_API_URL}/payments/webhooks/dodo
+```
+
+### Rollout
+
+1. Create the one-time, tax-exclusive Dodo products and set their IDs in `transaction-products.ts`.
+2. Apply database migrations from the repository root:
+
+```bash
+MIGRATION_DATABASE_URL=postgres://migration_owner:password@host:5432/database bun run db:migrate
+```
+
+3. Deploy while Dodo continues sending to the compatibility route.
+4. Confirm `POST /auth/dodopayments/webhooks` returns a signature or verification error, not `404`, for an unsigned request.
+5. Switch Dodo to the preferred webhook URL, send a test event, and confirm one event appears in the admin webhook monitor.
+6. Retain the compatibility route until a separately approved cleanup removes it.
 
 ## Notes
 

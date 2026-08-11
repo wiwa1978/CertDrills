@@ -1,11 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, or } from "drizzle-orm";
 
-import { apiKeys, type ApiKeyScope } from "@platform/platform-db";
+import { apiKeys, createPlatformDb, type ApiKeyScope } from "@platform/platform-db";
+
+type PlatformDb = ReturnType<typeof createPlatformDb>["db"];
 
 type ApiKeysServiceDeps = {
-  db: any;
+  db: PlatformDb;
 };
 
 export const apiKeyScopes = ["read:profile", "read:billing", "read:credits"] as const satisfies readonly ApiKeyScope[];
@@ -18,7 +20,7 @@ function createPlaintextApiKey() {
   return `sk_${randomBytes(32).toString("base64url")}`;
 }
 
-function publicKey(row: any) {
+function publicKey(row: typeof apiKeys.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
@@ -57,6 +59,7 @@ export function createApiKeysService(deps: ApiKeysServiceDeps) {
       })
       .returning();
 
+    if (!row) throw new Error("Failed to create API key");
     return { apiKey: publicKey(row), plaintextKey };
   }
 
@@ -71,18 +74,27 @@ export function createApiKeysService(deps: ApiKeysServiceDeps) {
   }
 
   async function authenticate(plaintextKey: string) {
-    if (!plaintextKey.startsWith("sk_")) return null;
+    const now = new Date();
+    const candidateHash = hashApiKey(plaintextKey);
     const [row] = await deps.db
       .select()
       .from(apiKeys)
-      .where(and(eq(apiKeys.keyHash, hashApiKey(plaintextKey)), isNull(apiKeys.revokedAt)))
+      .where(and(
+        eq(apiKeys.keyHash, candidateHash),
+        isNull(apiKeys.revokedAt),
+        or(isNull(apiKeys.expiresAt), gt(apiKeys.expiresAt, now)),
+      ))
       .limit(1);
 
-    if (!row) return null;
-    if (row.expiresAt && row.expiresAt <= new Date()) return null;
+    if (!plaintextKey.startsWith("sk_") || !row) return null;
 
-    await deps.db.update(apiKeys).set({ lastUsedAt: new Date(), updatedAt: new Date() }).where(eq(apiKeys.id, row.id));
-    return { userId: row.userId, scopes: row.scopes as ApiKeyScope[] };
+    const throttleBefore = new Date(now.getTime() - 5 * 60_000);
+    await deps.db
+      .update(apiKeys)
+      .set({ lastUsedAt: now, updatedAt: now })
+      .where(and(eq(apiKeys.id, row.id), or(isNull(apiKeys.lastUsedAt), lt(apiKeys.lastUsedAt, throttleBefore))));
+
+    return { userId: row.userId, scopes: row.scopes };
   }
 
   return { list, create, revoke, authenticate };

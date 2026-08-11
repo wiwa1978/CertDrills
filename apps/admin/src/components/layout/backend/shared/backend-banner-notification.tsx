@@ -1,11 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
 import { translateNotification } from "@/lib/notifications";
-import { getActiveBannerNotifications } from "@/lib/services/notifications";
+import { getActiveBannerNotificationsServer } from "@/lib/api/me.server";
 import { BackendBannerNotificationDismiss } from "./backend-banner-notification-dismiss";
 
 export async function BackendBannerNotification({ locale }: { locale: string }) {
-  const result = await getActiveBannerNotifications();
+  const result = await getActiveBannerNotificationsServer();
   const banner = result.success ? result.data : null;
 
   if (!banner) {

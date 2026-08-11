@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import {
   calculateSubscriptionRecurringRevenue,
   hasActiveSubscriptionStatus,
   normalizeSubscriptionStatus,
   createSubscriptionService,
+  isCustomerVisibleSubscriptionPaymentStatus,
 } from "../../../src/modules/billing/subscription-service";
 
 describe("subscription service helpers", () => {
@@ -104,16 +106,28 @@ describe("subscription service helpers", () => {
 
   it("lists subscription payments with user details", async () => {
     const payments = [
-      {
-        id: "sp_1",
-        userId: "user_1",
-        planKey: "starter",
-        paymentId: "pay_1",
-        paymentStatus: "completed",
-        priceInclVat: 1900,
-        userEmail: "alice@example.com",
-      },
-    ];
+      "pending",
+      "completed",
+      "failed",
+      "refunded",
+      "cancelled",
+      "processing",
+      "requires_customer_action",
+      "requires_merchant_action",
+      "requires_payment_method",
+      "requires_confirmation",
+      "requires_capture",
+      "partially_captured",
+      "partially_captured_and_capturable",
+    ].map((paymentStatus, index) => ({
+      id: `sp_${index}`,
+      userId: "user_1",
+      planKey: "starter",
+      paymentId: `pay_${index}`,
+      paymentStatus,
+      priceInclVat: 1900,
+      userEmail: "alice@example.com",
+    }));
     const paymentsOffset = vi.fn().mockResolvedValue(payments);
     const paymentsLimit = vi.fn().mockReturnValue({ offset: paymentsOffset });
     const paymentsOrderBy = vi.fn().mockReturnValue({ limit: paymentsLimit });
@@ -121,7 +135,7 @@ describe("subscription service helpers", () => {
     const paymentsInnerJoin = vi.fn().mockReturnValue({ where: paymentsWhere });
     const paymentsFrom = vi.fn().mockReturnValue({ innerJoin: paymentsInnerJoin });
 
-    const countWhere = vi.fn().mockResolvedValue([{ count: 1 }]);
+    const countWhere = vi.fn().mockResolvedValue([{ count: payments.length }]);
     const countInnerJoin = vi.fn().mockReturnValue({ where: countWhere });
     const countFrom = vi.fn().mockReturnValue({ innerJoin: countInnerJoin });
     const select = vi.fn()
@@ -131,11 +145,55 @@ describe("subscription service helpers", () => {
 
     await expect(service.listSubscriptionPayments(5, 10, "alice@example.com")).resolves.toEqual({
       payments,
-      total: 1,
+      total: payments.length,
       hasMore: false,
     });
     expect(paymentsLimit).toHaveBeenCalledWith(5);
     expect(paymentsOffset).toHaveBeenCalledWith(10);
+    const paymentsQuery = new PgDialect().sqlToQuery(paymentsWhere.mock.calls[0]![0]);
+    const countQuery = new PgDialect().sqlToQuery(countWhere.mock.calls[0]![0]);
+    expect(paymentsQuery.params).toEqual(["%alice@example.com%"]);
+    expect(countQuery.params).toEqual(["%alice@example.com%"]);
+    expect(paymentsQuery.sql).not.toContain("payment_status");
+    expect(countQuery.sql).not.toContain("payment_status");
+  });
+
+  it("filters customer subscription payments in SQL before the limit", async () => {
+    const limit = vi.fn().mockResolvedValue([]);
+    const orderBy = vi.fn().mockReturnValue({ limit });
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const service = createSubscriptionService({
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({ where }),
+        }),
+      } as any,
+    });
+
+    await service.listUserSubscriptionPayments("user_1", 7);
+
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0]![0]);
+    expect(query.sql).toContain("payment_status\" in");
+    expect(query.params).toEqual(["user_1", "completed", "refunded"]);
+    expect(limit).toHaveBeenCalledWith(7);
+  });
+
+  it.each([
+    ["pending", false],
+    ["completed", true],
+    ["failed", false],
+    ["refunded", true],
+    ["cancelled", false],
+    ["processing", false],
+    ["requires_customer_action", false],
+    ["requires_merchant_action", false],
+    ["requires_payment_method", false],
+    ["requires_confirmation", false],
+    ["requires_capture", false],
+    ["partially_captured", false],
+    ["partially_captured_and_capturable", false],
+  ] as const)("defines subscription payment status %s customer visibility", (status, expected) => {
+    expect(isCustomerVisibleSubscriptionPaymentStatus(status)).toBe(expected);
   });
 
   it("returns provider-neutral identifiers for subscription responses", async () => {

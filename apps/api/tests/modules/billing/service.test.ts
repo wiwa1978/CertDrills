@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import {
   creditPurchases,
@@ -8,7 +9,12 @@ import {
   userCredits,
 } from "@platform/platform-db";
 
-import { createBillingService } from "../../../src/modules/billing/service";
+import { createBillingService, isCustomerVisibleCreditPaymentStatus } from "../../../src/modules/billing/service";
+
+const creditCapabilities = [
+  { key: "ai-query", defaultAccess: "allowed", consumption: "credits", creditCost: 5 },
+  { key: "expensive-query", defaultAccess: "allowed", consumption: "credits", creditCost: 10 },
+] as const;
 
 function updateReturningMock(
   updates: Array<{ table: unknown; set: unknown }>,
@@ -159,8 +165,8 @@ describe("createBillingService", () => {
       paymentSnapshot: {
         provider: "dodo",
         packageKey: "advanced",
-        priceExclVat: 2500,
-        priceInclVat: 2500,
+        priceExclVat: 1000,
+        priceInclVat: 1000,
         vatAmount: 0,
         currency: "EUR",
       },
@@ -170,9 +176,8 @@ describe("createBillingService", () => {
     expect(notifications.createNotification).toHaveBeenCalledOnce();
 
     const transactionInserts = inserts.filter((entry) => entry.table === creditTransactions);
-    expect(transactionInserts).toHaveLength(2);
+    expect(transactionInserts).toHaveLength(1);
     expect(transactionInserts[0]?.values).toMatchObject({ type: "purchase", userId: "u1", referenceId: "pay_1" });
-    expect(transactionInserts[1]?.values).toMatchObject({ type: "bonus", userId: "u1", referenceId: "pay_1" });
   });
 
   // Verifies pending purchases do not mutate balances or produce side effects.
@@ -408,7 +413,7 @@ describe("createBillingService", () => {
     expect(updates[1]?.table).toBe(userCredits);
 
     const transactionInserts = inserts.filter((entry) => entry.table === creditTransactions);
-    expect(transactionInserts).toHaveLength(2);
+    expect(transactionInserts).toHaveLength(1);
     expect(notifications.createNotification).toHaveBeenCalledOnce();
   });
 
@@ -740,13 +745,7 @@ describe("createBillingService", () => {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([
-                {
-                  id: "cp_1",
-                  userId: "someone-else",
-                  paymentStatus: "completed",
-                },
-              ]),
+              limit: vi.fn().mockResolvedValue([]),
             }),
           }),
         }),
@@ -760,11 +759,16 @@ describe("createBillingService", () => {
       notifications: { createNotification: vi.fn() },
     });
 
-    await expect(service.downloadInvoice("u1", "pay_1")).rejects.toThrow("Unauthorized");
+    await expect(service.downloadInvoice("u1", "pay_1")).rejects.toThrow("Invoice not found");
   });
 
   // Verifies credit history and purchase queries respect explicit limits.
   it("returns credit history and purchases with limit", async () => {
+    const purchaseWhere = vi.fn().mockReturnValue({
+      orderBy: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue([{ id: "p1" }]),
+      }),
+    });
     const select = vi.fn()
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
@@ -777,11 +781,7 @@ describe("createBillingService", () => {
       })
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([{ id: "p1" }]),
-            }),
-          }),
+          where: purchaseWhere,
         }),
       });
 
@@ -798,6 +798,18 @@ describe("createBillingService", () => {
 
     expect(history).toEqual([{ id: "t1" }]);
     expect(purchases).toEqual([{ id: "p1" }]);
+    const purchaseQuery = new PgDialect().sqlToQuery(purchaseWhere.mock.calls[0]![0]);
+    expect(purchaseQuery.sql).toContain("payment_status\" in");
+    expect(purchaseQuery.params).toEqual(["u1", "completed", "refunded"]);
+  });
+
+  it.each([
+    ["pending", false],
+    ["completed", true],
+    ["failed", false],
+    ["refunded", true],
+  ] as const)("defines credit payment status %s customer visibility", (status, expected) => {
+    expect(isCustomerVisibleCreditPaymentStatus(status)).toBe(expected);
   });
 
   // Verifies credit history limits are clamped to a safe upper bound.
@@ -876,12 +888,12 @@ describe("createBillingService", () => {
     const service = createBillingService({
       db: { transaction: vi.fn(async (cb: (trx: any) => unknown) => cb(tx)) } as any,
       env: { DODO_PAYMENTS_ENVIRONMENT: "test_mode" },
+      capabilities: creditCapabilities,
       notifications: { createNotification: vi.fn() },
     });
 
     const result = await service.consumeCredits("u1", {
       featureKey: "ai-query",
-      amount: 5,
       idempotencyKey: "idem-key-12345678",
     });
 
@@ -919,6 +931,7 @@ describe("createBillingService", () => {
     const existingEvent = {
       transactionId: "tx-existing-1",
       idempotencyKey: "idem-key-12345678",
+      featureKey: "ai-query",
       amount: "5.00",
     };
 
@@ -942,12 +955,12 @@ describe("createBillingService", () => {
     const service = createBillingService({
       db: { transaction: vi.fn(async (cb: (trx: any) => unknown) => cb(tx)) } as any,
       env: { DODO_PAYMENTS_ENVIRONMENT: "test_mode" },
+      capabilities: creditCapabilities,
       notifications: { createNotification: vi.fn() },
     });
 
     const result = await service.consumeCredits("u1", {
       featureKey: "ai-query",
-      amount: 5,
       idempotencyKey: "idem-key-12345678",
     });
 
@@ -981,13 +994,13 @@ describe("createBillingService", () => {
     const service = createBillingService({
       db: { transaction: vi.fn(async (cb: (trx: any) => unknown) => cb(tx)) } as any,
       env: { DODO_PAYMENTS_ENVIRONMENT: "test_mode" },
+      capabilities: creditCapabilities,
       notifications: { createNotification: vi.fn() },
     });
 
     await expect(
       service.consumeCredits("u1", {
-        featureKey: "ai-query",
-        amount: 10,
+        featureKey: "expensive-query",
         idempotencyKey: "idem-key-12345678",
       }),
     ).rejects.toThrow("Insufficient credits");

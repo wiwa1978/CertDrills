@@ -7,8 +7,8 @@ import { DashboardNavProvider } from "@/components/providers/backend-nav-provide
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
-  title: "(Admin) - Single Tenant with API SaaS boilerplate",
-  description: "(Admin) - Single Tenant with API SaaS boilerplate",
+  title: "Admin - CertDrills",
+  description: "CertDrills administration dashboard",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

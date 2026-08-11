@@ -1,29 +1,26 @@
-import { readFileSync } from "node:fs";
-
 import { describe, expect, it } from "vitest";
+import { mergeProductMessages } from "@platform/module-contracts";
 
-import { BackendNavAdminItems } from "../../src/config/backend-navbar-admin";
-
-function readMessages(locale: "en" | "fr" | "nl") {
-  return JSON.parse(readFileSync(new URL(`../../src/messages/${locale}.json`, import.meta.url), "utf8"));
-}
+import { productAdminContributions } from "../../src/composition/product";
+import { getBackendNavAdminItems } from "../../src/config/backend-navbar-admin";
 
 describe("CertDrill admin navigation", () => {
   it("contains CertDrill and Questions admin links in order", () => {
-    const adminNavTitles = BackendNavAdminItems.map((item) => item.title);
+    const items = getBackendNavAdminItems();
+    const adminNavTitles = items.map((item) => item.title);
 
-    expect(BackendNavAdminItems).toEqual(
+    expect(items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "admin.nav.certdrill", url: "/admin/certdrill" }),
-        expect.objectContaining({ title: "admin.nav.questions", url: "/admin/questions" }),
+        expect.objectContaining({ title: "certdrill.nav.certifications", url: "/admin/certdrill" }),
+        expect.objectContaining({ title: "certdrill.nav.questions", url: "/admin/questions" }),
       ]),
     );
-    expect(adminNavTitles.indexOf("admin.nav.questions")).toBe(adminNavTitles.indexOf("admin.nav.certdrill") + 1);
+    expect(adminNavTitles.indexOf("certdrill.nav.questions")).toBe(adminNavTitles.indexOf("certdrill.nav.certifications") + 1);
   });
 
   it("defines the Questions nav label in all admin locales", () => {
-    expect(readMessages("en").admin.nav.questions).toBe("Questions");
-    expect(readMessages("fr").admin.nav.questions).toBe("Questions");
-    expect(readMessages("nl").admin.nav.questions).toBe("Vragen");
+    expect(mergeProductMessages({}, productAdminContributions, "en")).toMatchObject({ certdrill: { nav: { questions: "Questions" } } });
+    expect(mergeProductMessages({}, productAdminContributions, "fr")).toMatchObject({ certdrill: { nav: { questions: "Questions" } } });
+    expect(mergeProductMessages({}, productAdminContributions, "nl")).toMatchObject({ certdrill: { nav: { questions: "Vragen" } } });
   });
 });

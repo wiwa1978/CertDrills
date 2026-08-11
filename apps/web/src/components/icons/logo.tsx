@@ -54,7 +54,7 @@ export function LogoWithText({ className }: LogoProps) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <Logo />
-      <span className="text-xl font-bold">Acme</span>
+      <span className="text-xl font-bold">CertDrills</span>
     </div>
   );
 }

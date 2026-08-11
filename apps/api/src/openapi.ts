@@ -1,18 +1,23 @@
 import { z } from "zod";
+import type { PlatformOpenApiOperation } from "@platform/module-contracts";
 
 import {
   banUserSchema,
   adminCreditsDashboardQuerySchema,
+  adminTransactionFinanceDashboardQuerySchema,
+  adminTransactionFinanceDashboardResponseSchema,
   applicationConfigResponseSchema,
   billingListQuerySchema,
   billingRangeQuerySchema,
   clientLogSchema,
-  consumeCreditsRequestSchema,
+  capabilityKeyParamSchema,
+  consumeCapabilityRequestSchema,
   countriesResponseSchema,
   countriesQuerySchema,
   createCheckoutRequestSchema,
   createCheckoutResponseSchema,
   createCreditRefundSchema,
+  createTransactionRefundSchema,
   createSubscriptionRefundSchema,
   discountIdParamSchema,
   discountListQuerySchema,
@@ -33,12 +38,24 @@ import {
   optionalLimitQuerySchema,
   paginationQuerySchema,
   redeemVoucherSchema,
+  resetApplicationSettingSchema,
   searchUsersQuerySchema,
   sessionResponseSchema,
   sendNotificationBaseSchema,
   sendNotificationToUsersSchema,
   setRoleSchema,
   setUserPasswordSchema,
+  transactionBasketItemRequestSchema,
+  transactionBasketResponseSchema,
+  transactionCheckoutResponseSchema,
+  transactionEntitlementResponseSchema,
+  transactionEntitlementConsumeParamsSchema,
+  transactionEntitlementsResponseSchema,
+  transactionOrderParamsSchema,
+  transactionOrderResponseSchema,
+  transactionOrdersResponseSchema,
+  transactionProductKeyParamsSchema,
+  updateApplicationSettingSchema,
   userIdParamSchema,
   userOnlySchema,
   validateDiscountCodeSchema,
@@ -65,6 +82,12 @@ type OpenApiOperation = {
 
 type OpenApiMethod = "get" | "post" | "patch" | "put" | "delete";
 type OpenApiPathItem = Partial<Record<"get" | "post" | "patch" | "put" | "delete", OpenApiOperation>>;
+export type MergeableOpenApiSpec = Record<string, unknown> & {
+  components?: Record<string, unknown> & {
+    securitySchemes?: Record<string, unknown>;
+  };
+  paths?: Record<string, unknown>;
+};
 
 export const API_VERSION_POLICY = {
   current: "unversioned",
@@ -158,7 +181,7 @@ function headerParameter(name: string, schema: z.ZodTypeAny, required = false) {
   };
 }
 
-function defaultResponses(description: string, extraStatuses: Array<"400" | "401" | "403" | "404" | "409" | "413" | "429"> = []) {
+function defaultResponses(description: string, extraStatuses: Array<"400" | "401" | "403" | "404" | "409" | "413" | "429" | "502"> = []) {
   const responses: Record<string, Record<string, unknown>> = {
     "200": jsonResponse(description),
   };
@@ -173,6 +196,7 @@ function defaultResponses(description: string, extraStatuses: Array<"400" | "401
         "409": "Conflict",
         "413": "Payload too large",
         "429": "Too many requests",
+        "502": "Provider error",
       }[status],
       genericErrorSchema,
     );
@@ -211,11 +235,11 @@ function route(
   };
 }
 
-function buildOpenApiPaths(routes: AppOwnedApiRoute[]) {
+function buildOpenApiPaths(routes: readonly (AppOwnedApiRoute | PlatformOpenApiOperation)[]) {
   return routes.reduce<Record<string, OpenApiPathItem>>((paths, apiRoute) => {
     paths[apiRoute.path] = {
       ...(paths[apiRoute.path] ?? {}),
-      [apiRoute.method]: apiRoute.operation,
+      [apiRoute.method]: apiRoute.operation as OpenApiOperation,
     };
     return paths;
   }, {});
@@ -267,7 +291,7 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
   route("post", "/payments/checkout", ["Payments"], "Create a checkout session for credit purchase", {
     security: cookieOrBearerAuth,
     requestBody: requestBody(createCheckoutRequestSchema),
-    responses: defaultResponses("Checkout session created", ["400", "401", "413", "429"]),
+    responses: defaultResponses("Checkout session created", ["400", "401", "413", "429", "502"]),
   }),
   route("post", "/payments/webhooks/{provider}", ["Payments"], "Receive payment provider webhook events", {
     parameters: [pathParameter("provider", z.string().min(1)), headerParameter("x-dodo-signature", z.string(), true)],
@@ -318,6 +342,10 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
       "200": jsonResponse("Application capabilities", applicationConfigResponseSchema),
       "401": jsonResponse("Unauthorized", genericErrorSchema),
     },
+  }),
+  route("get", "/me/profile-address", ["Me"], "Get current user's profile billing address", {
+    security: cookieOrBearerAuth,
+    responses: defaultResponses("Profile address", ["401"]),
   }),
   route("post", "/me/customer-portal", ["Me"], "Create a customer portal session", {
     security: cookieOrBearerAuth,
@@ -381,10 +409,11 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
     requestBody: requestBody(invoiceRequestSchema),
     responses: defaultResponses("Invoice URL", ["400", "401"]),
   }),
-  route("post", "/me/credits/consume", ["Me"], "Consume credits for a feature", {
+  route("post", "/me/capabilities/{capabilityKey}/consume", ["Me"], "Consume a granted capability", {
     security: cookieOrBearerAuth,
-    requestBody: requestBody(consumeCreditsRequestSchema),
-    responses: defaultResponses("Credits consumed", ["400", "401"]),
+    parameters: [pathParameter("capabilityKey", capabilityKeyParamSchema.shape.capabilityKey)],
+    requestBody: requestBody(consumeCapabilityRequestSchema),
+    responses: defaultResponses("Capability consumed", ["400", "401"]),
   }),
   route("get", "/me/subscription", ["Me"], "Get current user subscription", {
     security: cookieOrBearerAuth,
@@ -399,6 +428,73 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
     security: cookieOrBearerAuth,
     requestBody: requestBody(invoiceRequestSchema),
     responses: defaultResponses("Invoice URL", ["400", "401"]),
+  }),
+  route("get", "/me/transaction-basket", ["Me"], "Get current user transaction basket", {
+    security: cookieOrBearerAuth,
+    responses: {
+      ...defaultResponses("Transaction basket", ["400", "401"]),
+      "200": jsonResponse("Transaction basket", transactionBasketResponseSchema),
+    },
+  }),
+  route("put", "/me/transaction-basket/items", ["Me"], "Add or update a transaction basket item", {
+    security: cookieOrBearerAuth,
+    requestBody: requestBody(transactionBasketItemRequestSchema),
+    responses: {
+      ...defaultResponses("Transaction basket", ["400", "401"]),
+      "200": jsonResponse("Transaction basket", transactionBasketResponseSchema),
+    },
+  }),
+  route("delete", "/me/transaction-basket/items/{productKey}", ["Me"], "Remove a transaction basket item", {
+    security: cookieOrBearerAuth,
+    parameters: [pathParameter("productKey", transactionProductKeyParamsSchema.shape.productKey)],
+    responses: {
+      ...defaultResponses("Transaction basket", ["400", "401"]),
+      "200": jsonResponse("Transaction basket", transactionBasketResponseSchema),
+    },
+  }),
+  route("delete", "/me/transaction-basket", ["Me"], "Clear current user transaction basket", {
+    security: cookieOrBearerAuth,
+    responses: {
+      ...defaultResponses("Transaction basket", ["400", "401"]),
+      "200": jsonResponse("Transaction basket", transactionBasketResponseSchema),
+    },
+  }),
+  route("post", "/me/transaction-basket/checkout", ["Me"], "Create a checkout for the current transaction basket", {
+    security: cookieOrBearerAuth,
+    responses: {
+      ...defaultResponses("Transaction checkout", ["400", "401"]),
+      "200": jsonResponse("Transaction checkout", transactionCheckoutResponseSchema),
+    },
+  }),
+  route("get", "/me/transaction-orders", ["Me"], "List current user transaction orders", {
+    security: cookieOrBearerAuth,
+    responses: {
+      ...defaultResponses("Transaction orders", ["400", "401"]),
+      "200": jsonResponse("Transaction orders", transactionOrdersResponseSchema),
+    },
+  }),
+  route("get", "/me/transaction-orders/{orderId}", ["Me"], "Get current user transaction order", {
+    security: cookieOrBearerAuth,
+    parameters: [pathParameter("orderId", transactionOrderParamsSchema.shape.orderId)],
+    responses: {
+      ...defaultResponses("Transaction order", ["400", "401", "404"]),
+      "200": jsonResponse("Transaction order", transactionOrderResponseSchema),
+    },
+  }),
+  route("get", "/me/transaction-entitlements", ["Me"], "List current user transaction entitlements", {
+    security: cookieOrBearerAuth,
+    responses: {
+      ...defaultResponses("Transaction entitlements", ["400", "401"]),
+      "200": jsonResponse("Transaction entitlements", transactionEntitlementsResponseSchema),
+    },
+  }),
+  route("post", "/me/transaction-entitlements/{entitlementId}/consume", ["Me"], "Consume a transaction entitlement", {
+    security: cookieOrBearerAuth,
+    parameters: [pathParameter("entitlementId", transactionEntitlementConsumeParamsSchema.shape.entitlementId)],
+    responses: {
+      ...defaultResponses("Transaction entitlement consumed", ["400", "401", "404"]),
+      "200": jsonResponse("Transaction entitlement consumed", transactionEntitlementResponseSchema),
+    },
   }),
   route("post", "/me/vouchers/redeem", ["Me"], "Redeem a voucher", {
     security: cookieOrBearerAuth,
@@ -452,6 +548,20 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
   route("get", "/admin/dashboard/stats", ["Admin"], "Get admin dashboard statistics", {
     security: cookieOrBearerAuth,
     responses: defaultResponses("Admin dashboard stats", ["401", "403"]),
+  }),
+  route("get", "/admin/application-settings", ["Admin Settings"], "Get runtime application settings", {
+    security: cookieOrBearerAuth,
+    responses: defaultResponses("Application settings", ["401", "403"]),
+  }),
+  route("put", "/admin/application-settings/setting", ["Admin Settings"], "Update a runtime application setting", {
+    security: cookieOrBearerAuth,
+    requestBody: requestBody(updateApplicationSettingSchema),
+    responses: defaultResponses("Application setting updated", ["400", "401", "403"]),
+  }),
+  route("delete", "/admin/application-settings/setting", ["Admin Settings"], "Reset a runtime application setting", {
+    security: cookieOrBearerAuth,
+    requestBody: requestBody(resetApplicationSettingSchema),
+    responses: defaultResponses("Application setting reset", ["400", "401", "403"]),
   }),
   route("get", "/admin/users", ["Admin Users"], "List users", {
     security: cookieOrBearerAuth,
@@ -525,7 +635,26 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
   route("get", "/admin/billing/transactions-chart", ["Admin Billing"], "Get billing transactions chart", { security: cookieOrBearerAuth, parameters: billingRangeParameters, responses: defaultResponses("Billing transactions chart", ["400", "401", "403"]) }),
   route("get", "/admin/billing/credits-consumed-chart", ["Admin Billing"], "Get credits consumed chart", { security: cookieOrBearerAuth, parameters: billingRangeParameters, responses: defaultResponses("Credits consumed chart", ["400", "401", "403"]) }),
   route("get", "/admin/billing/credits-dashboard", ["Admin Billing"], "Get credits billing dashboard", { security: cookieOrBearerAuth, parameters: [queryParameter("creditsPurchasesPage", adminCreditsDashboardQuerySchema.shape.creditsPurchasesPage), queryParameter("creditsPurchasesSearch", adminCreditsDashboardQuerySchema.shape.creditsPurchasesSearch), queryParameter("creditsRefundsPage", adminCreditsDashboardQuerySchema.shape.creditsRefundsPage), queryParameter("creditsRefundsSearch", adminCreditsDashboardQuerySchema.shape.creditsRefundsSearch), queryParameter("range", adminCreditsDashboardQuerySchema.shape.range)], responses: defaultResponses("Credits billing dashboard", ["400", "401", "403"]) }),
+  route("get", "/admin/billing/transaction-dashboard", ["Admin Billing"], "Get transaction finance dashboard", {
+    security: cookieOrBearerAuth,
+    parameters: [
+      queryParameter("range", adminTransactionFinanceDashboardQuerySchema.shape.range),
+      queryParameter("startDate", adminTransactionFinanceDashboardQuerySchema.shape.startDate),
+      queryParameter("endDate", adminTransactionFinanceDashboardQuerySchema.shape.endDate),
+      queryParameter("grouping", adminTransactionFinanceDashboardQuerySchema.shape.grouping),
+      queryParameter("currency", adminTransactionFinanceDashboardQuerySchema.shape.currency),
+      queryParameter("status", adminTransactionFinanceDashboardQuerySchema.shape.status),
+      queryParameter("productKey", adminTransactionFinanceDashboardQuerySchema.shape.productKey),
+      queryParameter("search", adminTransactionFinanceDashboardQuerySchema.shape.search),
+      queryParameter("page", adminTransactionFinanceDashboardQuerySchema.shape.page),
+    ],
+    responses: {
+      ...defaultResponses("Transaction finance dashboard", ["400", "401", "403"]),
+      "200": jsonResponse("Transaction finance dashboard", adminTransactionFinanceDashboardResponseSchema),
+    },
+  }),
   route("post", "/admin/billing/credit-refunds", ["Admin Billing"], "Create credit purchase refund", { security: cookieOrBearerAuth, requestBody: requestBody(createCreditRefundSchema), responses: defaultResponses("Credit refund", ["400", "401", "403", "404"]) }),
+  route("post", "/admin/billing/transaction-refunds", ["Admin Billing"], "Create transaction order refund", { security: cookieOrBearerAuth, requestBody: requestBody(createTransactionRefundSchema), responses: defaultResponses("Transaction refund", ["400", "401", "403", "404"]) }),
   route("get", "/admin/billing/subscriptions", ["Admin Billing"], "List billing subscriptions", { security: cookieOrBearerAuth, parameters: billingListParameters, responses: defaultResponses("Billing subscriptions", ["400", "401", "403"]) }),
   route("get", "/admin/billing/subscription-payments", ["Admin Billing"], "List subscription payments", { security: cookieOrBearerAuth, parameters: billingListParameters, responses: defaultResponses("Subscription payments", ["400", "401", "403"]) }),
   route("get", "/admin/billing/subscription-stats", ["Admin Billing"], "Get subscription billing statistics", { security: cookieOrBearerAuth, responses: defaultResponses("Subscription billing statistics", ["400", "401", "403"]) }),
@@ -537,9 +666,9 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
   route("post", "/admin/billing/reconcile", ["Admin Billing"], "Run billing reconciliation", { security: cookieOrBearerAuth, responses: defaultResponses("Billing reconciliation result", ["401", "403"]) }),
 
   route("get", "/admin/operations/stats", ["Admin Operations"], "Get operations statistics", { security: cookieOrBearerAuth, responses: defaultResponses("Operations statistics", ["401", "403"]) }),
-  route("get", "/admin/operations/jobs", ["Admin Operations"], "List background jobs", { security: cookieOrBearerAuth, parameters: optionalLimitParameters, responses: defaultResponses("Background jobs", ["400", "401", "403"]) }),
-  route("get", "/admin/operations/job-runs", ["Admin Operations"], "List background job runs", { security: cookieOrBearerAuth, parameters: optionalLimitParameters, responses: defaultResponses("Background job runs", ["400", "401", "403"]) }),
-  route("get", "/admin/operations/pending-emails", ["Admin Operations"], "List pending email queue entries", { security: cookieOrBearerAuth, parameters: optionalLimitParameters, responses: defaultResponses("Pending emails", ["400", "401", "403"]) }),
+  route("get", "/admin/operations/background-events", ["Admin Operations"], "List durable background events", { security: cookieOrBearerAuth, parameters: optionalLimitParameters, responses: defaultResponses("Background events", ["400", "401", "403"]) }),
+  route("post", "/admin/operations/background-events/{eventId}/redrive", ["Admin Operations"], "Redrive a failed background event", { security: cookieOrBearerAuth, responses: defaultResponses("Background event redrive", ["400", "401", "403", "502"]) }),
+  route("get", "/admin/operations/email-deliveries", ["Admin Operations"], "List email delivery records", { security: cookieOrBearerAuth, parameters: optionalLimitParameters, responses: defaultResponses("Email deliveries", ["400", "401", "403"]) }),
 
   route("get", "/admin/webhooks", ["Admin Webhooks"], "List payment webhook events", { security: cookieOrBearerAuth, parameters: webhookEventsParameters, responses: defaultResponses("Webhook events", ["400", "401", "403"]) }),
   route("get", "/admin/webhooks/stats", ["Admin Webhooks"], "Get payment webhook processing statistics", { security: cookieOrBearerAuth, responses: defaultResponses("Webhook statistics", ["401", "403"]) }),
@@ -589,9 +718,11 @@ export const APP_OWNED_API_ROUTES: AppOwnedApiRoute[] = [
   }),
 ];
 
-const customPaths = buildOpenApiPaths(APP_OWNED_API_ROUTES);
-
-export function mergeOpenApiSpecs(authSpec: Record<string, any>) {
+export function mergeOpenApiSpecs(
+  authSpec: MergeableOpenApiSpec,
+  additionalRoutes: readonly PlatformOpenApiOperation[] = [],
+) {
+  const customPaths = buildOpenApiPaths([...APP_OWNED_API_ROUTES, ...additionalRoutes]);
   return {
     ...authSpec,
     info: {
@@ -633,7 +764,8 @@ export function mergeOpenApiSpecs(authSpec: Record<string, any>) {
   };
 }
 
-export function createFallbackOpenApiSpec() {
+export function createFallbackOpenApiSpec(additionalRoutes: readonly PlatformOpenApiOperation[] = []) {
+  const customPaths = buildOpenApiPaths([...APP_OWNED_API_ROUTES, ...additionalRoutes]);
   return {
     openapi: "3.1.0",
     info: {

@@ -76,19 +76,6 @@ export function DiscountForm({
     },
   });
 
-  // Auto-generate code on mount for create mode
-  React.useEffect(() => {
-    if (mode === "create" && !initialData?.code) {
-      handleGenerateCode();
-    }
-  }, [mode, initialData?.code]);
-
-  // Regenerate code when custom prefix changes
-  React.useEffect(() => {
-    if (mode === "create" && !initialData?.code) {
-      handleGenerateCode();
-    }
-  }, [customPrefix]);
 
   // Validate code on change
   const handleCodeChange = async (value: string) => {
@@ -111,7 +98,7 @@ export function DiscountForm({
     }
   };
 
-  const handleGenerateCode = async () => {
+  const handleGenerateCode = React.useCallback(async () => {
     setIsGeneratingCode(true);
     try {
       const result = await generateDiscountCodeAction(customPrefix || undefined);
@@ -133,7 +120,13 @@ export function DiscountForm({
     } finally {
       setIsGeneratingCode(false);
     }
-  };
+  }, [customPrefix, form]);
+
+  React.useEffect(() => {
+    if (mode === "create" && !initialData?.code) {
+      void handleGenerateCode();
+    }
+  }, [handleGenerateCode, initialData?.code, mode]);
 
   const handleSubmit = async (data: DiscountFormValues) => {
     // Validate code before submission

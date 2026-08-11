@@ -8,8 +8,8 @@ const eslintConfig = defineConfig([
   {
     files: ["src/**/*.{ts,tsx}"],
     rules: {
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/exhaustive-deps": "off",
+      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+      "react-hooks/exhaustive-deps": "error",
       "react-hooks/incompatible-library": "off",
       "@next/next/no-img-element": "off",
       "no-restricted-imports": [

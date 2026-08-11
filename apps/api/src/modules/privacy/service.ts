@@ -1,17 +1,20 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt } from "drizzle-orm";
 
 import * as schema from "@platform/platform-db";
+import type { PrivacyExportStorage } from "./storage";
 
 const {
   account,
+  apiKeys,
   auditEntries,
   checkoutIntents,
   creditPurchases,
   creditTransactions,
   notification,
   session,
+  mobileRefreshToken,
   subscriptionPayments,
   user,
   userCredits,
@@ -19,10 +22,18 @@ const {
   userSubscriptions,
   userDiscounts,
   voucherAssignments,
+  transactionBasketItems,
+  transactionBaskets,
+  transactionEntitlements,
+  transactionOrderItems,
+  transactionOrders,
   voucherRedemptions,
 } = schema;
 
 type UserDataExportStatus = schema.UserDataExportStatus;
+type UserRecord = typeof user.$inferSelect;
+type AuthAccountRecord = typeof account.$inferSelect;
+type SessionRecord = typeof session.$inferSelect;
 
 type DateLike = Date | string | null | undefined;
 
@@ -33,7 +44,7 @@ export type ExportRequestRecord = {
   fileName: string | null;
   fileSizeBytes: number | null;
   downloadTokenHash: string | null;
-  exportData: unknown;
+  storageKey: string | null;
   expiresAt: Date | null;
   downloadedAt: Date | null;
   failedReason: string | null;
@@ -42,8 +53,14 @@ export type ExportRequestRecord = {
 };
 
 type PrivacyServiceDeps = {
-  db: any;
+  db: schema.PlatformDb;
+  storage: PrivacyExportStorage;
   now?: () => Date;
+  enqueueExport: (
+    executor: schema.PlatformDbExecutor,
+    input: { exportId: string; userId: string },
+  ) => Promise<unknown>;
+  exportProductData: (userId: string) => Promise<Record<string, unknown>>;
 };
 
 const EXPORT_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -61,11 +78,15 @@ function buildExportFileName(requestId: string) {
   return `user-data-export-${requestId}.json`;
 }
 
+function buildExportStorageKey(requestId: string) {
+  return `privacy-exports/${requestId}.json`;
+}
+
 export function hashExportToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function sanitizeAuthAccount(accountRecord: Record<string, any>) {
+export function sanitizeAuthAccount(accountRecord: AuthAccountRecord) {
   return {
     id: accountRecord.id,
     accountId: accountRecord.accountId,
@@ -78,7 +99,7 @@ export function sanitizeAuthAccount(accountRecord: Record<string, any>) {
   };
 }
 
-export function sanitizeSession(sessionRecord: Record<string, any>) {
+export function sanitizeSession(sessionRecord: SessionRecord) {
   return {
     id: sessionRecord.id,
     expiresAt: toIso(sessionRecord.expiresAt),
@@ -97,9 +118,9 @@ function sanitizeAuditReference(entry: Record<string, unknown>) {
 
 export function buildUserDataExport(input: {
   generatedAt: Date;
-  user: Record<string, any>;
-  authAccounts: Record<string, any>[];
-  sessions: Record<string, any>[];
+  user: UserRecord;
+  authAccounts: AuthAccountRecord[];
+  sessions: SessionRecord[];
   notifications: Record<string, unknown>[];
   creditBalance: Record<string, unknown> | null;
   creditTransactions: Record<string, unknown>[];
@@ -111,6 +132,14 @@ export function buildUserDataExport(input: {
   subscriptionPayments: Record<string, unknown>[];
   checkoutIntents: Record<string, unknown>[];
   auditReferences: Record<string, unknown>[];
+  apiKeys: Record<string, unknown>[];
+  mobileRefreshTokens: Record<string, unknown>[];
+  productData: Record<string, unknown>;
+  transactionBaskets: Record<string, unknown>[];
+  transactionBasketItems: Record<string, unknown>[];
+  transactionOrders: Record<string, unknown>[];
+  transactionOrderItems: Record<string, unknown>[];
+  transactionEntitlements: Record<string, unknown>[];
 }) {
   return {
     generatedAt: input.generatedAt.toISOString(),
@@ -157,6 +186,18 @@ export function buildUserDataExport(input: {
       checkoutIntents: input.checkoutIntents,
     },
     auditReferences: input.auditReferences.map(sanitizeAuditReference),
+    apiKeys: input.apiKeys,
+    mobileRefreshTokens: input.mobileRefreshTokens,
+    entitlements: {
+      transactions: input.transactionEntitlements,
+    },
+    transactions: {
+      baskets: input.transactionBaskets,
+      basketItems: input.transactionBasketItems,
+      orders: input.transactionOrders,
+      orderItems: input.transactionOrderItems,
+    },
+    productData: input.productData,
   };
 }
 
@@ -180,12 +221,12 @@ export function downloadUserDataExportCore(input: {
   rawToken: string;
   now: Date;
 }):
-  | { ok: true; id: string; fileName: string; contents: string }
+  | { ok: true; id: string; fileName: string; storageKey: string }
   | { ok: false; error: "EXPORT_NOT_FOUND" | "EXPORT_NOT_READY" | "EXPORT_EXPIRED" } {
   const { request } = input;
   if (!request) return { ok: false, error: "EXPORT_NOT_FOUND" };
   if (request.userId !== input.userId) return { ok: false, error: "EXPORT_NOT_FOUND" };
-  if (request.status !== "ready" || !request.fileName || !request.downloadTokenHash || !request.exportData) {
+  if (request.status !== "ready" || !request.fileName || !request.downloadTokenHash || !request.storageKey) {
     return { ok: false, error: "EXPORT_NOT_READY" };
   }
   if (request.expiresAt && request.expiresAt <= input.now) return { ok: false, error: "EXPORT_EXPIRED" };
@@ -195,12 +236,21 @@ export function downloadUserDataExportCore(input: {
     ok: true,
     id: request.id,
     fileName: request.fileName,
-    contents: serializeExportData(request.exportData),
+    storageKey: request.storageKey,
   };
 }
 
 export function createPrivacyService(deps: PrivacyServiceDeps) {
   const now = deps.now ?? (() => new Date());
+
+  async function deleteStorageObjectBestEffort(storageKey: string | null) {
+    if (!storageKey) return;
+    try {
+      await deps.storage.delete(storageKey);
+    } catch {
+      // Cleanup is best effort after the database row has made the object inaccessible.
+    }
+  }
 
   async function listExports(userId: string) {
     const rows = await deps.db
@@ -214,21 +264,51 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
   }
 
   async function createExport(userId: string) {
-    await deps.db
+    const expired = await deps.db
       .update(userDataExportRequests)
-      .set({ status: "expired", downloadTokenHash: null, exportData: null, updatedAt: now() })
+      .set({ status: "expired", downloadTokenHash: null, updatedAt: now() })
       .where(and(
         eq(userDataExportRequests.userId, userId),
         inArray(userDataExportRequests.status, ["pending", "ready"]),
         lt(userDataExportRequests.expiresAt, now()),
-      ));
+      ))
+      .returning({ storageKey: userDataExportRequests.storageKey });
+    await Promise.all(expired.map((row) => deleteStorageObjectBestEffort(row.storageKey)));
 
     const expiresAt = new Date(now().getTime() + EXPORT_EXPIRATION_MS);
-    const [request] = await deps.db
-      .insert(userDataExportRequests)
-      .values({ userId, status: "pending", expiresAt })
-      .returning();
+    const downloadToken = randomBytes(32).toString("hex");
+    const request = await deps.db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(userDataExportRequests)
+        .values({
+          userId,
+          status: "pending",
+          expiresAt,
+          downloadTokenHash: hashExportToken(downloadToken),
+        })
+        .returning();
+      if (!created) return null;
+      await deps.enqueueExport(tx, { exportId: created.id, userId });
+      return created;
+    });
+    if (!request) return { ok: false, error: "Failed to create export request" } as const;
+    return { ok: true, data: { ...toSummary(request), downloadToken } } as const;
+  }
 
+  async function generateExport(exportId: string, userId: string) {
+    const [request] = await deps.db
+      .select()
+      .from(userDataExportRequests)
+      .where(and(
+        eq(userDataExportRequests.id, exportId),
+        eq(userDataExportRequests.userId, userId),
+        eq(userDataExportRequests.status, "pending"),
+        gt(userDataExportRequests.expiresAt, now()),
+      ))
+      .limit(1);
+    if (!request) return { ok: false, error: "EXPORT_NOT_PENDING" } as const;
+    const storageKey = buildExportStorageKey(request.id);
+    let uploaded = false;
     try {
       const userRows = await deps.db.select().from(user).where(eq(user.id, userId)).limit(1);
       const userRecord = userRows[0];
@@ -250,6 +330,12 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
         subscriptionPaymentRows,
         checkoutIntentRows,
         auditRefs,
+        keyRows,
+        refreshTokenRows,
+        basketRows,
+        orderRows,
+        entitlementRows,
+        productData,
       ] = await Promise.all([
         deps.db.select().from(account).where(eq(account.userId, userId)),
         deps.db.select().from(session).where(eq(session.userId, userId)),
@@ -263,7 +349,37 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
         deps.db.select().from(userSubscriptions).where(eq(userSubscriptions.userId, userId)),
         deps.db.select().from(subscriptionPayments).where(eq(subscriptionPayments.userId, userId)).orderBy(desc(subscriptionPayments.createdAt)),
         deps.db.select().from(checkoutIntents).where(eq(checkoutIntents.userId, userId)).orderBy(desc(checkoutIntents.createdAt)),
-        deps.db.select().from(auditEntries).where(eq(auditEntries.actorId, userId)).orderBy(desc(auditEntries.createdAt)).limit(100),
+        deps.db.select().from(auditEntries).where(eq(auditEntries.actorId, userId)).orderBy(desc(auditEntries.createdAt)),
+        deps.db.select({
+          id: apiKeys.id,
+          name: apiKeys.name,
+          keyPrefix: apiKeys.keyPrefix,
+          scopes: apiKeys.scopes,
+          lastUsedAt: apiKeys.lastUsedAt,
+          expiresAt: apiKeys.expiresAt,
+          revokedAt: apiKeys.revokedAt,
+          createdAt: apiKeys.createdAt,
+          updatedAt: apiKeys.updatedAt,
+        }).from(apiKeys).where(eq(apiKeys.userId, userId)),
+        deps.db.select({
+          id: mobileRefreshToken.id,
+          expiresAt: mobileRefreshToken.expiresAt,
+          revokedAt: mobileRefreshToken.revokedAt,
+          createdAt: mobileRefreshToken.createdAt,
+        }).from(mobileRefreshToken).where(eq(mobileRefreshToken.userId, userId)),
+        deps.db.select().from(transactionBaskets).where(eq(transactionBaskets.userId, userId)).orderBy(desc(transactionBaskets.createdAt)),
+        deps.db.select().from(transactionOrders).where(eq(transactionOrders.userId, userId)).orderBy(desc(transactionOrders.createdAt)),
+        deps.db.select().from(transactionEntitlements).where(eq(transactionEntitlements.userId, userId)).orderBy(desc(transactionEntitlements.createdAt)),
+        deps.exportProductData(userId),
+      ]);
+
+      const [basketItemRows, orderItemRows] = await Promise.all([
+        basketRows.length
+          ? deps.db.select().from(transactionBasketItems).where(inArray(transactionBasketItems.basketId, basketRows.map((row: { id: string }) => row.id)))
+          : Promise.resolve([]),
+        orderRows.length
+          ? deps.db.select().from(transactionOrderItems).where(inArray(transactionOrderItems.orderId, orderRows.map((row: { id: string }) => row.id)))
+          : Promise.resolve([]),
       ]);
 
       const bundle = buildUserDataExport({
@@ -282,10 +398,20 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
         subscriptionPayments: subscriptionPaymentRows,
         checkoutIntents: checkoutIntentRows,
         auditReferences: auditRefs,
+        apiKeys: keyRows,
+        mobileRefreshTokens: refreshTokenRows,
+        transactionBaskets: basketRows,
+        transactionBasketItems: basketItemRows,
+        transactionOrders: orderRows,
+        transactionOrderItems: orderItemRows,
+        productData,
+        transactionEntitlements: entitlementRows,
       });
-      const downloadToken = randomBytes(32).toString("hex");
       const fileName = buildExportFileName(request.id);
-      const fileSizeBytes = Buffer.byteLength(serializeExportData(bundle), "utf8");
+      const contents = serializeExportData(bundle);
+      const fileSizeBytes = Buffer.byteLength(contents, "utf8");
+      await deps.storage.put(storageKey, contents);
+      uploaded = true;
 
       const [ready] = await deps.db
         .update(userDataExportRequests)
@@ -293,18 +419,31 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
           status: "ready",
           fileName,
           fileSizeBytes,
-          downloadTokenHash: hashExportToken(downloadToken),
-          exportData: bundle,
+          storageKey,
           updatedAt: now(),
         })
-        .where(and(eq(userDataExportRequests.id, request.id), eq(userDataExportRequests.userId, userId)))
+        .where(and(
+          eq(userDataExportRequests.id, request.id),
+          eq(userDataExportRequests.userId, userId),
+          eq(userDataExportRequests.status, "pending"),
+          gt(userDataExportRequests.expiresAt, now()),
+        ))
         .returning();
+      if (!ready) throw new Error("Export is no longer pending");
 
-      return { ok: true, data: { ...toSummary(ready), downloadToken } };
+      return { ok: true, data: toSummary(ready) };
     } catch (error) {
+      if (uploaded) await deleteStorageObjectBestEffort(storageKey);
       await deps.db
         .update(userDataExportRequests)
-        .set({ status: "failed", failedReason: "generation_error", updatedAt: now() })
+        .set({
+          status: "failed",
+          fileName: null,
+          fileSizeBytes: null,
+          storageKey: null,
+          failedReason: "generation_error",
+          updatedAt: now(),
+        })
         .where(eq(userDataExportRequests.id, request.id));
 
       return { ok: false, error: error instanceof Error ? error.message : "Failed to generate export" };
@@ -314,7 +453,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
   async function cancelExport(userId: string, exportId: string) {
     const rows = await deps.db
       .update(userDataExportRequests)
-      .set({ status: "expired", downloadTokenHash: null, exportData: null, updatedAt: now() })
+      .set({ status: "expired", downloadTokenHash: null, updatedAt: now() })
       .where(
         and(
           eq(userDataExportRequests.id, exportId),
@@ -326,36 +465,69 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
 
     const request = rows[0];
     if (!request) return { ok: false, error: "EXPORT_NOT_FOUND" } as const;
+    await deleteStorageObjectBestEffort(request.storageKey);
     return { ok: true, data: toSummary(request) } as const;
   }
 
   async function downloadExport(userId: string, exportId: string, rawToken: string) {
-    const rows = await deps.db
+    const consumedAt = now();
+    const [request] = await deps.db
       .select()
       .from(userDataExportRequests)
-      .where(eq(userDataExportRequests.id, exportId))
+      .where(and(
+        eq(userDataExportRequests.id, exportId),
+        eq(userDataExportRequests.userId, userId),
+      ))
       .limit(1);
 
-    const result = downloadUserDataExportCore({ userId, request: rows[0] ?? null, rawToken, now: now() });
-    if (!result.ok) return result;
+    const authorized = downloadUserDataExportCore({
+      userId,
+      request: request ?? null,
+      rawToken,
+      now: consumedAt,
+    });
+    if (!authorized.ok) return { ok: false, error: "EXPORT_NOT_FOUND" } as const;
 
-    await deps.db
+    const contents = await deps.storage.get(authorized.storageKey);
+    if (contents === null) return { ok: false, error: "EXPORT_NOT_FOUND" } as const;
+
+    const [consumed] = await deps.db
       .update(userDataExportRequests)
-      .set({ status: "downloaded", downloadedAt: now(), downloadTokenHash: null, exportData: null, updatedAt: now() })
-      .where(and(eq(userDataExportRequests.id, result.id), eq(userDataExportRequests.userId, userId)));
+      .set({
+        status: "downloaded",
+        downloadedAt: consumedAt,
+        downloadTokenHash: null,
+        updatedAt: consumedAt,
+      })
+      .where(and(
+        eq(userDataExportRequests.id, exportId),
+        eq(userDataExportRequests.userId, userId),
+        eq(userDataExportRequests.status, "ready"),
+        eq(userDataExportRequests.downloadTokenHash, hashExportToken(rawToken)),
+        gt(userDataExportRequests.expiresAt, consumedAt),
+      ))
+      .returning({ id: userDataExportRequests.id });
+    if (!consumed) return { ok: false, error: "EXPORT_NOT_FOUND" } as const;
 
-    return result;
+    await deps.storage.delete(authorized.storageKey);
+    return {
+      ok: true as const,
+      id: authorized.id,
+      fileName: authorized.fileName,
+      contents,
+    };
   }
 
   async function expireExports() {
     const rows = await deps.db
       .update(userDataExportRequests)
-      .set({ status: "expired", downloadTokenHash: null, exportData: null, updatedAt: now() })
+      .set({ status: "expired", downloadTokenHash: null, updatedAt: now() })
       .where(and(
         inArray(userDataExportRequests.status, ["pending", "ready"]),
         lt(userDataExportRequests.expiresAt, now()),
       ))
-      .returning({ id: userDataExportRequests.id });
+      .returning({ id: userDataExportRequests.id, storageKey: userDataExportRequests.storageKey });
+    await Promise.all(rows.map((row) => deleteStorageObjectBestEffort(row.storageKey)));
 
     return { expired: rows.length };
   }
@@ -363,6 +535,7 @@ export function createPrivacyService(deps: PrivacyServiceDeps) {
   return {
     listExports,
     createExport,
+    generateExport,
     cancelExport,
     downloadExport,
     expireExports,

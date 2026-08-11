@@ -15,15 +15,11 @@ describe("web navigation config", () => {
   });
 
   it("contains expected dashboard sidebar entries", () => {
-    expect(BackendNavItems).toHaveLength(3);
+    expect(BackendNavItems).toHaveLength(2);
     expect(BackendNavItems).toEqual([
       expect.objectContaining({
         title: "dashboard.nav.overview",
         url: "/dashboard",
-      }),
-      expect.objectContaining({
-        title: "dashboard.nav.exams",
-        url: "/exams",
       }),
       expect.objectContaining({
         title: "dashboard.nav.billing",
@@ -32,11 +28,14 @@ describe("web navigation config", () => {
     ]);
   });
 
-  it("hides billing navigation when no billing surfaces are enabled", () => {
-    expect(getBackendNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: false } })).toEqual([
+  it("hides only billing navigation when no billing surfaces are enabled", () => {
+    const items = getBackendNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: false } });
+    expect(items).toEqual(expect.arrayContaining([
       expect.objectContaining({ url: "/dashboard" }),
       expect.objectContaining({ url: "/exams" }),
-    ]);
+      expect.objectContaining({ url: "/profile/attempts" }),
+    ]));
+    expect(items).not.toEqual(expect.arrayContaining([expect.objectContaining({ url: "/billing" })]));
   });
 
   it("shows billing navigation when any billing surface is enabled", () => {
@@ -46,15 +45,20 @@ describe("web navigation config", () => {
     expect(getBackendNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: true } })).toEqual(
       expect.arrayContaining([expect.objectContaining({ url: "/billing" })]),
     );
+    expect(getBackendNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: false, transactionSurfacesEnabled: true } })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ url: "/billing" })]),
+    );
   });
 
   it("uses the same billing gate for user dropdown navigation", () => {
     expect(getUserDropdownNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: false } })).toEqual([
-      expect.objectContaining({ url: "/profile/attempts" }),
       expect.objectContaining({ url: "/settings" }),
     ]);
 
     expect(getUserDropdownNavItems({ billing: { creditSurfacesEnabled: true, subscriptionSurfacesEnabled: false } })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ url: "/billing" })]),
+    );
+    expect(getUserDropdownNavItems({ billing: { creditSurfacesEnabled: false, subscriptionSurfacesEnabled: false, transactionSurfacesEnabled: true } })).toEqual(
       expect.arrayContaining([expect.objectContaining({ url: "/billing" })]),
     );
   });

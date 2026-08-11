@@ -16,11 +16,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCreditHistory } from "@/lib/services/credits";
+import { getCreditHistoryServer } from "@/lib/api/me.server";
 import { formatDateTime } from "@/lib/utils";
 
 export async function TransactionHistory() {
-  const transactions = await getCreditHistory();
+  const transactions = await getCreditHistoryServer();
   const t = await getTranslations("billing.transactions");
 
   return (

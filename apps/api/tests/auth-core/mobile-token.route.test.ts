@@ -39,6 +39,10 @@ function buildApp(opts: {
 
   const module = createAuthModule({
     betterAuthOptions: {} as never,
+    auth: {
+      api: { getSession: mocks.getSession, signInEmail: mocks.signInEmail },
+      handler: mocks.authHandler,
+    } as never,
     users: {
       findById: vi.fn(async () => opts.findById()),
     },

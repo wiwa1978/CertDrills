@@ -7,7 +7,7 @@ import {
   validateExamFormAssignment,
   type ExamFormAllocationSnapshotItem,
   type ExamFormAssignmentCategory,
-} from "../../../src/modules/certdrill/exam-form-assignment";
+} from "../../../src/product/certdrill/exam-form-assignment";
 
 function category(
   id: string,

@@ -22,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { downloadInvoice } from "@/lib/services/credits";
-import { creditPackages } from "@/config/billing";
 import { formatDate } from "@/lib/utils";
 import {
   Table,

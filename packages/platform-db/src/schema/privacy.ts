@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { createdAt, id, updatedAt } from "./helpers";
@@ -17,7 +17,7 @@ export const userDataExportRequests = pgTable(
     fileName: text("file_name"),
     fileSizeBytes: integer("file_size_bytes"),
     downloadTokenHash: text("download_token_hash"),
-    exportData: jsonb("export_data"),
+    storageKey: text("storage_key"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
     failedReason: text("failed_reason"),
@@ -31,5 +31,7 @@ export const userDataExportRequests = pgTable(
     uniqueIndex("user_data_export_request_active_user_idx")
       .on(table.userId)
       .where(sql`${table.status} IN ('pending', 'ready')`),
+    check("user_data_export_status_check", sql`${table.status} in ('pending', 'ready', 'downloaded', 'expired', 'failed')`),
+    check("user_data_export_file_size_nonnegative", sql`${table.fileSizeBytes} is null or ${table.fileSizeBytes} >= 0`),
   ],
 );

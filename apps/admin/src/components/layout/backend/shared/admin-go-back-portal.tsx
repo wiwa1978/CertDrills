@@ -1,7 +1,6 @@
 "use client";
 
-import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
-import { useTranslations } from "next-intl";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { ArrowLeftToLine } from "lucide-react"
 import { usePathname } from "next/navigation";
 import { getPathLocale } from "@/i18n/path-locale";
@@ -9,7 +8,6 @@ import { getMainAppDashboardUrl } from "@/lib/main-app-url";
 
 
 export function AdminGoBackPortal() {
-  const t = useTranslations("");
   const pathname = usePathname();
   const { activeLocale } = getPathLocale(pathname);
   const dashboardUrl = getMainAppDashboardUrl(activeLocale);

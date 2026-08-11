@@ -16,6 +16,10 @@ function buildApp() {
   const app = new Hono();
   app.use("/*", originGuard);
   app.post("/me/settings", (c) => c.json({ success: true }));
+  app.post("/admin", (c) => c.json({ success: true }));
+  app.post("/admin-auth", (c) => c.json({ success: true }));
+  app.post("/admin-auth/sign-in/email", (c) => c.json({ success: true }));
+  app.post("/admin/me/notifications/read-all", (c) => c.json({ success: true }));
   app.post("/payments/webhooks/dodo", (c) => c.json({ success: true }));
   return app;
 }
@@ -40,6 +44,18 @@ describe("originGuard", () => {
     });
   });
 
+  it.each([
+    "better-auth-admin.session_token=admin-token",
+    "__Secure-better-auth-admin.session_token=admin-token",
+  ])("blocks unsafe evil-origin requests with admin cookie %s", async (cookie) => {
+    const res = await buildApp().request("/me/settings", {
+      method: "POST",
+      headers: { cookie, origin: "https://evil.example.com" },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
   it("allows trusted app, admin, api, and configured origins", async () => {
     for (const origin of [
       "https://app.example.com",
@@ -59,16 +75,55 @@ describe("originGuard", () => {
     }
   });
 
-  it("falls back to trusted referer when origin is absent", async () => {
-    const res = await buildApp().request("/me/settings", {
+  it("retains all configured public referer origins", async () => {
+    for (const referer of [
+      "https://app.example.com/settings",
+      "https://admin.example.com/admin/users",
+      "https://api.example.com/me/settings",
+      "https://partner.example.com/settings",
+    ]) {
+      const res = await buildApp().request("/me/settings", {
+        method: "POST",
+        headers: {
+          cookie: "__Secure-better-auth.session_token=session-token",
+          referer,
+        },
+      });
+
+      expect(res.status, referer).toBe(200);
+    }
+  });
+
+  it.each(["origin", "referer"] as const)("narrows admin request trust for the %s header", async (header) => {
+    const app = buildApp();
+    const request = (value: string) => app.request("/admin/me/notifications/read-all", {
       method: "POST",
       headers: {
-        cookie: "__Secure-better-auth.session_token=session-token",
-        referer: "https://admin.example.com/admin/users",
+        cookie: "better-auth-admin.session_token=admin-token",
+        [header]: header === "referer" ? `${value}/settings` : value,
       },
     });
 
-    expect(res.status).toBe(200);
+    expect((await request("https://app.example.com")).status).toBe(403);
+    expect((await request("https://admin.example.com")).status).toBe(200);
+    expect((await request("https://api.example.com")).status).toBe(200);
+  });
+
+  it.each([
+    "/admin",
+    "/admin/me/notifications/read-all",
+    "/admin-auth",
+    "/admin-auth/sign-in/email",
+  ])("narrows unsafe requests on admin namespace path %s", async (path) => {
+    const res = await buildApp().request(path, {
+      method: "POST",
+      headers: {
+        cookie: "better-auth-admin.session_token=admin-token",
+        origin: "https://partner.example.com",
+      },
+    });
+
+    expect(res.status).toBe(403);
   });
 
   it("does not block bearer or webhook requests", async () => {

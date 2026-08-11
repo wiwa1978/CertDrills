@@ -7,8 +7,6 @@ import {
   sendNotificationToUsersApi,
 } from "@/lib/api/admin";
 import { apiRequest } from "@/lib/api/client";
-import type { Notification } from "@/schemas/notification";
-import type { NotificationSendHistoryItem } from "@platform/contracts";
 
 const notificationsApi = createNotificationsApi(apiRequest);
 

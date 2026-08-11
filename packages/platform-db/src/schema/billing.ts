@@ -25,6 +25,9 @@ export type SubscriptionStatus =
   | "paused";
 
 export type CheckoutIntentStatus = "pending" | "completed" | "failed" | "cancelled" | "expired";
+export type TransactionBasketStatus = "draft" | "converted" | "abandoned";
+export type TransactionOrderStatus = "pending_payment" | "paid" | "failed" | "cancelled" | "refund_pending" | "refunded" | "partially_refunded";
+export type TransactionEntitlementStatus = "available" | "consumed" | "refunded";
 export type SubscriptionPaymentStatus =
   | "pending"
   | "completed"
@@ -58,6 +61,7 @@ export const userCredits = pgTable(
   },
   (table) => [index("user_credits_user_id_idx").on(table.userId)],
 );
+
 
 export const creditTransactions = pgTable(
   "credit_transactions",
@@ -120,6 +124,9 @@ export const creditPurchases = pgTable(
     index("credit_purchases_payment_id_idx").on(table.paymentId),
     index("credit_purchases_provider_customer_id_idx").on(table.providerCustomerId),
     index("credit_purchases_dodo_customer_id_idx").on(table.dodoCustomerId),
+    check("credit_purchases_status_check", sql`${table.paymentStatus} in ('pending', 'completed', 'failed', 'refunded')`),
+    check("credit_purchases_amounts_nonnegative", sql`${table.credits} >= 0 and ${table.bonusCredits} >= 0 and ${table.price} >= 0 and ${table.priceExclVat} >= 0 and ${table.priceInclVat} >= 0 and ${table.vatAmount} >= 0`),
+    check("credit_purchases_total_consistent", sql`${table.priceInclVat} = ${table.priceExclVat} + ${table.vatAmount}`),
     index("credit_purchases_payment_status_created_at_idx").on(table.paymentStatus, table.createdAt),
   ],
 );
@@ -154,6 +161,9 @@ export const paymentWebhookEvents = pgTable(
     index("payment_webhook_events_payment_id_idx").on(table.paymentId),
     index("payment_webhook_events_event_type_idx").on(table.eventType),
     index("payment_webhook_events_processing_status_idx").on(table.processingStatus),
+    check("payment_webhook_events_status_check", sql`${table.processingStatus} in ('processing', 'processed', 'failed', 'dead_lettered')`),
+    check("payment_webhook_events_retry_nonnegative", sql`${table.retryCount} >= 0`),
+    check("payment_webhook_events_duration_nonnegative", sql`${table.durationMs} is null or ${table.durationMs} >= 0`),
   ],
 );
 
@@ -164,7 +174,7 @@ export const checkoutIntents = pgTable(
     userId: uuid("user_id")
       .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
-    billingMode: text("billing_mode").$type<"credits" | "subscriptions">().notNull(),
+    billingMode: text("billing_mode").$type<"credits" | "subscriptions" | "transactions">().notNull(),
     packageKey: text("package_key"),
     planKey: text("plan_key"),
     productId: text("product_id").notNull(),
@@ -183,6 +193,150 @@ export const checkoutIntents = pgTable(
     uniqueIndex("checkout_intents_reference_id_idx").on(table.referenceId),
     index("checkout_intents_payment_id_idx").on(table.paymentId),
     index("checkout_intents_status_created_at_idx").on(table.status, table.createdAt),
+    check("checkout_intents_billing_mode_check", sql`${table.billingMode} in ('credits', 'subscriptions', 'transactions')`),
+    check("checkout_intents_status_check", sql`${table.status} in ('pending', 'completed', 'failed', 'cancelled', 'expired')`),
+  ],
+);
+
+export const transactionBaskets = pgTable(
+  "transaction_baskets",
+  {
+    id,
+    userId: uuid("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+    status: text("status").$type<TransactionBasketStatus>().default("draft").notNull(),
+    currency: text("currency"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("transaction_baskets_user_draft_idx").on(table.userId).where(sql`${table.status} = 'draft'`),
+    index("transaction_baskets_user_id_idx").on(table.userId),
+    index("transaction_baskets_status_idx").on(table.status),
+    check("transaction_baskets_status_check", sql`${table.status} in ('draft', 'converted', 'abandoned')`),
+  ],
+);
+
+export const transactionBasketItems = pgTable(
+  "transaction_basket_items",
+  {
+    id,
+    basketId: uuid("basket_id")
+      .references(() => transactionBaskets.id, { onDelete: "cascade" })
+      .notNull(),
+    productKey: text("product_key").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPrice: integer("unit_price").notNull(),
+    currency: text("currency").notNull(),
+    metadata: jsonb("metadata"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("transaction_basket_items_basket_product_idx").on(table.basketId, table.productKey),
+    index("transaction_basket_items_basket_id_idx").on(table.basketId),
+    check("transaction_basket_items_quantity_positive", sql`${table.quantity} > 0`),
+    check("transaction_basket_items_unit_price_nonnegative", sql`${table.unitPrice} >= 0`),
+  ],
+);
+
+export const transactionOrders = pgTable(
+  "transaction_orders",
+  {
+    id,
+    userId: uuid("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+    basketId: uuid("basket_id").references(() => transactionBaskets.id, { onDelete: "set null" }),
+    status: text("status").$type<TransactionOrderStatus>().default("pending_payment").notNull(),
+    currency: text("currency").notNull(),
+    subtotalAmount: integer("subtotal_amount").notNull(),
+    taxAmount: integer("tax_amount").default(0).notNull(),
+    totalAmount: integer("total_amount").notNull(),
+    paymentProvider: text("payment_provider").default("dodo").notNull(),
+    paymentId: text("payment_id"),
+    providerCustomerId: text("provider_customer_id"),
+    checkoutReferenceId: text("checkout_reference_id"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("transaction_orders_user_id_idx").on(table.userId),
+    index("transaction_orders_status_idx").on(table.status),
+    index("transaction_orders_payment_id_idx").on(table.paymentId),
+    index("transaction_orders_created_at_id_idx").on(table.createdAt.desc(), table.id.desc()),
+    uniqueIndex("transaction_orders_checkout_reference_idx").on(table.checkoutReferenceId),
+    check("transaction_orders_subtotal_nonnegative", sql`${table.subtotalAmount} >= 0`),
+    check("transaction_orders_tax_nonnegative", sql`${table.taxAmount} >= 0`),
+    check("transaction_orders_total_nonnegative", sql`${table.totalAmount} >= 0`),
+    check("transaction_orders_status_check", sql`${table.status} in ('pending_payment', 'paid', 'failed', 'cancelled', 'refund_pending', 'refunded', 'partially_refunded')`),
+    check("transaction_orders_total_consistent", sql`${table.totalAmount} = ${table.subtotalAmount} + ${table.taxAmount}`),
+  ],
+);
+
+export const transactionOrderItems = pgTable(
+  "transaction_order_items",
+  {
+    id,
+    orderId: uuid("order_id")
+      .references(() => transactionOrders.id, { onDelete: "cascade" })
+      .notNull(),
+    productKey: text("product_key").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPrice: integer("unit_price").notNull(),
+    totalAmount: integer("total_amount").notNull(),
+    currency: text("currency").notNull(),
+    providerProductId: text("provider_product_id").notNull(),
+    fulfillmentType: text("fulfillment_type").$type<"entitlement">().default("entitlement").notNull(),
+    metadata: jsonb("metadata"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("transaction_order_items_order_id_idx").on(table.orderId),
+    index("transaction_order_items_product_key_idx").on(table.productKey),
+    check("transaction_order_items_quantity_positive", sql`${table.quantity} > 0`),
+    check("transaction_order_items_unit_price_nonnegative", sql`${table.unitPrice} >= 0`),
+    check("transaction_order_items_total_nonnegative", sql`${table.totalAmount} >= 0`),
+    check("transaction_order_items_total_consistent", sql`${table.totalAmount} = ${table.unitPrice} * ${table.quantity}`),
+  ],
+);
+
+export const transactionEntitlements = pgTable(
+  "transaction_entitlements",
+  {
+    id,
+    userId: uuid("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => transactionOrders.id, { onDelete: "cascade" })
+      .notNull(),
+    orderItemId: uuid("order_item_id")
+      .references(() => transactionOrderItems.id, { onDelete: "cascade" })
+      .notNull(),
+    unitIndex: integer("unit_index").notNull(),
+    productKey: text("product_key").notNull(),
+    status: text("status").$type<TransactionEntitlementStatus>().default("available").notNull(),
+    sourcePaymentId: text("source_payment_id"),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    metadata: jsonb("metadata"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("transaction_entitlements_order_item_unit_idx").on(table.orderItemId, table.unitIndex),
+    index("transaction_entitlements_user_id_idx").on(table.userId),
+    index("transaction_entitlements_order_id_idx").on(table.orderId),
+    index("transaction_entitlements_status_idx").on(table.status),
+    index("transaction_entitlements_product_key_idx").on(table.productKey),
+    check("transaction_entitlements_unit_index_nonnegative", sql`${table.unitIndex} >= 0`),
+    check("transaction_entitlements_status_check", sql`${table.status} in ('available', 'consumed', 'refunded')`),
   ],
 );
 
@@ -460,6 +614,37 @@ export const checkoutIntentsRelations = relations(checkoutIntents, ({ one }) => 
   user: one(user, {
     fields: [checkoutIntents.userId],
     references: [user.id],
+  }),
+}));
+
+export const transactionBasketsRelations = relations(transactionBaskets, ({ one, many }) => ({
+  user: one(user, { fields: [transactionBaskets.userId], references: [user.id] }),
+  items: many(transactionBasketItems),
+  orders: many(transactionOrders),
+}));
+
+export const transactionBasketItemsRelations = relations(transactionBasketItems, ({ one }) => ({
+  basket: one(transactionBaskets, { fields: [transactionBasketItems.basketId], references: [transactionBaskets.id] }),
+}));
+
+export const transactionOrdersRelations = relations(transactionOrders, ({ one, many }) => ({
+  user: one(user, { fields: [transactionOrders.userId], references: [user.id] }),
+  basket: one(transactionBaskets, { fields: [transactionOrders.basketId], references: [transactionBaskets.id] }),
+  items: many(transactionOrderItems),
+  entitlements: many(transactionEntitlements),
+}));
+
+export const transactionOrderItemsRelations = relations(transactionOrderItems, ({ one, many }) => ({
+  order: one(transactionOrders, { fields: [transactionOrderItems.orderId], references: [transactionOrders.id] }),
+  entitlements: many(transactionEntitlements),
+}));
+
+export const transactionEntitlementsRelations = relations(transactionEntitlements, ({ one }) => ({
+  user: one(user, { fields: [transactionEntitlements.userId], references: [user.id] }),
+  order: one(transactionOrders, { fields: [transactionEntitlements.orderId], references: [transactionOrders.id] }),
+  orderItem: one(transactionOrderItems, {
+    fields: [transactionEntitlements.orderItemId],
+    references: [transactionOrderItems.id],
   }),
 }));
 

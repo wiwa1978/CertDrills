@@ -2,10 +2,9 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth-session";
-import { getCreditPurchasesServer, getMyApplicationConfigServer, getMySubscriptionPaymentsServer, getMySubscriptionServer } from "@/lib/api/me.server";
+import { getCountriesServer, getCreditPurchasesServer, getMyApplicationConfigServer, getMySubscriptionPaymentsServer, getMySubscriptionServer, getMyTransactionBasketServer, getMyTransactionEntitlementsServer, getMyTransactionOrdersServer, getUserProfileAddressServer } from "@/lib/api/me.server";
 import { PurchaseHistory } from "@/components/layout/backend/billing/purchase-history";
 import { CreditPricing } from "@/components/layout/backend/billing/credit-pricing";
-import { RedeemVoucherCard } from "@/components/layout/backend/billing/redeem-voucher-card";
 import { Separator } from "@/components/ui/separator";
 import {
   TransactionHistory,
@@ -15,14 +14,21 @@ import { BillingClientWrapper } from "./client-wrapper";
 import { SubscriptionBillingClientWrapper } from "./subscription-client-wrapper";
 import { SubscriptionPricing } from "@/components/layout/backend/billing/subscription-pricing";
 import { SubscriptionStatus } from "@/components/layout/backend/billing/subscription-status";
-import { SubscriptionDiscountForm } from "@/components/layout/backend/billing/subscription-discount-form";
 import { SubscriptionHistory } from "@/components/layout/backend/billing/subscription-history";
+import type { CheckoutAddressInput } from "@/lib/api/me";
+import { TransactionBillingPortal } from "@/components/layout/backend/billing/transaction-billing-portal";
 
 type BillingPageProps = {
+  params?: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 type CheckoutOutcome = "success" | "cancel" | null;
+
+type BillingAddressOption = CheckoutAddressInput & {
+  id: string;
+  label: string;
+};
 
 export function getCheckoutOutcome(
   searchParams?: Record<string, string | string[] | undefined>
@@ -37,7 +43,8 @@ export function getCheckoutOutcome(
   return success === "true" ? "success" : cancel === "true" ? "cancel" : null;
 }
 
-export default async function BillingPage({ searchParams }: BillingPageProps) {
+export default async function BillingPage({ params, searchParams }: BillingPageProps) {
+  const { locale } = (await params) ?? { locale: "en" };
   const session = await getServerSession();
   if (!session?.user) {
     redirect("/login");
@@ -48,16 +55,35 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   const t = await getTranslations("billing");
   const applicationConfig = await getMyApplicationConfigServer();
 
+  if (applicationConfig.billing.transactionSurfacesEnabled) {
+    const [basket, orders, entitlements] = await Promise.all([
+      getMyTransactionBasketServer(),
+      getMyTransactionOrdersServer(),
+      getMyTransactionEntitlementsServer(),
+    ]);
+
+    return (
+      <TransactionBillingPortal
+        userId={session.user.id}
+        initialBasket={basket}
+        initialOrders={orders}
+        initialEntitlements={entitlements}
+      />
+    );
+  }
+
   if (applicationConfig.billing.subscriptionSurfacesEnabled) {
-    return <SubscriptionBillingPage checkoutOutcome={checkoutOutcome} />;
+    return <SubscriptionBillingPage checkoutOutcome={checkoutOutcome} locale={locale} />;
   }
 
   if (!applicationConfig.billing.creditSurfacesEnabled) {
     return null;
   }
 
+  const addresses = await getBillingAddressOptions(locale);
+
   return (
-    <BillingClientWrapper checkoutOutcome={checkoutOutcome}>
+    <BillingClientWrapper addresses={addresses} checkoutOutcome={checkoutOutcome}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
@@ -65,8 +91,6 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         </div>
 
         <CreditPricing showContainer={false} />
-
-        <RedeemVoucherCard />
 
         <Separator className="my-8" />
 
@@ -84,16 +108,46 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   );
 }
 
-async function SubscriptionBillingPage({ checkoutOutcome }: { checkoutOutcome: CheckoutOutcome }) {
+async function getBillingAddressOptions(locale: string): Promise<BillingAddressOption[]> {
+  const profile = await getUserProfileAddressServer();
+
+  if (!profile) {
+    return [];
+  }
+
+  const { street, number, zipcode, town, countryId } = profile;
+
+  if (!street || !number || !zipcode || !town || !countryId) {
+    return [];
+  }
+
+  const countryLocale = locale === "fr" || locale === "nl" ? locale : "en";
+  const countries = await getCountriesServer(countryLocale).catch(() => []);
+  const countryName = countries.find((country) => country.id === countryId)?.name;
+  const addressLine = `${street} ${number}, ${zipcode} ${town}`;
+
+  return [{
+    id: "profile",
+    label: countryName ? `${addressLine}, ${countryName}` : addressLine,
+    street,
+    number,
+    zipcode,
+    town,
+    countryId,
+  }];
+}
+
+async function SubscriptionBillingPage({ checkoutOutcome, locale }: { checkoutOutcome: CheckoutOutcome; locale: string }) {
   const t = await getTranslations("billing");
   const subscriptionT = await getTranslations("billing.subscription");
-  const [subscription, payments] = await Promise.all([
+  const [subscription, payments, addresses] = await Promise.all([
     getMySubscriptionServer(),
     getMySubscriptionPaymentsServer(50),
+    getBillingAddressOptions(locale),
   ]);
 
   return (
-    <SubscriptionBillingClientWrapper checkoutOutcome={checkoutOutcome}>
+    <SubscriptionBillingClientWrapper addresses={addresses} checkoutOutcome={checkoutOutcome}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
@@ -102,7 +156,6 @@ async function SubscriptionBillingPage({ checkoutOutcome }: { checkoutOutcome: C
 
         <SubscriptionStatus subscription={subscription} />
         <SubscriptionPricing />
-        <SubscriptionDiscountForm />
         <SubscriptionHistory payments={payments} />
       </div>
     </SubscriptionBillingClientWrapper>
@@ -111,6 +164,6 @@ async function SubscriptionBillingPage({ checkoutOutcome }: { checkoutOutcome: C
 
 async function PurchaseHistoryWrapper() {
   const purchases = await getCreditPurchasesServer(50);
-  
+
   return <PurchaseHistory purchases={purchases} />;
 }

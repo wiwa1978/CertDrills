@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
 
 import { notification, user } from "@platform/platform-db";
+import type { PlatformDb, PlatformDbExecutor, PlatformDbTransaction } from "@platform/platform-db";
 
 type NotificationsServiceDeps = {
-  db: any;
+  db: PlatformDb;
 };
 
 const SEND_BATCH_SIZE = 500;
@@ -47,7 +48,7 @@ function sanitizeNotificationRow<T extends { data?: unknown }>(row: T): T {
   };
 }
 
-async function withTransaction<T>(db: any, callback: (tx: any) => Promise<T>) {
+async function withTransaction<T>(db: PlatformDb, callback: (tx: PlatformDbExecutor) => Promise<T>) {
   if (typeof db.transaction === "function") {
     return db.transaction(callback);
   }
@@ -175,7 +176,7 @@ export function createNotificationsService(deps: NotificationsServiceDeps) {
       .orderBy(desc(notification.createdAt))
       .limit(normalizedLimit);
 
-    return rows.map(sanitizeNotificationRow);
+    return rows;
   }
 
   async function sendNotificationToAllUsers(input: {

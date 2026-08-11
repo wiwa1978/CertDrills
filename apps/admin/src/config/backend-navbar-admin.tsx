@@ -1,17 +1,21 @@
 import {
+  Boxes,
   Bell,
-  BookOpenCheck,
   CreditCard,
   ListChecks,
-  ListTodo,
   ServerCog,
-  ShieldCheck,
   LayoutDashboard,
   LucideIcon,
+  FileText,
   Logs,
+  Package,
+  ShoppingCart,
   Users,
-  Webhook
-} from "lucide-react"
+  Webhook,
+} from "lucide-react";
+import { resolveProductNavigation } from "@platform/module-contracts";
+
+import { productAdminContributions } from "@/composition/product";
 
 export interface BackendNavAdminItem {
   title: string
@@ -19,24 +23,19 @@ export interface BackendNavAdminItem {
   icon: LucideIcon
 }
 
+const productNavigationIcons: Record<string, LucideIcon> = {
+  boxes: Boxes,
+  file: FileText,
+  package: Package,
+  cart: ShoppingCart,
+};
+
 
 export const BackendNavAdminItems: BackendNavAdminItem[] = [
-  {
+   {
     title: "admin.nav.overview",
     url: "/admin/overview",
     icon: LayoutDashboard,
-  },
-
-  {
-    title: "admin.nav.certdrill",
-    url: "/admin/certdrill",
-    icon: BookOpenCheck,
-  },
-
-  {
-    title: "admin.nav.questions",
-    url: "/admin/questions",
-    icon: ListTodo,
   },
 
   {
@@ -45,11 +44,6 @@ export const BackendNavAdminItems: BackendNavAdminItem[] = [
     icon: ServerCog,
   },
 
-  {
-    title: "admin.nav.admins",
-    url: "/admin/admins",
-    icon: ShieldCheck,
-  },
 
   {
     title: "admin.nav.users",
@@ -84,3 +78,12 @@ export const BackendNavAdminItems: BackendNavAdminItem[] = [
   },
   
 ]
+
+export function getBackendNavAdminItems(): BackendNavAdminItem[] {
+  const productItems = resolveProductNavigation(productAdminContributions).map((item) => ({
+    title: item.labelKey,
+    url: item.href,
+    icon: productNavigationIcons[item.iconKey ?? ""] ?? Package,
+  }));
+  return [...BackendNavAdminItems, ...productItems];
+}

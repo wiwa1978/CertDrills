@@ -19,7 +19,7 @@ export function createResendProvider(options: CreateResendProviderOptions): Emai
           subject: params.subject,
           html: params.html,
           text: params.text,
-        });
+        }, params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined);
 
         if (error) {
           return { success: false, error };

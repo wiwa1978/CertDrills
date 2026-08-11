@@ -1,4 +1,7 @@
-import { BookOpen, LayoutDashboard, LucideIcon, Settings, Wallet } from "lucide-react";
+import { Boxes, FileText, LayoutDashboard, LucideIcon, Package, Settings, ShoppingCart, Wallet } from "lucide-react";
+import { resolveProductNavigation } from "@platform/module-contracts";
+
+import { productWebContributions } from "@/composition/product";
 
 export interface BackendNavDashboardItem {
   title: string;
@@ -11,8 +14,17 @@ type BillingSurfaceConfig = {
   billing?: {
     creditSurfacesEnabled?: boolean;
     subscriptionSurfacesEnabled?: boolean;
+    transactionSurfacesEnabled?: boolean;
   };
+  capabilities?: string[];
 } | null | undefined;
+
+const productNavigationIcons: Record<string, LucideIcon> = {
+  boxes: Boxes,
+  file: FileText,
+  package: Package,
+  cart: ShoppingCart,
+};
 
 
 export const BackendNavItems: BackendNavDashboardItem[] = [
@@ -20,11 +32,6 @@ export const BackendNavItems: BackendNavDashboardItem[] = [
     title: "dashboard.nav.overview",
     url: "/dashboard",
     icon: LayoutDashboard,
-  },
-  {
-    title: "dashboard.nav.exams",
-    url: "/exams",
-    icon: BookOpen,
   },
   {
     title: "dashboard.nav.billing",
@@ -35,11 +42,6 @@ export const BackendNavItems: BackendNavDashboardItem[] = [
 ];
 
 export const UserDropdownNavItems: BackendNavDashboardItem[] = [
-  {
-    title: "dashboard.nav.attempts",
-    url: "/profile/attempts",
-    icon: BookOpen,
-  },
   {
     title: "dashboard.nav.settings",
     url: "/settings",
@@ -54,7 +56,9 @@ export const UserDropdownNavItems: BackendNavDashboardItem[] = [
 ];
 
 function hasBillingSurface(config: BillingSurfaceConfig) {
-  const billingEnabled = config?.billing?.creditSurfacesEnabled === true || config?.billing?.subscriptionSurfacesEnabled === true;
+  const billingEnabled = config?.billing?.creditSurfacesEnabled === true
+    || config?.billing?.subscriptionSurfacesEnabled === true
+    || config?.billing?.transactionSurfacesEnabled === true;
 
   return billingEnabled;
 }
@@ -66,7 +70,13 @@ function filterBillingSurfaceItems<T extends { requiresBillingSurface?: true }>(
 }
 
 export function getBackendNavItems(config: BillingSurfaceConfig): BackendNavDashboardItem[] {
-  return filterBillingSurfaceItems(BackendNavItems, config);
+  const platformItems = filterBillingSurfaceItems(BackendNavItems, config);
+  const productItems = resolveProductNavigation(productWebContributions, config?.capabilities).map((item) => ({
+    title: item.labelKey,
+    url: item.href,
+    icon: productNavigationIcons[item.iconKey ?? ""] ?? Package,
+  }));
+  return [...platformItems, ...productItems];
 }
 
 export function getUserDropdownNavItems(config: BillingSurfaceConfig): BackendNavDashboardItem[] {

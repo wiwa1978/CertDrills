@@ -73,10 +73,6 @@ export function Hero() {
             </Button>
           </div>
 
-          {/* Social proof */}
-          <p className="mt-12 text-sm text-muted-foreground">
-            {t("socialProof", { count: "10,000" })}
-          </p>
         </div>
       </Container>
     </section>

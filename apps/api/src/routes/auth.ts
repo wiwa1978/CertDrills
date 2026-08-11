@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
-import { bootstrap } from "../bootstrap";
+import type { PlatformServices } from "../bootstrap";
 import { createJsonResponseFromAuthResponse, resolveAdminAuthApi } from "../lib/auth-admin";
 import { serverError } from "../lib/http";
 import { getAuditRequestContext } from "../modules/audit/service";
@@ -14,11 +14,12 @@ function isSuccessfulMutationResult(result: unknown) {
   return !isRecord(result) || result.success !== false;
 }
 
-export function createAuthRouter() {
+export function createAuthRouter(services: PlatformServices, authModule: PlatformServices["adminAuthModule"]) {
   const router = new Hono<AppEnv>();
+  router.use("/admin/stop-impersonating", authModule.requireAuth);
 
   router.post("/admin/stop-impersonating", async (c) => {
-    const adminAuthApi = resolveAdminAuthApi(bootstrap.authModule);
+    const adminAuthApi = resolveAdminAuthApi(authModule);
     if (!adminAuthApi) {
       return serverError(c, "Better Auth admin API is unavailable");
     }
@@ -31,7 +32,7 @@ export function createAuthRouter() {
     const jsonResponse = await createJsonResponseFromAuthResponse(response, "Failed to stop impersonation");
     const payload = await jsonResponse.clone().json().catch(() => null);
     if (jsonResponse.ok && isSuccessfulMutationResult(payload)) {
-      await bootstrap.auditService.recordAuditEntry({
+      await services.auditService.recordAuditEntry({
         ...getAuditRequestContext(c),
         action: "admin.impersonation.stop",
         outcome: "success",

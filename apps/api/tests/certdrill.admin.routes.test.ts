@@ -2,15 +2,15 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_VALIDATION_DETAILS, TRUNCATED_VALIDATION_DETAILS_MESSAGE, UNKNOWN_FIELD_VALIDATION_MESSAGE } from "../src/lib/http";
-import { CertDrillAdminServiceError, type createCertDrillAdminService } from "../src/modules/certdrill/admin-service";
+import { CertDrillAdminServiceError, type createCertDrillAdminService } from "../src/product/certdrill/admin-service";
 import {
   QUESTION_IMPORT_MAX_DOCUMENT_BYTES,
   QUESTION_IMPORT_MAX_DOCUMENT_NESTING,
   QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
   QUESTION_IMPORT_MAX_ROWS,
-} from "../src/modules/certdrill/question-import";
-import { QuestionImportServiceError } from "../src/modules/certdrill/question-import-service";
-import { createCertDrillAdminRouter } from "../src/modules/certdrill/routes";
+} from "../src/product/certdrill/question-import";
+import { QuestionImportServiceError } from "../src/product/certdrill/question-import-service";
+import { createCertDrillAdminRouter } from "../src/product/certdrill/routes";
 
 const certificationId = "22222222-2222-4222-8222-222222222222";
 const categoryId = "33333333-3333-4333-8333-333333333333";
@@ -88,7 +88,7 @@ const service = {
 
 function createApp() {
   const app = new Hono();
-  app.route("/api/admin/certdrill", createCertDrillAdminRouter({ service }));
+  app.route("/admin/certdrill", createCertDrillAdminRouter({ service }));
   return app;
 }
 
@@ -103,13 +103,13 @@ describe("CertDrill admin routes", () => {
     service.updateCertification.mockResolvedValueOnce({ id: certificationId, name: "Updated" });
 
     const createBody = { code: "AWS-SAA-C03", name: "AWS Architect", vendor: "AWS", questionCountDefault: 65, passThresholdPct: 72 };
-    const createResponse = await createApp().request("/api/admin/certdrill/certifications", {
+    const createResponse = await createApp().request("/admin/certdrill/certifications", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(createBody),
     });
-    const listResponse = await createApp().request("/api/admin/certdrill/certifications");
-    const updateResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}`, {
+    const listResponse = await createApp().request("/admin/certdrill/certifications");
+    const updateResponse = await createApp().request(`/admin/certdrill/certifications/${certificationId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Updated" }),
@@ -126,7 +126,7 @@ describe("CertDrill admin routes", () => {
   it("delegates certification archive requests", async () => {
     service.archiveCertification.mockResolvedValueOnce({ id: certificationId, archivedAt: "2026-07-28T12:00:00.000Z" });
 
-    const response = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/archive`, { method: "POST" });
+    const response = await createApp().request(`/admin/certdrill/certifications/${certificationId}/archive`, { method: "POST" });
 
     expect(response.status).toBe(200);
     expect(service.archiveCertification).toHaveBeenCalledWith(certificationId);
@@ -137,13 +137,13 @@ describe("CertDrill admin routes", () => {
     service.listCategories.mockResolvedValueOnce([{ id: categoryId }]);
     service.updateCategory.mockResolvedValueOnce({ id: categoryId });
 
-    await createApp().request("/api/admin/certdrill/categories", {
+    await createApp().request("/admin/certdrill/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId, code: "D1", name: "Domain 1", weightPct: "100.00" }),
     });
-    await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/categories`);
-    await createApp().request(`/api/admin/certdrill/categories/${categoryId}`, {
+    await createApp().request(`/admin/certdrill/certifications/${certificationId}/categories`);
+    await createApp().request(`/admin/certdrill/categories/${categoryId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Domain 1 updated" }),
@@ -177,23 +177,23 @@ describe("CertDrill admin routes", () => {
         { text: "Incorrect answer", isCorrect: false },
       ],
     };
-    await createApp().request("/api/admin/certdrill/questions", {
+    await createApp().request("/admin/certdrill/questions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    await createApp().request(`/api/admin/certdrill/questions/${questionId}`, {
+    await createApp().request(`/admin/certdrill/questions/${questionId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ stem: "Updated?" }),
     });
-    const publishResponse = await createApp().request(`/api/admin/certdrill/questions/${questionId}/publish`, { method: "POST" });
-    const bulkResponse = await createApp().request("/api/admin/certdrill/questions/status", {
+    const publishResponse = await createApp().request(`/admin/certdrill/questions/${questionId}/publish`, { method: "POST" });
+    const bulkResponse = await createApp().request("/admin/certdrill/questions/status", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ questionIds: [questionId, otherQuestionId], status: "published" }),
     });
-    const bulkPurposeResponse = await createApp().request("/api/admin/certdrill/questions/delivery-purpose", {
+    const bulkPurposeResponse = await createApp().request("/admin/certdrill/questions/delivery-purpose", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ questionIds: [questionId, otherQuestionId], deliveryPurpose: "assessment" }),
@@ -235,7 +235,7 @@ describe("CertDrill admin routes", () => {
     service.listQuestionIndex.mockResolvedValueOnce(questionIndexResult);
 
     const response = await createApp().request(
-      `/api/admin/certdrill/questions?search=zero%20trust&certificationId=${certificationId}&categoryId=${categoryId}&status=published&difficulty=hard&sort=stem-desc&page=3`,
+      `/admin/certdrill/questions?search=zero%20trust&certificationId=${certificationId}&categoryId=${categoryId}&status=published&difficulty=hard&sort=stem-desc&page=3`,
     );
 
     expect(response.status).toBe(200);
@@ -277,7 +277,7 @@ describe("CertDrill admin routes", () => {
     service.listQuestionIndex.mockResolvedValueOnce(questionIndexResult);
 
     const response = await createApp().request(
-      "/api/admin/certdrill/questions?search=%20%20zero%20trust%20%20&certificationId=invalid&categoryId=also-invalid&status=review&difficulty=expert&sort=newest&page=0",
+      "/admin/certdrill/questions?search=%20%20zero%20trust%20%20&certificationId=invalid&categoryId=also-invalid&status=review&difficulty=expert&sort=newest&page=0",
     );
 
     expect(response.status).toBe(200);
@@ -294,7 +294,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects unsafe option citation URL schemes before question delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions", {
+    const response = await createApp().request("/admin/certdrill/questions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -324,13 +324,13 @@ describe("CertDrill admin routes", () => {
     const regeneratePayload = { targetQuestionCount: 50, expectedAssignmentVersion: 2 };
     const replacePayload = { currentQuestionId: questionId, replacementQuestionId: otherQuestionId, expectedAssignmentVersion: 2 };
 
-    await createApp().request("/api/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) });
-    await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/exam-forms`);
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`);
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Form B", durationMinutes: 90 }) });
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(regeneratePayload) });
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(replacePayload) });
-    await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/activation`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ isActive: true }) });
+    await createApp().request("/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) });
+    await createApp().request(`/admin/certdrill/certifications/${certificationId}/exam-forms`);
+    await createApp().request(`/admin/certdrill/exam-forms/${examFormId}`);
+    await createApp().request(`/admin/certdrill/exam-forms/${examFormId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Form B", durationMinutes: 90 }) });
+    await createApp().request(`/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(regeneratePayload) });
+    await createApp().request(`/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(replacePayload) });
+    await createApp().request(`/admin/certdrill/exam-forms/${examFormId}/activation`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ isActive: true }) });
 
     expect(service.createExamForm).toHaveBeenCalledWith(createPayload);
     expect(service.listExamForms).toHaveBeenCalledWith(certificationId);
@@ -367,14 +367,14 @@ describe("CertDrill admin routes", () => {
     service.archiveScenario.mockResolvedValueOnce({ id: scenarioId, status: "archived" });
 
     const responses = await Promise.all([
-      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenarios`),
-      createApp().request("/api/admin/certdrill/scenarios", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) }),
-      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(updatePayload) }),
-      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/validate`, { method: "POST" }),
-      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/publish`, { method: "POST" }),
-      createApp().request("/api/admin/certdrill/scenarios/status", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId], status: "draft" }) }),
-      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/scenarios`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId] }) }),
-      createApp().request(`/api/admin/certdrill/scenarios/${scenarioId}/archive`, { method: "POST" }),
+      createApp().request(`/admin/certdrill/certifications/${certificationId}/scenarios`),
+      createApp().request("/admin/certdrill/scenarios", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(createPayload) }),
+      createApp().request(`/admin/certdrill/scenarios/${scenarioId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(updatePayload) }),
+      createApp().request(`/admin/certdrill/scenarios/${scenarioId}/validate`, { method: "POST" }),
+      createApp().request(`/admin/certdrill/scenarios/${scenarioId}/publish`, { method: "POST" }),
+      createApp().request("/admin/certdrill/scenarios/status", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId], status: "draft" }) }),
+      createApp().request(`/admin/certdrill/exam-forms/${examFormId}/scenarios`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenarioIds: [scenarioId] }) }),
+      createApp().request(`/admin/certdrill/scenarios/${scenarioId}/archive`, { method: "POST" }),
     ]);
 
     expect(responses.map((response) => response.status)).toEqual([200, 201, 200, 200, 200, 200, 200, 200]);
@@ -390,9 +390,9 @@ describe("CertDrill admin routes", () => {
 
   it("rejects invalid exam form payloads without delegation", async () => {
     const responses = await Promise.all([
-      createApp().request("/api/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ certificationId: "bad", name: "", durationMinutes: 0, targetQuestionCount: -1 }) }),
-      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 2.5, expectedAssignmentVersion: 0 }) }),
-      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ currentQuestionId: "bad", replacementQuestionId: otherQuestionId, expectedAssignmentVersion: 1 }) }),
+      createApp().request("/admin/certdrill/exam-forms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ certificationId: "bad", name: "", durationMinutes: 0, targetQuestionCount: -1 }) }),
+      createApp().request(`/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 2.5, expectedAssignmentVersion: 0 }) }),
+      createApp().request(`/admin/certdrill/exam-forms/${examFormId}/questions/replace`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ currentQuestionId: "bad", replacementQuestionId: otherQuestionId, expectedAssignmentVersion: 1 }) }),
     ]);
     expect(responses.map((response) => response.status)).toEqual([400, 400, 400]);
     expect(service.createExamForm).not.toHaveBeenCalled();
@@ -402,7 +402,7 @@ describe("CertDrill admin routes", () => {
 
   it("maps assignment conflicts to 409", async () => {
     service.regenerateExamForm.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_CONFLICT", "Reload"));
-    const response = await createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 60, expectedAssignmentVersion: 2 }) });
+    const response = await createApp().request(`/admin/certdrill/exam-forms/${examFormId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetQuestionCount: 60, expectedAssignmentVersion: 2 }) });
     expect(response.status).toBe(409);
   });
 
@@ -410,8 +410,8 @@ describe("CertDrill admin routes", () => {
     service.getExamForm.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_NOT_FOUND", "Missing"));
     service.updateQuestion.mockRejectedValueOnce(new CertDrillAdminServiceError("CERTDRILL_ADMIN_EXAM_FORM_QUESTION_IN_USE", "In use"));
     const [missing, inUse] = await Promise.all([
-      createApp().request(`/api/admin/certdrill/exam-forms/${examFormId}`),
-      createApp().request(`/api/admin/certdrill/questions/${questionId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "archived" }) }),
+      createApp().request(`/admin/certdrill/exam-forms/${examFormId}`),
+      createApp().request(`/admin/certdrill/questions/${questionId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "archived" }) }),
     ]);
     expect(missing.status).toBe(404);
     expect(inUse.status).toBe(409);
@@ -422,18 +422,18 @@ describe("CertDrill admin routes", () => {
     service.listResources.mockResolvedValueOnce([{ id: resourceId }]);
     service.updateResource.mockResolvedValueOnce({ id: resourceId });
     service.ingestResource.mockResolvedValueOnce({ id: resourceId, status: "ingested" });
-    await createApp().request("/api/admin/certdrill/resources", {
+    await createApp().request("/admin/certdrill/resources", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId, url: "https://docs.example.com", title: "Docs", sourceType: "doc", contentMode: "deep_content" }),
     });
-    await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/resources`);
-    await createApp().request(`/api/admin/certdrill/resources/${resourceId}`, {
+    await createApp().request(`/admin/certdrill/certifications/${certificationId}/resources`);
+    await createApp().request(`/admin/certdrill/resources/${resourceId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Updated" }),
     });
-    const ingestResponse = await createApp().request(`/api/admin/certdrill/resources/${resourceId}/ingest`, { method: "POST" });
+    const ingestResponse = await createApp().request(`/admin/certdrill/resources/${resourceId}/ingest`, { method: "POST" });
 
     expect(service.createResource).toHaveBeenCalledWith({ certificationId, url: "https://docs.example.com", title: "Docs", sourceType: "doc", contentMode: "deep_content" });
     expect(service.listResources).toHaveBeenCalledWith(certificationId);
@@ -459,14 +459,14 @@ describe("CertDrill admin routes", () => {
       difficultyMix: { easy: 20, medium: 60, hard: 20 },
       deliveryPurpose: "assessment",
     };
-    const startResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/question-generation-jobs`, {
+    const startResponse = await createApp().request(`/admin/certdrill/certifications/${certificationId}/question-generation-jobs`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
     const [listResponse, detailResponse] = await Promise.all([
-      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/question-generation-jobs`),
-      createApp().request(`/api/admin/certdrill/question-generation-jobs/${generationJobId}`),
+      createApp().request(`/admin/certdrill/certifications/${certificationId}/question-generation-jobs`),
+      createApp().request(`/admin/certdrill/question-generation-jobs/${generationJobId}`),
     ]);
 
     expect(startResponse.status).toBe(201);
@@ -497,14 +497,14 @@ describe("CertDrill admin routes", () => {
       focus: "Incident response",
       instructions: null,
     };
-    const startResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`, {
+    const startResponse = await createApp().request(`/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
     const [listResponse, detailResponse] = await Promise.all([
-      createApp().request(`/api/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`),
-      createApp().request(`/api/admin/certdrill/scenario-generation-jobs/${generationJobId}`),
+      createApp().request(`/admin/certdrill/certifications/${certificationId}/scenario-generation-jobs`),
+      createApp().request(`/admin/certdrill/scenario-generation-jobs/${generationJobId}`),
     ]);
 
     expect(startResponse.status).toBe(201);
@@ -525,7 +525,7 @@ describe("CertDrill admin routes", () => {
     };
     service.startCategoryDiscovery.mockResolvedValueOnce(pendingRun);
 
-    const response = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
+    const response = await createApp().request(`/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url: studyGuideUrl }),
@@ -546,8 +546,8 @@ describe("CertDrill admin routes", () => {
     service.listBlueprintParseRuns.mockResolvedValueOnce([run]);
     service.getBlueprintParseRun.mockResolvedValueOnce(run);
 
-    const listResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`);
-    const detailResponse = await createApp().request(`/api/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
+    const listResponse = await createApp().request(`/admin/certdrill/certifications/${certificationId}/blueprint-parse-runs`);
+    const detailResponse = await createApp().request(`/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
 
     expect(listResponse.status).toBe(200);
     await expect(listResponse.json()).resolves.toEqual({ success: true, data: [run] });
@@ -561,7 +561,7 @@ describe("CertDrill admin routes", () => {
   it("returns 404 when a blueprint parse run detail request does not exist", async () => {
     service.getBlueprintParseRun.mockResolvedValueOnce(null);
 
-    const response = await createApp().request(`/api/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
+    const response = await createApp().request(`/admin/certdrill/blueprint-parse-runs/${blueprintParseRunId}`);
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -574,13 +574,13 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid category discovery and blueprint parse run values before delegation", async () => {
-    const invalidCertificationResponse = await createApp().request("/api/admin/certdrill/certifications/not-a-uuid/blueprint-parse-runs");
-    const invalidBodyResponse = await createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
+    const invalidCertificationResponse = await createApp().request("/admin/certdrill/certifications/not-a-uuid/blueprint-parse-runs");
+    const invalidBodyResponse = await createApp().request(`/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url: "not-a-url", extra: true }),
     });
-    const invalidDetailResponse = await createApp().request("/api/admin/certdrill/blueprint-parse-runs/not-a-uuid");
+    const invalidDetailResponse = await createApp().request("/admin/certdrill/blueprint-parse-runs/not-a-uuid");
 
     expect(invalidCertificationResponse.status).toBe(400);
     await expect(invalidCertificationResponse.json()).resolves.toEqual({
@@ -629,7 +629,7 @@ describe("CertDrill admin routes", () => {
         "Study guide could not be fetched.",
       ));
 
-    const request = () => createApp().request(`/api/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
+    const request = () => createApp().request(`/admin/certdrill/certifications/${certificationId}/category-discoveries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url: "https://learn.example.com/study-guide" }),
@@ -657,7 +657,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid resource ids before ingestion delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/resources/not-a-uuid/ingest", {
+    const response = await createApp().request("/admin/certdrill/resources/not-a-uuid/ingest", {
       method: "POST",
     });
 
@@ -676,7 +676,7 @@ describe("CertDrill admin routes", () => {
     const feedback = [{ id: "abababab-abab-4aba-8aba-abababababab", questionId, rating: 2, status: "open" }];
     service.listQuestionFeedbackForAdmin.mockResolvedValueOnce(feedback);
 
-    const response = await createApp().request("/api/admin/certdrill/question-feedback");
+    const response = await createApp().request("/admin/certdrill/question-feedback");
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, data: feedback });
@@ -686,7 +686,7 @@ describe("CertDrill admin routes", () => {
   it("delegates question feedback status update requests", async () => {
     service.updateQuestionFeedback.mockResolvedValueOnce({ id: feedbackId, status: "reviewed" });
 
-    const response = await createApp().request(`/api/admin/certdrill/question-feedback/${feedbackId}`, {
+    const response = await createApp().request(`/admin/certdrill/question-feedback/${feedbackId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "reviewed" }),
@@ -698,7 +698,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid question feedback status updates before delegation", async () => {
-    const response = await createApp().request(`/api/admin/certdrill/question-feedback/${feedbackId}`, {
+    const response = await createApp().request(`/admin/certdrill/question-feedback/${feedbackId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "open" }),
@@ -709,7 +709,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid JSON bodies before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/certifications", {
+    const response = await createApp().request("/admin/certdrill/certifications", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Missing code" }),
@@ -731,12 +731,12 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid UUID and URL fields before delegation", async () => {
-    const categoryResponse = await createApp().request("/api/admin/certdrill/categories", {
+    const categoryResponse = await createApp().request("/admin/certdrill/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId: "not-a-uuid", code: "D1", name: "Domain 1", weightPct: "100.00" }),
     });
-    const resourceResponse = await createApp().request("/api/admin/certdrill/resources", {
+    const resourceResponse = await createApp().request("/admin/certdrill/resources", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId, url: "not-a-url", title: "Docs", sourceType: "doc", contentMode: "deep_content" }),
@@ -765,7 +765,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects invalid UUID path params before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/certifications/not-a-uuid/categories");
+    const response = await createApp().request("/admin/certdrill/certifications/not-a-uuid/categories");
 
     expect(response.status).toBe(400);
     expect(service.listCategories).not.toHaveBeenCalled();
@@ -777,7 +777,7 @@ describe("CertDrill admin routes", () => {
       "Sibling category weights must not exceed 100. Current total: 105.",
     ));
 
-    const response = await createApp().request("/api/admin/certdrill/categories", {
+    const response = await createApp().request("/admin/certdrill/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId, code: "D1", name: "Domain 1", weightPct: "105.00" }),
@@ -795,7 +795,7 @@ describe("CertDrill admin routes", () => {
   it("resets all CertDrill progress for a valid user id", async () => {
     service.resetUserProgress.mockResolvedValueOnce({ deletedAttemptCount: 3, deletedReviewItemCount: 2 });
 
-    const response = await createApp().request(`/api/admin/certdrill/users/${userId}/progress`, { method: "DELETE" });
+    const response = await createApp().request(`/admin/certdrill/users/${userId}/progress`, { method: "DELETE" });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, data: { deletedAttemptCount: 3, deletedReviewItemCount: 2 } });
@@ -803,7 +803,7 @@ describe("CertDrill admin routes", () => {
   });
 
   it("rejects malformed progress reset user ids", async () => {
-    const response = await createApp().request("/api/admin/certdrill/users/not-a-uuid/progress", { method: "DELETE" });
+    const response = await createApp().request("/admin/certdrill/users/not-a-uuid/progress", { method: "DELETE" });
 
     expect(response.status).toBe(400);
     expect(service.resetUserProgress).not.toHaveBeenCalled();
@@ -856,7 +856,7 @@ describe("CertDrill admin question import routes", () => {
     };
     service.previewQuestionImport.mockResolvedValueOnce(previewResult);
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(validPreviewBody),
@@ -871,7 +871,7 @@ describe("CertDrill admin question import routes", () => {
     const importResult = { importedCount: 1, questionIds: ["10000000-0000-4100-8100-000000000001"] };
     service.importQuestions.mockResolvedValueOnce(importResult);
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(validConfirmBody),
@@ -883,7 +883,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects preview requests missing required fields before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ document: { version: 1, questions: [] } }),
@@ -902,12 +902,12 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects question import requests missing document before delegation", async () => {
-    const previewResponse = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const previewResponse = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId }),
     });
-    const confirmResponse = await createApp().request("/api/admin/certdrill/questions/import", {
+    const confirmResponse = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -943,7 +943,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects preview requests with unexpected top-level fields before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validPreviewBody, extra: "not-allowed" }),
@@ -954,7 +954,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects malformed JSON bodies before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{not valid json",
@@ -969,7 +969,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects an empty selectedSourceIndexes array before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validConfirmBody, selectedSourceIndexes: [] }),
@@ -984,7 +984,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects out-of-range source indexes before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validConfirmBody, selectedSourceIndexes: [QUESTION_IMPORT_MAX_ROWS] }),
@@ -1001,7 +1001,7 @@ describe("CertDrill admin question import routes", () => {
   it("rejects a duplicateOverrideSourceIndexes array longer than the row cap", async () => {
     const tooMany = Array.from({ length: QUESTION_IMPORT_MAX_ROWS + 1 }, (_, index) => index % QUESTION_IMPORT_MAX_ROWS);
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validConfirmBody, duplicateOverrideSourceIndexes: tooMany }),
@@ -1017,7 +1017,7 @@ describe("CertDrill admin question import routes", () => {
     const allIndexes = Array.from({ length: QUESTION_IMPORT_MAX_ROWS }, (_, index) => index);
     const body = { ...validConfirmBody, selectedSourceIndexes: allIndexes, duplicateOverrideSourceIndexes: allIndexes };
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -1032,7 +1032,7 @@ describe("CertDrill admin question import routes", () => {
     expect(body.length).toBeLessThan(QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
 
     const startedAt = Date.now();
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,
@@ -1062,7 +1062,7 @@ describe("CertDrill admin question import routes", () => {
     expect(body.length).toBeLessThan(QUESTION_IMPORT_MAX_RAW_BODY_BYTES);
 
     const startedAt = Date.now();
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,
@@ -1094,7 +1094,7 @@ describe("CertDrill admin question import routes", () => {
     }
 
     const startedAt = Date.now();
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validPreviewBody, ...unknownKeys }),
@@ -1125,7 +1125,7 @@ describe("CertDrill admin question import routes", () => {
   }, 30_000);
 
   it("rejects a malformed previewDocumentHash before delegation", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...validConfirmBody, previewDocumentHash: "not-a-hash" }),
@@ -1137,12 +1137,12 @@ describe("CertDrill admin question import routes", () => {
 
   it("rejects a deeply nested document before delegating preview or confirm requests", async () => {
     const document = deeplyNestedDocumentJson(QUESTION_IMPORT_MAX_DOCUMENT_NESTING * 8);
-    const previewResponse = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const previewResponse = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: `{"certificationId":"${certificationId}","document":${document}}`,
     });
-    const confirmResponse = await createApp().request("/api/admin/certdrill/questions/import", {
+    const confirmResponse = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: `{"certificationId":"${certificationId}","document":${document},"previewDocumentHash":"${previewDocumentHash}","selectedSourceIndexes":[0],"duplicateOverrideSourceIndexes":[]}`,
@@ -1171,7 +1171,7 @@ describe("CertDrill admin question import routes", () => {
   });
 
   it("rejects a request whose total body exceeds the transport size limit", async () => {
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json", "content-length": String(6 * 1024 * 1024) },
       body: JSON.stringify(validPreviewBody),
@@ -1188,7 +1188,7 @@ describe("CertDrill admin question import routes", () => {
   it("rejects a request whose serialized document exceeds 5 MiB", async () => {
     const oversizedDocument = { version: 1, note: "a".repeat(QUESTION_IMPORT_MAX_DOCUMENT_BYTES + 1024) };
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ certificationId, document: oversizedDocument }),
@@ -1215,7 +1215,7 @@ describe("CertDrill admin question import routes", () => {
       refreshedPreview,
     ));
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import", {
+    const response = await createApp().request("/admin/certdrill/questions/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(validConfirmBody),
@@ -1240,7 +1240,7 @@ describe("CertDrill admin question import routes", () => {
       issues,
     ));
 
-    const response = await createApp().request("/api/admin/certdrill/questions/import/preview", {
+    const response = await createApp().request("/admin/certdrill/questions/import/preview", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(validPreviewBody),

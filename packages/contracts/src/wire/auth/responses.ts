@@ -2,25 +2,24 @@ import { z } from "zod";
 
 import { errorResultSchema, successResultSchema, voidResultSchema } from "../common/result";
 
-export const mobileTokenResponseSchema = z.object({
-  success: z.literal(true),
-  data: z.object({
-    accessToken: z.string().min(16),
-    refreshToken: z.string().min(16),
-    expiresInSeconds: z.number().int().positive(),
-    tokenType: z.literal("Bearer"),
-  }),
+export const mobileTokenDataSchema = z.object({
+  accessToken: z.string().min(16),
+  refreshToken: z.string().min(16),
+  expiresInSeconds: z.number().int().positive(),
+  tokenType: z.literal("Bearer"),
 });
 
-export const mobileTokenErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.string().min(1),
-});
-
+export const mobileTokenResponseSchema = successResultSchema(mobileTokenDataSchema);
+export const mobileTokenErrorSchema = errorResultSchema;
 export const mobileTokenResultSchema = z.union([
   mobileTokenResponseSchema,
   mobileTokenErrorSchema,
 ]);
+
+export const mobileRevokeResponseSchema = successResultSchema(z.object({ revoked: z.literal(true) }));
+
+export type MobileTokenData = z.infer<typeof mobileTokenDataSchema>;
+export type MobileTokenResult = z.infer<typeof mobileTokenResultSchema>;
 
 export const sessionUserSchema = z.object({
   id: z.string().min(1),

@@ -34,7 +34,7 @@ export function CatalogPage({ allCertifications, myCertifications, attempts, rea
           No certification exams have been published yet.
         </div>
       ) : (
-        <Tabs idBase="certdrill-catalog" defaultValue="all" className="space-y-6">
+        <Tabs defaultValue="all" className="space-y-6">
           <TabsList className="bg-card text-muted-foreground">
             <TabsTrigger value="all" className="data-[state=active]:bg-muted data-[state=active]:text-primary">
               All exams

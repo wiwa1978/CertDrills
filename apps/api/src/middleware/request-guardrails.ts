@@ -1,12 +1,12 @@
 import type { MiddlewareHandler } from "hono";
 
 import { errorCode } from "@platform/contracts/wire";
+import type { ModuleRouteGuardrail } from "@platform/module-contracts";
 
 import type { AppEnv } from "../context";
 import { env } from "../env";
-import { QUESTION_IMPORT_MAX_RAW_BODY_BYTES } from "../modules/certdrill/question-import";
 
-type RateLimitRule = {
+export type RateLimitRule = {
   windowMs: number;
   max: number;
 };
@@ -18,22 +18,44 @@ type RouteGuardrail = {
   rateLimit?: RateLimitRule;
 };
 
+export type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds: number;
+};
+
+export type RateLimitStore = {
+  consume: (key: string, rule: RateLimitRule) => Promise<RateLimitResult>;
+};
+
+type RequestGuardrailsOptions = {
+  rateLimitStore: RateLimitStore;
+  trustProxy: boolean;
+  trustedProxyHops?: number;
+  additionalGuardrails?: readonly ModuleRouteGuardrail[];
+};
+
 const KIB = 1024;
 const DEFAULT_JSON_BODY_BYTES = 64 * KIB;
 const DEFAULT_WEBHOOK_BODY_BYTES = 256 * KIB;
 const JSON_BODY_METHODS = new Set(["POST", "PUT", "PATCH"]);
+const webhookBodyRoutes = [
+  /^\/payments\/webhooks\/[^/]+$/,
+  /^\/auth\/dodopayments\/webhooks$/,
+];
 const jsonBodyRoutes = [
   /^\/auth\/sign-in\/email$/,
   /^\/auth\/mobile\/token$/,
   /^\/auth\/mobile\/refresh$/,
   /^\/auth\/mobile\/revoke$/,
   /^\/payments\/checkout$/,
-  /^\/me\/credits\/consume$/,
+  /^\/me\/capabilities\/[^/]+\/consume$/,
   /^\/me\/credits\/invoice$/,
   /^\/me\/subscription\/invoice$/,
   /^\/me\/vouchers\/redeem$/,
   /^\/me\/notifications\/[^/]+\/read$/,
   /^\/logs\/client$/,
+  /^\/api\/inngest$/,
   /^\/admin\/verify-admin-secret$/,
   /^\/admin\/users\/set-role$/,
   /^\/admin\/users\/unban$/,
@@ -43,13 +65,16 @@ const jsonBodyRoutes = [
   /^\/admin\/users\/set-password$/,
   /^\/admin\/users\/[^/]+\/credits\/adjust$/,
   /^\/admin\/billing\/credit-refunds$/,
+  /^\/admin\/billing\/transaction-refunds$/,
   /^\/admin\/billing\/subscription-refunds$/,
   /^\/admin\/billing\/reconcile$/,
   /^\/admin\/discounts(?:\/.*)?$/,
   /^\/admin\/vouchers(?:\/.*)?$/,
+  /^\/admin\/operations\/background-events\/[^/]+\/redrive$/,
   /^\/admin\/notifications\/send-all$/,
   /^\/admin\/notifications\/send-users$/,
   /^\/auth\/admin\/stop-impersonating$/,
+  ...webhookBodyRoutes,
 ];
 
 const routeGuardrails: RouteGuardrail[] = [
@@ -59,6 +84,10 @@ const routeGuardrails: RouteGuardrail[] = [
   { method: "POST", pattern: /^\/auth\/mobile\/revoke$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 60 } },
   { method: "POST", pattern: /^\/payments\/checkout$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 30 } },
   { method: "POST", pattern: /^\/payments\/webhooks\/[^/]+$/, maxBodyBytes: DEFAULT_WEBHOOK_BODY_BYTES },
+  { method: "POST", pattern: /^\/auth\/dodopayments\/webhooks$/, maxBodyBytes: DEFAULT_WEBHOOK_BODY_BYTES },
+  { method: "POST", pattern: /^\/api\/inngest$/, maxBodyBytes: 1024 * KIB },
+  { method: "PUT", pattern: /^\/api\/inngest$/, maxBodyBytes: 1024 * KIB },
+  { method: "POST", pattern: /^\/me\/capabilities\/[^/]+\/consume$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 20 } },
   { method: "POST", pattern: /^\/me\/vouchers\/redeem$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 20 } },
   { method: "POST", pattern: /^\/logs\/client$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 30 } },
   { method: "POST", pattern: /^\/admin\/verify-admin-secret$/, maxBodyBytes: 2 * KIB, rateLimit: { windowMs: 60_000, max: 5 } },
@@ -66,68 +95,51 @@ const routeGuardrails: RouteGuardrail[] = [
   { method: "POST", pattern: /^\/admin\/users\/set-password$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
   { method: "POST", pattern: /^\/admin\/users\/impersonate$/, maxBodyBytes: 4 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
   { method: "POST", pattern: /^\/admin\/billing\/credit-refunds$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
+  { method: "POST", pattern: /^\/admin\/billing\/transaction-refunds$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
+  { method: "POST", pattern: /^\/admin\/operations\/background-events\/[^/]+\/redrive$/, maxBodyBytes: 2 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
   { method: "POST", pattern: /^\/admin\/billing\/subscription-refunds$/, maxBodyBytes: 8 * KIB, rateLimit: { windowMs: 60_000, max: 10 } },
-  // CertDrill question imports carry a whole import document, so they need an explicit cap above
-  // the 64 KiB JSON default. The cap is the shared import transport limit (5 MiB document plus
-  // envelope headroom); the routes still enforce the document-only limit after parsing. Both
-  // endpoints run expensive validation over the whole document, so they are rate limited like the
-  // other costly admin mutations - confirm more tightly than the read-only preview.
-  {
-    method: "POST",
-    pattern: /^\/api\/admin\/certdrill\/questions\/import$/,
-    maxBodyBytes: QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
-    rateLimit: { windowMs: 60_000, max: 10 },
-  },
-  {
-    method: "POST",
-    pattern: /^\/api\/admin\/certdrill\/questions\/import\/preview$/,
-    maxBodyBytes: QUESTION_IMPORT_MAX_RAW_BODY_BYTES,
-    rateLimit: { windowMs: 60_000, max: 30 },
-  },
 ];
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-function getClientIp(c: Parameters<MiddlewareHandler<AppEnv>>[0]) {
-  if (env.TRUST_PROXY) {
-    const forwardedFor = c.req.header("x-forwarded-for");
-    if (forwardedFor) {
-      return forwardedFor.split(",")[0]?.trim() || "unknown";
-    }
+export function resolveClientIdentity(headers: Headers, trustProxy: boolean, trustedProxyHops = 1) {
+  if (!trustProxy) return "direct-client";
 
-    return c.req.header("x-real-ip") ?? "unknown";
+  const cloudflareIp = headers.get("cf-connecting-ip")?.trim();
+  if (cloudflareIp) return cloudflareIp;
+
+  const forwardedChain = headers.get("x-forwarded-for")
+    ?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (forwardedChain?.length) {
+    return forwardedChain[Math.max(0, forwardedChain.length - trustedProxyHops)] ?? "unknown";
   }
 
-  const forwardedFor = c.req.header("x-forwarded-for");
-  const realIp = c.req.header("x-real-ip");
-
-  return c.req.header("cf-connecting-ip") ?? realIp ?? forwardedFor?.split(",")[0]?.trim() ?? "direct-client";
+  return headers.get("x-real-ip")?.trim() || "unknown";
 }
 
-function findGuardrail(method: string, path: string) {
-  return routeGuardrails.find((guardrail) => guardrail.method === method && guardrail.pattern.test(path));
+function findGuardrail(method: string, path: string, additionalGuardrails: readonly ModuleRouteGuardrail[]) {
+  return [...additionalGuardrails, ...routeGuardrails]
+    .find((guardrail) => guardrail.method === method
+      && ("path" in guardrail ? guardrail.path : guardrail.pattern).test(path));
+}
+
+function guardrailPath(path: string) {
+  if (path === "/admin-auth" || path.startsWith("/admin-auth/")) return path.replace("/admin-auth", "/auth");
+  if (path === "/admin/me" || path.startsWith("/admin/me/")) return path.replace("/admin/me", "/me");
+  if (path === "/admin/payments" || path.startsWith("/admin/payments/")) return path.replace("/admin/payments", "/payments");
+  return path;
 }
 
 function expectsJsonBody(method: string, path: string) {
   return JSON_BODY_METHODS.has(method) && jsonBodyRoutes.some((pattern) => pattern.test(path));
 }
 
-function checkRateLimit(key: string, rule: RateLimitRule) {
-  const now = Date.now();
-  const bucket = buckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + rule.windowMs });
-    return { allowed: true, remaining: rule.max - 1, retryAfterSeconds: Math.ceil(rule.windowMs / 1000) };
-  }
-
-  if (bucket.count >= rule.max) {
-    return { allowed: false, remaining: 0, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) };
-  }
-
-  bucket.count += 1;
-  return { allowed: true, remaining: rule.max - bucket.count, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) };
+function isWebhookPath(path: string) {
+  return webhookBodyRoutes.some((pattern) => pattern.test(path));
 }
+
 
 function tooLarge(c: Parameters<MiddlewareHandler<AppEnv>>[0]) {
   return c.json(
@@ -191,57 +203,81 @@ async function checkBodyLimit(request: Request, maxBodyBytes: number) {
   return new Request(request, { body, duplex: "half" } as RequestInit & { duplex: "half" });
 }
 
-export const requestGuardrails: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const method = c.req.method.toUpperCase();
-  const contentType = c.req.header("content-type") ?? "";
-  const guardrail = findGuardrail(method, c.req.path);
-  const maxBodyBytes = guardrail?.maxBodyBytes ?? (JSON_BODY_METHODS.has(method) && contentType.includes("application/json") ? DEFAULT_JSON_BODY_BYTES : undefined);
+export function createRequestGuardrails(options: RequestGuardrailsOptions): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const method = c.req.method.toUpperCase();
+    const contentType = c.req.header("content-type") ?? "";
+    const lookupPath = guardrailPath(c.req.path);
+    const guardrail = findGuardrail(method, lookupPath, options.additionalGuardrails ?? []);
+    const maxBodyBytes = guardrail?.maxBodyBytes ?? (JSON_BODY_METHODS.has(method) && contentType.includes("application/json") ? DEFAULT_JSON_BODY_BYTES : undefined);
 
-  if (expectsJsonBody(method, c.req.path)) {
-    const isWebhook = /^\/payments\/webhooks\/[^/]+$/.test(c.req.path);
-    const hasJsonBody = contentType.includes("application/json");
+    if (expectsJsonBody(method, lookupPath)) {
+      const hasJsonBody = contentType.includes("application/json");
 
-    if (!isWebhook && !hasJsonBody) {
-      return c.json({ success: false, error: { code: errorCode.badRequest, message: "Unsupported content type" } }, 415);
-    }
-  }
-
-  if (maxBodyBytes !== undefined && method !== "GET" && method !== "HEAD") {
-    const contentLengthHeader = c.req.header("content-length");
-    if (contentLengthHeader) {
-      const contentLength = Number(contentLengthHeader);
-      if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
-        return tooLarge(c);
-      }
-    } else if (c.req.raw.body) {
-      const checkedRequest = await checkBodyLimit(c.req.raw, maxBodyBytes);
-      if (checkedRequest === true) {
-        return tooLarge(c);
-      }
-
-      if (checkedRequest) {
-        c.req.raw = checkedRequest;
+      if (!isWebhookPath(lookupPath) && !hasJsonBody) {
+        return c.json({ success: false, error: { code: errorCode.badRequest, message: "Unsupported content type" } }, 415);
       }
     }
-  }
 
-  if (guardrail?.rateLimit) {
-    const key = `${method}:${c.req.path}:${getClientIp(c)}`;
-    const rateLimit = checkRateLimit(key, guardrail.rateLimit);
-    c.header("x-ratelimit-remaining", String(rateLimit.remaining));
+    if (maxBodyBytes !== undefined && method !== "GET" && method !== "HEAD") {
+      const contentLengthHeader = c.req.header("content-length");
+      if (contentLengthHeader) {
+        const contentLength = Number(contentLengthHeader);
+        if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+          return tooLarge(c);
+        }
+      } else if (c.req.raw.body) {
+        const checkedRequest = await checkBodyLimit(c.req.raw, maxBodyBytes);
+        if (checkedRequest === true) {
+          return tooLarge(c);
+        }
 
-    if (!rateLimit.allowed) {
-      return rateLimited(c, rateLimit.retryAfterSeconds);
+        if (checkedRequest) {
+          c.req.raw = checkedRequest;
+        }
+      }
     }
-  }
 
-  await next();
+    if (guardrail?.rateLimit) {
+      const identity = resolveClientIdentity(c.req.raw.headers, options.trustProxy, options.trustedProxyHops);
+      const key = `${method}:${c.req.path}:${identity}`;
+      const rateLimit = await options.rateLimitStore.consume(key, guardrail.rateLimit);
+      c.header("x-ratelimit-remaining", String(rateLimit.remaining));
+
+      if (!rateLimit.allowed) {
+        return rateLimited(c, rateLimit.retryAfterSeconds);
+      }
+    }
+
+    await next();
+  };
+}
+
+const memoryRateLimitStore: RateLimitStore = {
+  async consume(key, rule) {
+    const now = Date.now();
+    const bucket = buckets.get(key);
+
+    if (!bucket || bucket.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + rule.windowMs });
+      return { allowed: true, remaining: rule.max - 1, retryAfterSeconds: Math.ceil(rule.windowMs / 1000) };
+    }
+
+    bucket.count += 1;
+    return {
+      allowed: bucket.count <= rule.max,
+      remaining: Math.max(0, rule.max - bucket.count),
+      retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000),
+    };
+  },
 };
+
+export const requestGuardrails = createRequestGuardrails({
+  rateLimitStore: memoryRateLimitStore,
+  trustProxy: env.TRUST_PROXY,
+  trustedProxyHops: env.TRUSTED_PROXY_HOPS,
+});
 
 export function clearRequestGuardrailStateForTests() {
   buckets.clear();
-}
-
-export function getRouteGuardrailForTests(method: string, path: string): RouteGuardrail | undefined {
-  return findGuardrail(method.toUpperCase(), path);
 }

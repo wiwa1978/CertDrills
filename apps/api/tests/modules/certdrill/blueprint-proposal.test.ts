@@ -5,7 +5,7 @@ import {
   blueprintProposalJsonSchema,
   blueprintProposalSchema,
   validateBlueprintProposal,
-} from "../../../src/modules/certdrill/blueprint-proposal";
+} from "../../../src/product/certdrill/blueprint-proposal";
 
 type CategoryOverride = Partial<{
   code: string;

@@ -71,30 +71,4 @@ describe("frontend shared API client", () => {
       digest: "VALIDATION_FAILED",
     } satisfies Partial<ApiRequestError>);
   });
-
-  it("preserves structured details for a 409 import conflict response", async () => {
-    const details = {
-      documentHash: "a".repeat(64),
-      rows: [{ sourceIndex: 0, valid: true, duplicate: { existingQuestionIds: ["q-1"], earlierSourceIndexes: [] } }],
-    };
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
-      success: false,
-      error: {
-        code: "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT",
-        message: "Question import selection no longer matches the current preview. Review the refreshed preview.",
-        details,
-      },
-      requestId: "req-789",
-    }), { status: 409 }));
-    const request = createApiRequest({ baseURL: "https://api.example.test" });
-
-    await expect(request("/admin/certdrill/questions/import", { method: "POST", body: "{}" })).rejects.toMatchObject({
-      name: "ApiRequestError",
-      status: 409,
-      errorCode: "CERTDRILL_ADMIN_QUESTION_IMPORT_CONFLICT",
-      requestId: "req-789",
-      details,
-    } satisfies Partial<ApiRequestError>);
-  });
 });

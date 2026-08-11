@@ -4,7 +4,13 @@ import { errorCode } from "@platform/contracts";
 
 import { mapDodoEvent } from "./providers/dodo/mapper";
 import { verifyDodoWebhookSignatureDetailed } from "./providers/dodo/webhook-verify";
-import type { CreatePaymentsModuleOptions, PaymentWebhookProviderConfig, WebhookFailureAuditEvent } from "./types";
+import type {
+  CreatePaymentsModuleOptions,
+  CreatePaymentWebhookIngestionOptions,
+  PaymentWebhookIngestion,
+  PaymentWebhookProviderConfig,
+  WebhookFailureAuditEvent,
+} from "./types";
 import type { WebhookVerifyResult } from "./types";
 
 type SafeWebhookMetadata = Pick<WebhookFailureAuditEvent, "providerEventId" | "eventType" | "paymentId">;
@@ -24,6 +30,13 @@ type SafeWebhookFailureError =
   | "unsupported_event"
   | "missing_event_id"
   | "handler_failed";
+
+class PaymentWebhookIngestionError extends Error {
+  constructor(readonly reason: "unsupported_event" | "missing_event_id", message: string) {
+    super(message);
+    this.name = "PaymentWebhookIngestionError";
+  }
+}
 
 function failureToResponse(reason: Exclude<WebhookVerifyResult, { ok: true }>["reason"]) {
   switch (reason) {
@@ -151,13 +164,13 @@ async function verifyWebhookSignature(dispatcher: PaymentWebhookDispatcher, rawB
 }
 
 async function recordWebhookFailure(
-  options: CreatePaymentsModuleOptions,
+  onWebhookFailure: CreatePaymentsModuleOptions["onWebhookFailure"],
   provider: string,
   metadata: SafeWebhookMetadata,
   error: SafeWebhookFailureError,
 ) {
   try {
-    await options.onWebhookFailure?.({
+    await onWebhookFailure?.({
       provider,
       providerEventId: metadata.providerEventId ?? null,
       eventType: metadata.eventType ?? null,
@@ -170,11 +183,72 @@ async function recordWebhookFailure(
   }
 }
 
+export function createPaymentWebhookIngestion(
+  options: CreatePaymentWebhookIngestionOptions,
+): PaymentWebhookIngestion {
+  return {
+    async ingestVerifiedPayload(payload, context = {}) {
+      const startedAt = Date.now();
+      const event = options.mapEvent(payload);
+      if (!event) {
+        await recordWebhookFailure(
+          options.onWebhookFailure,
+          options.provider,
+          extractSafeWebhookMetadata(payload),
+          "unsupported_event",
+        );
+        throw new PaymentWebhookIngestionError("unsupported_event", "Unsupported webhook payload");
+      }
+
+      const providerEventId = event.providerEventId;
+      if (!providerEventId) {
+        await recordWebhookFailure(options.onWebhookFailure, options.provider, event, "missing_event_id");
+        throw new PaymentWebhookIngestionError("missing_event_id", "Missing webhook event id");
+      }
+
+      if (options.webhookEventStore) {
+        const claim = await options.webhookEventStore.claim({
+          provider: options.provider,
+          providerEventId,
+          eventType: event.eventType,
+          paymentId: event.paymentId,
+          signatureTimestamp: context.signatureTimestamp,
+          sanitizedPayload: payload,
+          requestId: context.requestId,
+          correlationId: context.correlationId,
+        });
+
+        if (!claim.claimed) {
+          return { processed: false, duplicate: true, status: claim.status };
+        }
+      }
+
+      try {
+        await options.onPaymentEvent(event);
+        await options.webhookEventStore?.markProcessed({
+          provider: options.provider,
+          providerEventId,
+          durationMs: Date.now() - startedAt,
+        });
+        return { processed: true };
+      } catch (error) {
+        await options.webhookEventStore?.markFailed({
+          provider: options.provider,
+          providerEventId,
+          error,
+          durationMs: Date.now() - startedAt,
+        });
+        await recordWebhookFailure(options.onWebhookFailure, options.provider, event, "handler_failed");
+        throw error;
+      }
+    },
+  };
+}
+
 export function createPaymentsModule(options: CreatePaymentsModuleOptions) {
   const router = new Hono();
 
   router.post("/webhooks/:provider", async (c) => {
-    const startedAt = Date.now();
     const provider = c.req.param("provider");
     const dispatcher = paymentWebhookDispatcherForProvider(provider, options);
     if (!dispatcher) {
@@ -189,7 +263,7 @@ export function createPaymentsModule(options: CreatePaymentsModuleOptions) {
     const verification = await verifyWebhookSignature(dispatcher, rawBody, signatureHeader);
 
     if (!verification.ok) {
-      await recordWebhookFailure(options, dispatcher.provider, UNAUTHENTICATED_WEBHOOK_METADATA, verification.reason);
+      await recordWebhookFailure(options.onWebhookFailure, dispatcher.provider, UNAUTHENTICATED_WEBHOOK_METADATA, verification.reason);
       const { status, body } = failureToResponse(verification.reason);
       return c.json(body, status);
     }
@@ -198,56 +272,33 @@ export function createPaymentsModule(options: CreatePaymentsModuleOptions) {
     try {
       payload = JSON.parse(rawBody);
     } catch {
-      await recordWebhookFailure(options, dispatcher.provider, UNAUTHENTICATED_WEBHOOK_METADATA, "invalid_json");
+      await recordWebhookFailure(options.onWebhookFailure, dispatcher.provider, UNAUTHENTICATED_WEBHOOK_METADATA, "invalid_json");
       return c.json({ success: false, error: { code: errorCode.badRequest, message: "Invalid JSON payload" } }, 400);
     }
 
-    const event = dispatcher.mapEvent(payload);
-    if (!event) {
-      await recordWebhookFailure(options, dispatcher.provider, extractSafeWebhookMetadata(payload), "unsupported_event");
-      return c.json({ success: false, error: { code: errorCode.badRequest, message: "Unsupported webhook payload" } }, 400);
-    }
-
-    if (options.webhookEventStore) {
-      const providerEventId = event.providerEventId;
-      if (!providerEventId) {
-        await recordWebhookFailure(options, event.provider, event, "missing_event_id");
-        return c.json({ success: false, error: { code: errorCode.badRequest, message: "Missing webhook event id" } }, 400);
-      }
-
-      const claim = await options.webhookEventStore.claim({
-        provider: event.provider,
-        providerEventId,
-        eventType: event.eventType,
-        paymentId: event.paymentId,
+    try {
+      const ingestion = createPaymentWebhookIngestion({
+        provider: dispatcher.provider,
+        mapEvent: dispatcher.mapEvent,
+        webhookEventStore: options.webhookEventStore,
+        onPaymentEvent: options.onPaymentEvent,
+        onWebhookFailure: options.onWebhookFailure,
+      });
+      const result = await ingestion.ingestVerifiedPayload(payload, {
         signatureTimestamp: signatureTimestamp(signatureHeader),
-        sanitizedPayload: payload,
         requestId,
         correlationId,
       });
-
-      if (!claim.claimed) {
-        return c.json({ success: true, data: { processed: false, duplicate: true, status: claim.status } }, 200);
-      }
-
-      try {
-        await options.onPaymentEvent(event);
-        await options.webhookEventStore.markProcessed({ provider: event.provider, providerEventId, durationMs: Date.now() - startedAt });
-        return c.json({ success: true, data: { processed: true } }, 200);
-      } catch (error) {
-        await options.webhookEventStore.markFailed({ provider: event.provider, providerEventId, error, durationMs: Date.now() - startedAt });
-        await recordWebhookFailure(options, event.provider, event, "handler_failed");
-        throw error;
-      }
-    }
-
-    try {
-      await options.onPaymentEvent(event);
+      return c.json({ success: true, data: result }, 200);
     } catch (error) {
-      await recordWebhookFailure(options, event.provider, event, "handler_failed");
+      if (error instanceof PaymentWebhookIngestionError) {
+        return c.json({
+          success: false,
+          error: { code: errorCode.badRequest, message: error.message },
+        }, 400);
+      }
       throw error;
     }
-    return c.json({ success: true, data: { processed: true } }, 200);
   });
 
   return {

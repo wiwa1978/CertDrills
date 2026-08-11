@@ -1,0 +1,74 @@
+<h2>Admin Billing In Subscription Mode</h2>
+<p class="subtitle">Three possible dashboard shapes for <code>/admin/billing</code> when <code>billing.mode</code> is <code>subscriptions</code>. Click the option that best matches what you expect.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Minimal Subscription Overview</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+            <div class="placeholder">Active</div>
+            <div class="placeholder">Trialing</div>
+            <div class="placeholder">Past Due</div>
+            <div class="placeholder">MRR / ARR</div>
+          </div>
+          <div class="placeholder" style="height:90px">Subscription list</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Stats + Subscription Table</h3>
+      <p>Fastest change. Replaces credit cards/tables with subscription metrics and a searchable subscription list. No new graph API needed.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Revenue-Focused Subscription Dashboard</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+            <div class="placeholder">MRR</div>
+            <div class="placeholder">ARR</div>
+            <div class="placeholder">Active</div>
+            <div class="placeholder">Churn / Past Due</div>
+          </div>
+          <div class="placeholder" style="height:95px;margin-bottom:14px">MRR trend / status breakdown chart</div>
+          <div class="placeholder" style="height:70px">Subscription list</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Stats + Graph + Table</h3>
+      <p>Best dashboard feel. Requires adding one subscription chart endpoint or deriving a status breakdown client-side from the first page.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Unified Billing Dashboard</div>
+        <div class="mockup-body">
+          <div class="mock-nav">Mode switch: Credits | Subscriptions</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0">
+            <div class="placeholder">Mode metric</div>
+            <div class="placeholder">Mode metric</div>
+            <div class="placeholder">Mode metric</div>
+            <div class="placeholder">Mode metric</div>
+          </div>
+          <div class="placeholder" style="height:80px">Mode-specific chart/table</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Shared Mode-Aware Shell</h3>
+      <p>Most extensible. Keeps one page shell and swaps content by config. More refactor now, cleaner later.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">Recommendation</p>
+  <p>Pick B if you want this to feel like a real subscription dashboard now. Pick A if the priority is a minimal fix. Pick C if you expect more billing modes or a larger admin billing redesign soon.</p>
+</div>

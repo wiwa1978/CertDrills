@@ -408,7 +408,7 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain('${selectedQuestion ? "Update the selected question for" : "Create a question for"} ${certificationContext.code} - ${certificationContext.name}.');
   });
 
-  it("shows read-only exam mode defaults and active forms", () => {
+  it("shows configured exam mode defaults", () => {
     expect(source).toContain("Quick Drill count");
     expect(source).toContain("Category Drill count");
     expect(source).toContain("Default Category Drill count");
@@ -416,7 +416,6 @@ describe("CertDrill admin page copy", () => {
     expect(source).toContain("Leave empty to use the certification default.");
     expect(source).toContain("Exam Simulation count");
     expect(source).toContain("Exam Simulation duration");
-    expect(source).toContain("Active Exam Forms");
   });
 
   it("shows explicit admin form validation guidance", () => {

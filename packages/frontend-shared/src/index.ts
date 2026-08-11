@@ -5,4 +5,5 @@ export * from "./me-api";
 export * from "./notifications";
 export * from "./query-keys";
 export * from "./session";
+export * from "./social-auth-buttons";
 export * from "./url";

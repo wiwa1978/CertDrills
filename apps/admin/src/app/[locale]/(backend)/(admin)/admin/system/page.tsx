@@ -7,13 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { getAdminSystemHealth } from "@/lib/services/admin";
 import {
   getAdminDashboardStatsServer,
+  getAdminApplicationSettingsServer,
   getAdminLogFilesServer,
   getAdminUserStatsServer,
 } from "@/lib/api/admin.server";
+import { RuntimeSettingsCard } from "@/components/layout/backend/admin/system/runtime-settings-card";
 
 export default async function AdminSystemPage() {
   const t = await getTranslations("admin.system");
-  const [health, dashboardStats, userStats, appLogs, auditLogs] = await Promise.all([
+  const [health, dashboardStats, userStats, appLogs, auditLogs, runtimeSettings] = await Promise.all([
     getAdminSystemHealth(),
     getAdminDashboardStatsServer(),
     getAdminUserStatsServer().catch(() => ({
@@ -23,6 +25,7 @@ export default async function AdminSystemPage() {
     })),
     getAdminLogFilesServer("app").catch(() => ({ files: [], selectedFile: null })),
     getAdminLogFilesServer("audit").catch(() => ({ files: [], selectedFile: null })),
+    getAdminApplicationSettingsServer(),
   ]);
   const isHealthy = health.status === "ok";
 
@@ -74,6 +77,10 @@ export default async function AdminSystemPage() {
             <LogBlock label={t("logs.audit")} files={auditLogs.files.length} selectedFile={auditLogs.selectedFile} />
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <RuntimeSettingsCard settings={runtimeSettings} />
       </div>
     </Container>
   );

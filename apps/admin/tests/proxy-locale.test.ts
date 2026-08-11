@@ -12,7 +12,7 @@ vi.mock("next-intl/middleware", () => ({
 describe("proxy locale parsing", () => {
   it("allows authenticated admin routes when admin status is valid", async () => {
     vi.resetModules();
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8877";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
     vi.doMock("better-auth/cookies", () => ({
       getSessionCookie: () => "session-token",
     }));
@@ -53,7 +53,7 @@ describe("proxy locale parsing", () => {
     expect(response.headers.get("location")).toBe("http://localhost/fr/login");
   });
 
-  it("does not expose admin unavailable reasons in login redirects", async () => {
+  it("redirects to a clean localized login when NEXT_PUBLIC_API_URL is missing", async () => {
     vi.resetModules();
     delete process.env.NEXT_PUBLIC_API_URL;
     vi.doMock("better-auth/cookies", () => ({
@@ -61,7 +61,22 @@ describe("proxy locale parsing", () => {
     }));
 
     const { proxy } = await import("../src/proxy");
-    const response = await proxy(new NextRequest("http://localhost/nl/admin/certdrill"));
+    const response = await proxy(new NextRequest("http://localhost/nl/admin/overview"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/nl/login");
+  });
+
+  it("redirects to a clean localized login when the admin status request throws", async () => {
+    vi.resetModules();
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    vi.doMock("better-auth/cookies", () => ({
+      getSessionCookie: () => "session-token",
+    }));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Admin API unavailable")));
+
+    const { proxy } = await import("../src/proxy");
+    const response = await proxy(new NextRequest("http://localhost/nl/admin/overview"));
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("http://localhost/nl/login");
@@ -80,6 +95,37 @@ describe("proxy locale parsing", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost/fr/login?callbackUrl=%2Ffr%2Fadmin%2Foverview",
     );
+  });
+
+  it("requests only the admin session cookie prefix", async () => {
+    vi.resetModules();
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    const getSessionCookie = vi.fn(() => "admin-session-token");
+    vi.doMock("better-auth/cookies", () => ({ getSessionCookie }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    const { proxy } = await import("../src/proxy");
+    await proxy(new NextRequest("http://localhost/fr/admin/overview"));
+
+    expect(getSessionCookie).toHaveBeenCalledWith(expect.anything(), { cookiePrefix: "better-auth-admin" });
+  });
+
+  it("redirects a public-only session without fetching admin status", async () => {
+    vi.resetModules();
+    const getSessionCookie = vi.fn((_request, options?: { cookiePrefix?: string }) => (
+      options?.cookiePrefix === "better-auth-admin" ? null : "public-session-token"
+    ));
+    vi.doMock("better-auth/cookies", () => ({ getSessionCookie }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { proxy } = await import("../src/proxy");
+    const response = await proxy(new NextRequest("http://localhost/fr/admin/overview", {
+      headers: { cookie: "better-auth.session_token=public-session-token" },
+    }));
+
+    expect(response.status).toBe(307);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
 });

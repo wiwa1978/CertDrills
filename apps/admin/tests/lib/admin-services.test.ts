@@ -10,6 +10,7 @@ import {
   getAdminBillingSubscriptionPlanDistribution,
   getAdminBillingSubscriptionStats,
   getAdminBillingSubscriptions,
+  getAdminBillingTransactionFinanceDashboard,
   getAdminCreditsConsumedData,
   getAdminRevenueData,
   getAdminSystemHealth,
@@ -27,6 +28,7 @@ import {
   getAdminBillingSubscriptionPlanDistributionApi,
   getAdminBillingSubscriptionStatsApi,
   getAdminBillingSubscriptionsApi,
+  getAdminBillingTransactionFinanceDashboardApi,
   getAdminCreditsConsumedDataApi,
   getAdminRevenueDataApi,
   getAdminTransactionDataApi,
@@ -46,6 +48,7 @@ vi.mock("../../src/lib/api/admin", () => ({
   getAdminBillingSubscriptionPlanDistributionApi: vi.fn(),
   getAdminBillingSubscriptionStatsApi: vi.fn(),
   getAdminBillingSubscriptionsApi: vi.fn(),
+  getAdminBillingTransactionFinanceDashboardApi: vi.fn(),
   getAdminCreditsConsumedDataApi: vi.fn(),
   getAdminRevenueDataApi: vi.fn(),
   getAdminTransactionDataApi: vi.fn(),
@@ -63,6 +66,7 @@ const getAdminBillingSubscriptionPaymentsApiMock = vi.mocked(getAdminBillingSubs
 const getAdminBillingSubscriptionPlanDistributionApiMock = vi.mocked(getAdminBillingSubscriptionPlanDistributionApi);
 const getAdminBillingSubscriptionStatsApiMock = vi.mocked(getAdminBillingSubscriptionStatsApi);
 const getAdminBillingSubscriptionsApiMock = vi.mocked(getAdminBillingSubscriptionsApi);
+const getAdminBillingTransactionFinanceDashboardApiMock = vi.mocked(getAdminBillingTransactionFinanceDashboardApi);
 const getAdminCreditsConsumedDataApiMock = vi.mocked(getAdminCreditsConsumedDataApi);
 const getAdminRevenueDataApiMock = vi.mocked(getAdminRevenueDataApi);
 const getAdminTransactionDataApiMock = vi.mocked(getAdminTransactionDataApi);
@@ -152,6 +156,15 @@ describe("admin services", () => {
 
     await expect(getAdminBillingSubscriptionFinanceSummary()).resolves.toBe(summary);
     expect(getAdminBillingSubscriptionFinanceSummaryApiMock).toHaveBeenCalledOnce();
+  });
+
+  it("delegates transaction finance dashboard queries to the admin API", async () => {
+    const dashboard = { warnings: [] } as never;
+    getAdminBillingTransactionFinanceDashboardApiMock.mockResolvedValue(dashboard);
+    const query = { range: "30d" as const, status: "failed" as const, page: 2 };
+
+    await expect(getAdminBillingTransactionFinanceDashboard(query)).resolves.toBe(dashboard);
+    expect(getAdminBillingTransactionFinanceDashboardApiMock).toHaveBeenCalledWith(query);
   });
 
   it("delegates admin account list queries with admin role filtering", async () => {

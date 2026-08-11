@@ -2,8 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth-session";
-import { getMyApplicationConfigServer } from "@/lib/api/me.server";
-import { getCreditPurchases } from "@/lib/services/credits";
+import { getCreditPurchasesServer, getMyApplicationConfigServer } from "@/lib/api/me.server";
 import { PurchaseHistory } from "@/components/layout/backend/billing/purchase-history";
 import { CreditPricing } from "@/components/layout/backend/billing/credit-pricing";
 import { Separator } from "@/components/ui/separator";
@@ -53,7 +52,7 @@ export default async function BillingPage() {
 }
 
 async function PurchaseHistoryWrapper() {
-  const purchases = await getCreditPurchases(50);
+  const purchases = await getCreditPurchasesServer(50);
   
   return <PurchaseHistory purchases={purchases} />;
 }

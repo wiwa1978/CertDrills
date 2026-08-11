@@ -66,6 +66,7 @@ describe("service factories", () => {
 
     await expect(me.getSession()).resolves.toEqual({ path: "/me/session", init: undefined });
     await expect(me.getApplicationConfig()).resolves.toEqual({ path: "/me/application-config", init: undefined });
+    await expect(me.getProfileAddress()).resolves.toEqual({ path: "/me/profile-address", init: undefined });
     await expect(me.getSubscription()).resolves.toEqual({ path: "/me/subscription", init: undefined });
     await expect(me.getSubscriptionPayments(12)).resolves.toEqual({ path: "/me/subscription/payments?limit=12", init: undefined });
     await expect(me.downloadSubscriptionInvoice("pay_sub_123")).resolves.toEqual({
@@ -82,9 +83,50 @@ describe("service factories", () => {
       path: "/payments/checkout",
       init: { method: "POST", body: JSON.stringify({ packageKey: "starter" }) },
     });
+    await expect(me.createCheckoutSession("starter", "SAVE10", {
+      street: "Main",
+      number: "1",
+      zipcode: "1000",
+      town: "Brussels",
+      countryId: "country-1",
+    })).resolves.toEqual({
+      path: "/payments/checkout",
+      init: { method: "POST", body: JSON.stringify({
+        packageKey: "starter",
+        discountCode: "SAVE10",
+        address: {
+          street: "Main",
+          number: "1",
+          zipcode: "1000",
+          town: "Brussels",
+          countryId: "country-1",
+        },
+      }) },
+    });
     await expect(me.createSubscriptionCheckoutSession("pro")).resolves.toEqual({
       path: "/payments/checkout",
       init: { method: "POST", body: JSON.stringify({ billingMode: "subscriptions", planKey: "pro" }) },
+    });
+    await expect(me.createSubscriptionCheckoutSession("pro", "SAVE10", {
+      street: "Main",
+      number: "1",
+      zipcode: "1000",
+      town: "Brussels",
+      countryId: "country-1",
+    })).resolves.toEqual({
+      path: "/payments/checkout",
+      init: { method: "POST", body: JSON.stringify({
+        billingMode: "subscriptions",
+        planKey: "pro",
+        discountCode: "SAVE10",
+        address: {
+          street: "Main",
+          number: "1",
+          zipcode: "1000",
+          town: "Brussels",
+          countryId: "country-1",
+        },
+      }) },
     });
     await expect(me.createCustomerPortalSession()).resolves.toEqual({
       path: "/me/customer-portal",

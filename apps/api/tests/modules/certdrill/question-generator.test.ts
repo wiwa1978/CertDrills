@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createFoundryQuestionGenerator } from "../../../src/modules/certdrill/question-generator";
+import { createFoundryQuestionGenerator } from "../../../src/product/certdrill/question-generator";
 
 const categoryId = "11111111-1111-4111-8111-111111111111";
 const sourceUrl = "https://example.com/study-guide";

@@ -56,7 +56,7 @@ export async function AdminStatsCard({
     return ((newTotal - oldTotal) / oldTotal) * 100;
   };
 
-  const usersTrend = calculatePercentageChange(totalUsers, lastMonthUsers);
+  const usersTrend = calculatePercentageChange(thisMonthUsers, lastMonthUsers);
   const completedPurchasesTrend = calculatePercentageChange(totalCompletedPurchases, lastMonthCompletedPurchases);
   const usageTransactionsTrend = calculatePercentageChange(totalUsageTransactions, lastMonthUsageTransactions);
   const purchaseTransactionsTrend = calculatePercentageChange(totalPurchaseTransactions, lastMonthPurchaseTransactions);

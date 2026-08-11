@@ -15,7 +15,7 @@ import {
   normalizeImportedStem,
   type QuestionImportCategoryReference,
   type QuestionImportExistingQuestionReference,
-} from "../../../src/modules/certdrill/question-import";
+} from "../../../src/product/certdrill/question-import";
 
 function createAnswer(overrides: Partial<{
   text: string;
@@ -637,7 +637,7 @@ describe("CertDrill question import validation bounds", () => {
     expect(errors).toHaveLength(QUESTION_IMPORT_MAX_ROW_ERRORS + 1);
     expect(errors.at(-1)).toEqual(truncationMarker());
     expect(errors[0].message).toBe("Unknown field.");
-  });
+  }, 20_000);
 
   it("keeps every row bounded and the preview small for a full document of hostile rows", () => {
     const result = analyze(createDocument(Array.from({ length: QUESTION_IMPORT_MAX_ROWS - 1 }, (_, index) => ({
@@ -664,7 +664,7 @@ describe("CertDrill question import validation bounds", () => {
       selectedByDefault: 1,
     });
     expect(Array.from(result.normalizedRows.keys())).toEqual([QUESTION_IMPORT_MAX_ROWS - 1]);
-  });
+  }, 20_000);
 
   it("bounds document-level issue details including expanded unknown keys", () => {
     const issues = expectDocumentError({

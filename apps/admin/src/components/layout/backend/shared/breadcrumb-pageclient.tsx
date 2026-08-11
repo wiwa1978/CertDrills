@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { getPathSegments } from "@/lib/utils";
-import Link from "next/link";
 
 function formatSegment(segment: string) {
   return segment

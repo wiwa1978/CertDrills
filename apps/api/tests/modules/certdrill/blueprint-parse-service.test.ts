@@ -1,11 +1,11 @@
 import { getTableName, type Table } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
-import { BlueprintParserError } from "../../../src/modules/certdrill/blueprint-parser";
+import { BlueprintParserError } from "../../../src/product/certdrill/blueprint-parser";
 import {
   BlueprintParseServiceError,
   createBlueprintParseService,
-} from "../../../src/modules/certdrill/blueprint-parse-service";
+} from "../../../src/product/certdrill/blueprint-parse-service";
 
 const ids = {
   cert: "22222222-2222-4222-8222-222222222222",

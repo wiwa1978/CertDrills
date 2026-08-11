@@ -3,6 +3,7 @@ import type { VoucherStatus } from "../../wire/vouchers/common";
 import type { z } from "zod";
 
 import { discountStatusSchema } from "../../wire/discounts/common";
+import type { AdminTransactionFinanceDashboardQuery } from "../../wire/admin/requests";
 
 type DiscountStatus = z.infer<typeof discountStatusSchema>;
 
@@ -27,21 +28,14 @@ type AdminSubscriptionFinanceDashboardQuery = {
   subscriptionsSearch?: string;
 };
 
-type AdminJobsQuery = {
+type AdminBackgroundEventsQuery = {
   limit?: number;
   offset?: number;
-  name?: string;
-  status?: "idle" | "running" | "disabled";
+  eventName?: string;
+  status?: "pending" | "publishing" | "published" | "failed";
 };
 
-type AdminJobRunsQuery = {
-  limit?: number;
-  offset?: number;
-  jobName?: string;
-  status?: "success" | "failed";
-};
-
-type AdminPendingEmailsQuery = {
+type AdminEmailDeliveriesQuery = {
   limit?: number;
   offset?: number;
   text?: string;
@@ -73,6 +67,7 @@ export const apiRoutes = {
   me: {
     session: "/me/session",
     applicationConfig: "/me/application-config",
+    profileAddress: "/me/profile-address",
     creditBalance: "/me/credits/balance",
     creditHistory: (limit = 50) => withQuery("/me/credits/history", { limit }),
     creditPurchases: (limit = 50) => withQuery("/me/credits/purchases", { limit }),
@@ -84,11 +79,19 @@ export const apiRoutes = {
     redeemVoucher: "/me/vouchers/redeem",
     notifications: (limit = 20) => withQuery("/me/notifications", { limit }),
     unreadNotificationsCount: "/me/notifications/unread-count",
+    activeBannerNotification: "/me/notifications/active-banner",
     markNotificationRead: (notificationId: string) => `/me/notifications/${notificationId}/read`,
     markAllNotificationsRead: "/me/notifications/read-all",
     deleteNotification: (notificationId: string) => `/me/notifications/${notificationId}`,
     apiKeys: "/me/api-keys",
     apiKey: (keyId: string) => `/me/api-keys/${keyId}`,
+    transactionBasket: "/me/transaction-basket",
+    transactionBasketItems: "/me/transaction-basket/items",
+    transactionBasketItem: (productKey: string) => `/me/transaction-basket/items/${encodeURIComponent(productKey)}`,
+    transactionCheckout: "/me/transaction-basket/checkout",
+    transactionOrders: "/me/transaction-orders",
+    transactionOrder: (orderId: string) => `/me/transaction-orders/${encodeURIComponent(orderId)}`,
+    transactionEntitlements: "/me/transaction-entitlements",
   },
   admin: {
     session: "/admin/session",
@@ -119,7 +122,10 @@ export const apiRoutes = {
       withQuery("/admin/billing/credits-consumed-chart", { timeRange }),
     billingCreditsDashboard: (query: AdminCreditsDashboardQuery = {}) =>
       withQuery("/admin/billing/credits-dashboard", query),
+    billingTransactionFinanceDashboard: (query: Partial<AdminTransactionFinanceDashboardQuery> = {}) =>
+      withQuery("/admin/billing/transaction-dashboard", query),
     billingCreditRefunds: "/admin/billing/credit-refunds",
+    billingTransactionRefunds: "/admin/billing/transaction-refunds",
     billingSubscriptionRefunds: "/admin/billing/subscription-refunds",
     billingSubscriptions: (limit = 20, offset = 0, searchEmail?: string) =>
       withQuery("/admin/billing/subscriptions", { limit, offset, searchEmail }),
@@ -148,8 +154,10 @@ export const apiRoutes = {
     sendNotificationToAllUsers: "/admin/notifications/send-all",
     sendNotificationToUsers: "/admin/notifications/send-users",
     operationsStats: "/admin/operations/stats",
-    jobs: (query: AdminJobsQuery = {}) => withQuery("/admin/operations/jobs", query),
-    jobRuns: (query: AdminJobRunsQuery = {}) => withQuery("/admin/operations/job-runs", query),
-    pendingEmails: (query: AdminPendingEmailsQuery = {}) => withQuery("/admin/operations/pending-emails", query),
+    backgroundEvents: (query: AdminBackgroundEventsQuery = {}) => withQuery("/admin/operations/background-events", query),
+    redriveBackgroundEvent: (eventId: string) => `/admin/operations/background-events/${encodeURIComponent(eventId)}/redrive`,
+    emailDeliveries: (query: AdminEmailDeliveriesQuery = {}) => withQuery("/admin/operations/email-deliveries", query),
+    applicationSettings: "/admin/application-settings",
+    applicationSetting: "/admin/application-settings/setting",
   },
 } as const;

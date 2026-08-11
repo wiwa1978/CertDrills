@@ -9,6 +9,7 @@ import {
   getAdminBillingSubscriptionPlanDistributionApi,
   getAdminBillingSubscriptionStatsApi,
   getAdminBillingSubscriptionsApi,
+  getAdminBillingTransactionFinanceDashboardApi,
   getAdminStatusApi,
   getAdminUsersApi,
   stopAdminImpersonationApi,
@@ -78,10 +79,23 @@ describe("admin API", () => {
     expect(apiRequestMock).toHaveBeenCalledWith("/admin/billing/subscription-stats");
   });
 
+  it("fetches the transaction finance dashboard with safely encoded filters", async () => {
+    await getAdminBillingTransactionFinanceDashboardApi({
+      range: "30d",
+      productKey: "content & review",
+      search: "alice+admin@example.com",
+      page: 2,
+    });
+
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      "/admin/billing/transaction-dashboard?range=30d&productKey=content+%26+review&search=alice%2Badmin%40example.com&page=2",
+    );
+  });
+
   it("posts to the stop impersonation endpoint", async () => {
     await stopAdminImpersonationApi();
 
-    expect(apiRequestMock).toHaveBeenCalledWith("/auth/admin/stop-impersonating", {
+    expect(apiRequestMock).toHaveBeenCalledWith("/admin-auth/admin/stop-impersonating", {
       method: "POST",
       body: JSON.stringify({}),
     });

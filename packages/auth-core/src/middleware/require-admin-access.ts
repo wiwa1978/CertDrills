@@ -1,7 +1,7 @@
-import { authConfig, hasAdminAccess, normalizeAuthEmail } from "@platform/auth-shared";
+import { hasAdminAccess, normalizeAuthEmail } from "@platform/auth-shared";
 import { errorCode } from "@platform/contracts/wire";
 
-import type { AuthMiddleware } from "../types";
+import type { AuthMiddleware, AuthUserRecord } from "../types";
 
 type AuthUser = {
   role?: string | null;
@@ -11,15 +11,30 @@ type AuthUser = {
 
 type RequireAdminAccessOptions = {
   allowlist: Set<string>;
+  totpRequired: boolean;
+  users: {
+    findById: (userId: string) => Promise<AuthUserRecord | null>;
+  };
 };
+
+function impersonatingUserId(session: unknown) {
+  if (typeof session !== "object" || session === null || !("impersonatedBy" in session)) return null;
+  const impersonatedBy = (session as { impersonatedBy?: unknown }).impersonatedBy;
+  return typeof impersonatedBy === "string" && impersonatedBy.trim().length > 0 ? impersonatedBy.trim() : null;
+}
 
 export function createRequireAdminAccess(options: RequireAdminAccessOptions): AuthMiddleware {
   return async (c, next) => {
     const user = c.get("authUser") as AuthUser | undefined;
-    const email = normalizeAuthEmail(user?.email);
-    const isAllowedEmail = options.allowlist.has(email);
+    let adminUser = user;
+    const hasDirectAccess = hasAdminAccess(user) && options.allowlist.has(normalizeAuthEmail(user?.email));
 
-    if (!hasAdminAccess(user) || !isAllowedEmail) {
+    if (!hasDirectAccess) {
+      const actorId = impersonatingUserId(c.get("authSession"));
+      adminUser = actorId ? await options.users.findById(actorId) ?? undefined : undefined;
+    }
+
+    if (!hasAdminAccess(adminUser) || !options.allowlist.has(normalizeAuthEmail(adminUser?.email))) {
       const response = c.json(
         {
           success: false,
@@ -37,7 +52,7 @@ export function createRequireAdminAccess(options: RequireAdminAccessOptions): Au
       return response;
     }
 
-    if (authConfig.adminPortalTotpRequired && user?.twoFactorEnabled !== true) {
+    if (options.totpRequired && adminUser?.twoFactorEnabled !== true) {
       return c.json(
         {
           success: false,

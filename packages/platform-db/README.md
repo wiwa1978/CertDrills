@@ -23,8 +23,10 @@ bun run db:check
 Apply migrations to a database:
 
 ```bash
-DATABASE_URL=postgres://user:password@host:5432/database bun run db:migrate
+MIGRATION_DATABASE_URL=postgres://migration_owner:password@host:5432/database bun run db:migrate
 ```
+
+`0021_transaction_orders_created_at_id_idx` uses a normal `CREATE INDEX` because the Drizzle transactional migration runner cannot use `CREATE INDEX CONCURRENTLY`. It takes a brief write lock; run this migration in a maintenance window if `transaction_orders` is already populated.
 
 Open Drizzle Studio against a database:
 

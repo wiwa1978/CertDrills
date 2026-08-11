@@ -13,10 +13,6 @@ function getApiErrorCode(body: ApiErrorBody | null, response: Response) {
   return nestedCode ?? body?.errorCode ?? response.headers.get("x-error-code") ?? undefined;
 }
 
-function getApiErrorDetails(body: ApiErrorBody | null) {
-  return typeof body?.error === "object" && body.error !== null ? body.error.details : undefined;
-}
-
 function getApiErrorMessage(body: ApiErrorBody | null, rawBody: string, response: Response) {
   if (typeof body?.error === "string") {
     return body.error;
@@ -33,8 +29,8 @@ export class ApiRequestError extends Error {
   status: number;
   errorCode?: string;
   requestId?: string;
-  digest?: string;
   details?: unknown;
+  digest?: string;
 
   constructor({
     status,
@@ -54,8 +50,8 @@ export class ApiRequestError extends Error {
     this.status = status;
     this.errorCode = errorCode;
     this.requestId = requestId;
-    this.digest = errorCode ?? requestId;
     this.details = details;
+    this.digest = errorCode ?? requestId;
   }
 }
 
@@ -123,7 +119,9 @@ export function createApiRequest(options: ApiRequestFactoryOptions) {
         message,
         errorCode,
         requestId,
-        details: getApiErrorDetails(parsedBody),
+        details: typeof parsedBody?.error === "object" && parsedBody.error !== null
+          ? parsedBody.error.details
+          : undefined,
       });
     }
 

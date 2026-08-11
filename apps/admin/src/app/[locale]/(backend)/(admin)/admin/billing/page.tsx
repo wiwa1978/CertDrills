@@ -2,12 +2,20 @@ import { getTranslations } from "next-intl/server";
 import { Container } from "@/components/ui/container";
 import { CreditsDashboard } from "@/components/layout/backend/admin/billing/credits-dashboard";
 import { SubscriptionFinanceDashboard } from "@/components/layout/backend/admin/billing/subscription-finance-dashboard";
-import { AdminBillingTabs, type AdminBillingSection } from "@/components/layout/backend/admin/billing/admin-billing-tabs";
+import { TransactionFinanceDashboard } from "@/components/layout/backend/admin/billing/transaction-finance-dashboard";
+import {
+  parseTransactionDashboardQueryForSection,
+  transactionAdminBillingSection,
+  transactionSectionUsesDashboard,
+  type TransactionAdminBillingSection,
+} from "@/components/layout/backend/admin/billing/transaction-finance-dashboard-helpers";
+import { AdminBillingTabs, TransactionAdminBillingTabs, type AdminBillingSection } from "@/components/layout/backend/admin/billing/admin-billing-tabs";
 import { DiscountsSection } from "@/components/layout/backend/admin/billing/discounts-section";
 import { VouchersSection } from "@/components/layout/backend/admin/billing/vouchers-section";
 import { getMyApplicationConfigServer } from "@/lib/api/me.server";
 import {
   getAdminBillingSubscriptionFinanceDashboardServer,
+  getAdminBillingTransactionFinanceDashboardServer,
   type AdminSubscriptionFinanceDashboardQuery,
   getAdminCreditsDashboardServer,
 } from "@/lib/api/admin.server";
@@ -51,6 +59,17 @@ export default async function AdminBillingPage({ searchParams }: AdminBillingPag
     return (
       <Container className="py-6">
         <CreditsDashboard initialDashboard={dashboard} />
+      </Container>
+    );
+  }
+
+  if (applicationConfig.billing.mode === "transactions" && applicationConfig.billing.transactionSurfacesEnabled) {
+    const transactionSection = transactionAdminBillingSection(first(params.section), first(params.tab));
+    return (
+      <Container className="py-6">
+        <TransactionAdminBillingTabs activeSection={transactionSection}>
+          <AdminTransactionBillingPage activeSection={transactionSection} searchParams={params} />
+        </TransactionAdminBillingTabs>
       </Container>
     );
   }
@@ -102,6 +121,15 @@ async function AdminSubscriptionBillingPage({ searchParams }: { searchParams: Re
   return (
     <SubscriptionFinanceDashboard dashboard={financeDashboard} />
   );
+}
+
+async function AdminTransactionBillingPage({ activeSection, searchParams }: { activeSection: TransactionAdminBillingSection; searchParams: Record<string, string | string[] | undefined> }) {
+  if (!transactionSectionUsesDashboard(activeSection)) {
+    return activeSection === "discounts" ? <DiscountsSection /> : <VouchersSection />;
+  }
+
+  const dashboard = await getAdminBillingTransactionFinanceDashboardServer(parseTransactionDashboardQueryForSection(activeSection, searchParams));
+  return <TransactionFinanceDashboard activeSection={activeSection} dashboard={dashboard} />;
 }
 
 function financeQuery(params: Record<string, string | string[] | undefined>): AdminSubscriptionFinanceDashboardQuery {

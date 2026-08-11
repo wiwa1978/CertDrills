@@ -10,7 +10,7 @@ const starterPlanProductId = starterPlan.providerProductIds.dodo;
 const bronzeCreditPackage = { key: "bronze", credits: 100, price: 1000, currency: "EUR", providerProductIds: { dodo: "pdt_1" } };
 
 afterEach(() => {
-  (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = originalBillingMode;
+  (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = originalBillingMode;
 });
 
 function createBillingDeps() {
@@ -55,7 +55,7 @@ function createCheckoutIntentDeps(intent = createCheckoutIntent()) {
 
 describe("payment event handler billing modes", () => {
   it("rejects credit payments when subscription mode is configured", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "subscriptions";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "subscriptions";
     const billing = createBillingDeps();
     const handler = createPaymentEventHandler({
       creditPackages: [bronzeCreditPackage],
@@ -76,7 +76,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("routes subscription events to the subscription webhook handler", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "subscriptions";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "subscriptions";
     const billing = createBillingDeps();
     const handleSubscriptionWebhook = vi.fn().mockResolvedValue(undefined);
     const handler = createPaymentEventHandler({
@@ -111,7 +111,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("records subscription payments when subscription mode payment succeeds", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "subscriptions";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "subscriptions";
     const billing = createBillingDeps();
     const recordSubscriptionPayment = vi.fn().mockResolvedValue({});
     const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent({
@@ -170,7 +170,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("requires a matching pending checkout intent before completing credit payments", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "credits";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "credits";
     const billing = createBillingDeps();
     const checkoutIntents = createCheckoutIntentDeps(null as never);
     const handler = createPaymentEventHandler({
@@ -203,7 +203,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("validates checkout intent metadata and completes credit payments", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "credits";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "credits";
     const billing = createBillingDeps();
     const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent());
     const handler = createPaymentEventHandler({
@@ -251,8 +251,50 @@ describe("payment event handler billing modes", () => {
     expect(checkoutIntents.markCompleted).toHaveBeenCalledWith({ id: "intent-1", paymentId: "pay_1" });
   });
 
+  it("accepts discounted credit payments with provider-adjusted totals", async () => {
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "credits";
+    const billing = createBillingDeps();
+    const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent({ discountCode: "SAVE10" }));
+    const handler = createPaymentEventHandler({
+      creditPackages: [bronzeCreditPackage],
+      billing,
+      checkoutIntents,
+    });
+
+    await handler({
+      provider: "dodo",
+      eventType: "payment.succeeded",
+      paymentId: "pay_discounted",
+      productId: "pdt_1",
+      metadata: {
+        userId: "user-1",
+        billingMode: "credits",
+        packageKey: "bronze",
+        productId: "pdt_1",
+        discountCode: "SAVE10",
+        checkoutReferenceId: "checkout-ref-1",
+      },
+      customerId: "cus_1",
+      currency: "EUR",
+      totalAmount: 900,
+      taxAmount: 0,
+      raw: {},
+    });
+
+    expect(billing.processCreditPurchase).toHaveBeenCalledWith(
+      "user-1",
+      "bronze",
+      "pay_discounted",
+      "completed",
+      "cus_1",
+      expect.objectContaining({ priceInclVat: 900 }),
+      expect.any(Object),
+    );
+    expect(checkoutIntents.markCompleted).toHaveBeenCalledWith({ id: "intent-1", paymentId: "pay_discounted" });
+  });
+
   it("does not retry duplicate completed credit payment events for the same payment", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "credits";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "credits";
     const billing = createBillingDeps();
     const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent({ status: "completed", paymentId: "pay_1" }));
     const handler = createPaymentEventHandler({
@@ -284,7 +326,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("validates checkout intent metadata and records subscription payments", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "subscriptions";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "subscriptions";
     const billing = createBillingDeps();
     const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent({
       billingMode: "subscriptions",
@@ -335,7 +377,7 @@ describe("payment event handler billing modes", () => {
   });
 
   it("rejects undiscounted subscription payments with unexpected amounts", async () => {
-    (applicationConfig as { billing: { mode: "credits" | "subscriptions" } }).billing.mode = "subscriptions";
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "subscriptions";
     const billing = createBillingDeps();
     const checkoutIntents = createCheckoutIntentDeps(createCheckoutIntent({
       billingMode: "subscriptions",
@@ -377,5 +419,90 @@ describe("payment event handler billing modes", () => {
 
     expect(recordSubscriptionPayment).not.toHaveBeenCalled();
     expect(checkoutIntents.markCompleted).not.toHaveBeenCalled();
+  });
+
+  it("routes transaction payment success to transaction fulfillment", async () => {
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "transactions";
+    const billing = createBillingDeps();
+    const handleTransactionPayment = vi.fn().mockResolvedValue({});
+    const processTransactionRefund = vi.fn().mockResolvedValue({});
+    const handler = createPaymentEventHandler({
+      creditPackages: [],
+      billing,
+      transactions: { handleTransactionPayment, processTransactionRefund },
+    });
+
+    await handler({
+      provider: "dodo",
+      eventType: "payment.succeeded",
+      paymentId: "pay_tx_1",
+      metadata: {
+        billingMode: "transactions",
+        userId: "user-1",
+        orderId: "order-1",
+        checkoutReferenceId: "checkout-ref-1",
+      },
+      customerId: "cus_1",
+      cartItems: [{ productId: "pdt_basic", quantity: 2 }],
+      currency: "EUR",
+      totalAmount: 1000,
+      taxAmount: 0,
+      raw: {},
+    });
+
+    expect(handleTransactionPayment).toHaveBeenCalledWith({
+      userId: "user-1",
+      orderId: "order-1",
+      checkoutReferenceId: "checkout-ref-1",
+      paymentId: "pay_tx_1",
+      paymentStatus: "completed",
+      providerCustomerId: "cus_1",
+      currency: "EUR",
+      totalAmount: 1000,
+      taxAmount: 0,
+      cartItems: [{ productId: "pdt_basic", quantity: 2 }],
+    });
+    expect(billing.processCreditPurchase).not.toHaveBeenCalled();
+  });
+
+  it("routes full transaction refunds to local reconciliation", async () => {
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "transactions";
+    const processTransactionRefund = vi.fn().mockResolvedValue({});
+    const handler = createPaymentEventHandler({
+      creditPackages: [],
+      billing: createBillingDeps(),
+      transactions: { handleTransactionPayment: vi.fn(), processTransactionRefund },
+    });
+
+    await handler({
+      provider: "dodo",
+      eventType: "refund.succeeded",
+      paymentId: "pay_tx_1",
+      refundId: "refund_tx_1",
+      metadata: { billingMode: "transactions" },
+      raw: {},
+    });
+
+    expect(processTransactionRefund).toHaveBeenCalledWith("pay_tx_1", "refund_tx_1");
+  });
+
+  it("fails closed for partial transaction refunds", async () => {
+    (applicationConfig as { billing: { mode: "credits" | "subscriptions" | "transactions" } }).billing.mode = "transactions";
+    const processTransactionRefund = vi.fn();
+    const handler = createPaymentEventHandler({
+      creditPackages: [],
+      billing: createBillingDeps(),
+      transactions: { handleTransactionPayment: vi.fn(), processTransactionRefund },
+    });
+
+    await expect(handler({
+      provider: "dodo",
+      eventType: "refund.succeeded",
+      paymentId: "pay_tx_1",
+      refundIsPartial: true,
+      metadata: { billingMode: "transactions" },
+      raw: {},
+    })).rejects.toThrow("partial transaction refunds require manual reconciliation");
+    expect(processTransactionRefund).not.toHaveBeenCalled();
   });
 });

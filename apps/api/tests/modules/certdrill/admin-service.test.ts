@@ -2,7 +2,7 @@ import { getTableName, type Table } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
-import { createCertDrillAdminService } from "../../../src/modules/certdrill/admin-service";
+import { createCertDrillAdminService } from "../../../src/product/certdrill/admin-service";
 
 const ids = {
   cert: "22222222-2222-4222-8222-222222222222",

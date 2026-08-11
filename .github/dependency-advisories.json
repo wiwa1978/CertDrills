@@ -1,0 +1,46 @@
+{
+  "advisories": [
+    {
+      "id": "GHSA-4x5r-pxfx-6jf8",
+      "package": "@babel/core",
+      "owner": "platform-maintainers",
+      "reason": "Build-time source map handling only; no untrusted sourceMappingURL input is processed by the deployed applications.",
+      "expiresAt": "2026-09-30"
+    },
+    {
+      "id": "GHSA-h67p-54hq-rp68",
+      "package": "js-yaml",
+      "owner": "platform-maintainers",
+      "reason": "Transitive build tooling dependency; deployed applications do not parse user-controlled YAML.",
+      "expiresAt": "2026-09-30"
+    },
+    {
+      "id": "GHSA-52cp-r559-cp3m",
+      "package": "js-yaml",
+      "owner": "platform-maintainers",
+      "reason": "Transitive build tooling dependency; deployed applications do not parse user-controlled YAML.",
+      "expiresAt": "2026-09-30"
+    },
+    {
+      "id": "GHSA-5p4m-2wfm-xmqj",
+      "package": "js-yaml",
+      "owner": "platform-maintainers",
+      "reason": "Transitive build tooling dependency; deployed applications do not parse user-controlled YAML.",
+      "expiresAt": "2026-09-30"
+    },
+    {
+      "id": "GHSA-r5fr-rjxr-66jc",
+      "package": "lodash",
+      "owner": "platform-maintainers",
+      "reason": "Transitive build tooling dependency; deployed applications do not invoke lodash templates with user-controlled imports.",
+      "expiresAt": "2026-09-30"
+    },
+    {
+      "id": "GHSA-f23m-r3pf-42rh",
+      "package": "lodash",
+      "owner": "platform-maintainers",
+      "reason": "Transitive build tooling dependency; deployed request paths do not expose lodash unset or omit operations.",
+      "expiresAt": "2026-09-30"
+    }
+  ]
+}

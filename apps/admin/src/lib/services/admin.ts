@@ -1,6 +1,7 @@
 import {
   banAdminUserApi,
   createAdminCreditRefundApi,
+  createAdminTransactionRefundApi,
   createAdminSubscriptionRefundApi,
   getAdminAllPurchasesApi,
   getAdminAllSubscriptionsApi,
@@ -13,6 +14,7 @@ import {
   getAdminBillingSubscriptionPlanDistributionApi,
   getAdminBillingSubscriptionStatsApi,
   getAdminBillingSubscriptionsApi,
+  getAdminBillingTransactionFinanceDashboardApi,
   getAdminCreditsConsumedDataApi,
   getAdminCreditsDashboardApi,
   getAdminDashboardStatsApi,
@@ -37,6 +39,7 @@ import {
   unbanAdminUserApi,
   type AdminWebhookEventsQuery,
   type AdminCreditsDashboardQuery,
+  type AdminTransactionFinanceDashboardQuery,
   verifyAdminSecretApi,
   getAdminStatusApi,
 } from "@/lib/api/admin";
@@ -45,7 +48,7 @@ import type {
   AdminCreditRefundResponseData,
   AdminCreditsDashboard,
   AdminSubscriptionRefundResponseData,
-  AdminUserDetail,
+  AdminTransactionRefundResponseData,
   AdminUsersList,
   AdminUserStats,
   AdminWebhookEvent,
@@ -61,6 +64,7 @@ import type {
   SubscriptionEvent,
   SubscriptionFinanceSummary,
   AdminSubscriptionFinanceDashboard,
+  AdminTransactionFinanceDashboard,
   SubscriptionPlanDistributionPoint,
   SubscriptionPaymentsList,
   SubscriptionStats,
@@ -276,6 +280,10 @@ export async function getAdminCreditsDashboard(query: AdminCreditsDashboardQuery
 export async function createAdminCreditRefund(payload: { paymentId: string; reason?: string; secret: string }): Promise<AdminCreditRefundResponseData> {
   return createAdminCreditRefundApi(payload);
 }
+export async function createAdminTransactionRefund(payload: { orderId: string; reason?: string; secret: string }): Promise<AdminTransactionRefundResponseData> {
+  return createAdminTransactionRefundApi(payload);
+}
+
 
 export async function getAdminBillingSubscriptionStats(): Promise<SubscriptionStats> {
   try {
@@ -303,6 +311,10 @@ export async function getAdminBillingSubscriptionFinanceSummary(): Promise<Subsc
 
 export async function getAdminBillingSubscriptionFinanceDashboard(): Promise<AdminSubscriptionFinanceDashboard> {
   return getAdminBillingSubscriptionFinanceDashboardApi();
+}
+
+export async function getAdminBillingTransactionFinanceDashboard(query: Partial<AdminTransactionFinanceDashboardQuery> = {}): Promise<AdminTransactionFinanceDashboard> {
+  return getAdminBillingTransactionFinanceDashboardApi(query);
 }
 
 export async function getAdminBillingSubscriptions(limit: number = 20, offset: number = 0, searchEmail?: string): Promise<SubscriptionsList> {

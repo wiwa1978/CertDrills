@@ -13,5 +13,7 @@ export type AppEnv = {
     authUser?: AuthUser;
     authSession?: unknown;
     clientLogRemaining?: number;
+    moduleId?: string;
+    apiKeyScopes?: Array<"read:profile" | "read:billing" | "read:credits">;
   };
 };

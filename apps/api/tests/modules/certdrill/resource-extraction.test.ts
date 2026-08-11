@@ -5,7 +5,7 @@ import {
   extractResourceDocument,
   normalizeResourceText,
   ResourceExtractionError,
-} from "../../../src/modules/certdrill/resource-extraction";
+} from "../../../src/product/certdrill/resource-extraction";
 
 describe("normalizeResourceText", () => {
   it("collapses repeated whitespace while preserving blank lines", () => {

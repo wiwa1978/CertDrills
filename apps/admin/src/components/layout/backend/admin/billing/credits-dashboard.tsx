@@ -62,7 +62,6 @@ function dashboardQuery(query: AdminCreditsDashboardQuery) {
 }
 
 export function CreditsDashboard({ initialDashboard }: CreditsDashboardProps) {
-  const billingT = useTranslations("admin.billing");
   const t = useTranslations("admin.billing.creditsDashboard");
   const statsT = useTranslations("admin.billing.stats");
   const queryClient = useQueryClient();
@@ -197,8 +196,8 @@ export function CreditsDashboard({ initialDashboard }: CreditsDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{billingT("title")}</h1>
-        <p className="mt-2 text-muted-foreground">{billingT("description")}</p>
+        <h1 className="text-3xl font-bold">{t("title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("description")}</p>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">

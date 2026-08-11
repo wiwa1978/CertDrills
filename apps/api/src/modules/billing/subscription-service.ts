@@ -1,17 +1,31 @@
-import { and, desc, eq, isNotNull, like, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, like, sql } from "drizzle-orm";
 
-import { subscriptionEvents, subscriptionPayments, type SubscriptionStatus, user, userSubscriptions } from "@platform/platform-db";
+import {
+  subscriptionEvents,
+  subscriptionPayments,
+  type SubscriptionPaymentStatus as StoredSubscriptionPaymentStatus,
+  type SubscriptionStatus,
+  user,
+  userSubscriptions,
+} from "@platform/platform-db";
+import type { PlatformDb } from "@platform/platform-db";
 
 import { subscriptionPlans } from "../../config/billing";
 import { redactLogValue } from "../../observability/redaction";
 import type { PaymentProvider } from "../payments/provider";
 
 type SubscriptionServiceDeps = {
-  db: any;
+  db: PlatformDb;
   paymentProvider?: PaymentProvider;
 };
 
 type SubscriptionPaymentStatus = "completed" | "pending" | "failed" | "refunded";
+
+const customerVisibleSubscriptionPaymentStatuses = ["completed", "refunded"] as const satisfies readonly StoredSubscriptionPaymentStatus[];
+
+export function isCustomerVisibleSubscriptionPaymentStatus(status: StoredSubscriptionPaymentStatus) {
+  return customerVisibleSubscriptionPaymentStatuses.some((visibleStatus) => visibleStatus === status);
+}
 
 type RecordSubscriptionPaymentInput = {
   userId: string;
@@ -162,52 +176,51 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       currency: input.pricing.currency,
     };
 
-    return deps.db.transaction(async (tx: any) => {
-      const existing = await tx.query.subscriptionPayments.findFirst({
-        where: eq(subscriptionPayments.paymentId, input.paymentId),
-      });
-
-      if (existing && existing.userId !== input.userId) {
-        throw new Error(`Payment ${input.paymentId} is already associated with another user`);
-      }
-
-      const [payment] = await tx
-        .insert(subscriptionPayments)
-        .values({
-          userId: input.userId,
-          planKey: input.planKey,
-          providerCustomerId,
-          providerSubscriptionId,
-          dodoCustomerId: providerCustomerId,
-          dodoSubscriptionId: providerSubscriptionId,
+    return deps.db.transaction(async (tx) => { const existing = await tx.query.subscriptionPayments.findFirst({
+      where: eq(subscriptionPayments.paymentId, input.paymentId),
+    });
+    
+    if (existing && existing.userId !== input.userId) {
+      throw new Error(`Payment ${input.paymentId} is already associated with another user`);
+    }
+    
+    const [payment] = await tx
+      .insert(subscriptionPayments)
+      .values({
+        userId: input.userId,
+        paymentId: input.paymentId,
+        planKey: input.planKey,
+        providerCustomerId,
+        providerSubscriptionId,
+        dodoCustomerId: providerCustomerId,
+        dodoSubscriptionId: providerSubscriptionId,
+        paymentStatus: input.paymentStatus,
+        priceExclVat: input.pricing.priceExclVat,
+        priceInclVat: input.pricing.priceInclVat,
+        vatAmount: input.pricing.vatAmount,
+        currency: input.pricing.currency,
+        paymentSnapshot,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [subscriptionPayments.paymentProvider, subscriptionPayments.paymentId],
+        set: {
           paymentStatus: input.paymentStatus,
+          providerCustomerId: providerCustomerId ?? existing?.providerCustomerId ?? existing?.dodoCustomerId ?? null,
+          providerSubscriptionId: providerSubscriptionId ?? existing?.providerSubscriptionId ?? existing?.dodoSubscriptionId ?? null,
+          dodoCustomerId: providerCustomerId ?? existing?.dodoCustomerId ?? null,
+          dodoSubscriptionId: providerSubscriptionId ?? existing?.dodoSubscriptionId ?? null,
           priceExclVat: input.pricing.priceExclVat,
           priceInclVat: input.pricing.priceInclVat,
           vatAmount: input.pricing.vatAmount,
           currency: input.pricing.currency,
           paymentSnapshot,
           updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [subscriptionPayments.paymentProvider, subscriptionPayments.paymentId],
-          set: {
-            paymentStatus: input.paymentStatus,
-            providerCustomerId: providerCustomerId ?? existing?.providerCustomerId ?? existing?.dodoCustomerId ?? null,
-            providerSubscriptionId: providerSubscriptionId ?? existing?.providerSubscriptionId ?? existing?.dodoSubscriptionId ?? null,
-            dodoCustomerId: providerCustomerId ?? existing?.dodoCustomerId ?? null,
-            dodoSubscriptionId: providerSubscriptionId ?? existing?.dodoSubscriptionId ?? null,
-            priceExclVat: input.pricing.priceExclVat,
-            priceInclVat: input.pricing.priceInclVat,
-            vatAmount: input.pricing.vatAmount,
-            currency: input.pricing.currency,
-            paymentSnapshot,
-            updatedAt: now,
-          },
-        })
-        .returning();
-
-      return payment;
-    });
+        },
+      })
+      .returning();
+    
+    return payment; });
   }
 
   async function listUserSubscriptionPayments(userId: string, limit = 50) {
@@ -228,7 +241,10 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
         createdAt: subscriptionPayments.createdAt,
       })
       .from(subscriptionPayments)
-      .where(eq(subscriptionPayments.userId, userId))
+      .where(and(
+        eq(subscriptionPayments.userId, userId),
+        inArray(subscriptionPayments.paymentStatus, customerVisibleSubscriptionPaymentStatuses),
+      ))
       .orderBy(desc(subscriptionPayments.createdAt))
       .limit(normalizedLimit);
   }
@@ -323,27 +339,25 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       throw new Error("Payment provider refund support is not configured");
     }
 
-    const payment = await deps.db.transaction(async (tx: any) => {
-      const lockedPayment = await tx.query.subscriptionPayments.findFirst({
-        where: eq(subscriptionPayments.paymentId, input.paymentId),
-      });
-
-      if (!lockedPayment) {
-        return null;
-      }
-
-      if (lockedPayment.paymentStatus !== "completed") {
-        return lockedPayment;
-      }
-
-      const [processingPayment] = await tx
-        .update(subscriptionPayments)
-        .set({ paymentStatus: "pending", updatedAt: new Date() })
-        .where(eq(subscriptionPayments.id, lockedPayment.id))
-        .returning();
-
-      return processingPayment ?? lockedPayment;
+    const payment = await deps.db.transaction(async (tx) => { const lockedPayment = await tx.query.subscriptionPayments.findFirst({
+      where: eq(subscriptionPayments.paymentId, input.paymentId),
     });
+    
+    if (!lockedPayment) {
+      return null;
+    }
+    
+    if (lockedPayment.paymentStatus !== "completed") {
+      return lockedPayment;
+    }
+    
+    const [processingPayment] = await tx
+      .update(subscriptionPayments)
+      .set({ paymentStatus: "pending", updatedAt: new Date() })
+      .where(eq(subscriptionPayments.id, lockedPayment.id))
+      .returning();
+    
+    return processingPayment ?? lockedPayment; });
 
     if (!payment) {
       throw new Error("Subscription payment not found");
@@ -576,14 +590,14 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     );
     const primaryCurrency = localPayments.find((payment: { currency?: string | null }) => payment.currency)?.currency ?? "EUR";
 
-    const totals = localPayments.reduce((summary: {
+    const totals = localPayments.reduce<{
       grossRevenue: number;
       refundedRevenue: number;
       completedPayments: number;
       refundedPayments: number;
       failedPayments: number;
       pendingPayments: number;
-    }, payment: { paymentStatus: SubscriptionPaymentStatus; priceInclVat: number }) => {
+    }>((summary, payment) => {
       if (payment.paymentStatus === "completed") {
         summary.completedPayments += 1;
         summary.grossRevenue += Number(payment.priceInclVat ?? 0);

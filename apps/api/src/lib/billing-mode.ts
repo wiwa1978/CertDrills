@@ -14,6 +14,14 @@ export function isSubscriptionBillingMode() {
   return getBillingMode() === "subscriptions";
 }
 
+export function isTransactionBillingMode() {
+  return getBillingMode() === "transactions";
+}
+
 export function shouldExposeCreditBillingSurfaces() {
   return applicationConfig.features.billing && isCreditBillingMode();
+}
+
+export function shouldExposeTransactionBillingSurfaces() {
+  return applicationConfig.features.billing && isTransactionBillingMode();
 }

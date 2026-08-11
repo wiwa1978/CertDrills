@@ -1,14 +1,19 @@
 import { createCreditsApi } from "@platform/frontend-shared/credits";
-import { createMeApi, type CountryRecord, type CreateUserDataExportResponse, type UserDataExportSummary } from "@platform/frontend-shared/me-api";
+import { createMeApi, type CheckoutAddressInput, type CountryRecord, type CreateUserDataExportResponse, type UserDataExportSummary } from "@platform/frontend-shared/me-api";
 import { createNotificationsApi } from "@platform/frontend-shared/notifications";
 
-import { apiRequest } from "./client";
+import { API_BASE_URL, apiRequest } from "./client";
 import type { Notification } from "@/schemas/notification";
 import type { ApplicationConfig, SubscriptionPayment, UserSubscription } from "@platform/contracts";
-import type { ApiKeySummary, CreateApiKeyResponseData, ApiKeyScope } from "@platform/contracts";
+import type {
+  ApiKeyScope,
+  ApiKeySummary,
+  CreateApiKeyResponseData,
+} from "@platform/contracts";
 import { apiRoutes } from "@platform/contracts/ts";
 
 export type { CountryRecord } from "@platform/frontend-shared/me-api";
+export type { CheckoutAddressInput } from "@platform/frontend-shared/me-api";
 export type { CreateUserDataExportResponse, UserDataExportSummary } from "@platform/frontend-shared/me-api";
 
 const creditsApi = createCreditsApi(apiRequest);
@@ -93,12 +98,12 @@ export async function getCountries(lang: "en" | "fr" | "nl") {
   return meApi.getCountries(lang) as Promise<CountryRecord[]>;
 }
 
-export async function createCheckoutSession(packageKey: string) {
-  return meApi.createCheckoutSession(packageKey) as Promise<{ success: boolean; data: { checkoutUrl: string } }>;
+export async function createCheckoutSession(input: { packageKey: string; discountCode?: string; address?: CheckoutAddressInput }) {
+  return meApi.createCheckoutSession(input.packageKey, input.discountCode, input.address) as Promise<{ success: boolean; data: { checkoutUrl: string } }>;
 }
 
-export async function createSubscriptionCheckoutSession(planKey: string, discountCode?: string) {
-  return meApi.createSubscriptionCheckoutSession(planKey, discountCode) as Promise<{ success: boolean; data: { checkoutUrl: string } }>;
+export async function createSubscriptionCheckoutSession(input: { planKey: string; discountCode?: string; address?: CheckoutAddressInput }) {
+  return meApi.createSubscriptionCheckoutSession(input.planKey, input.discountCode, input.address) as Promise<{ success: boolean; data: { checkoutUrl: string } }>;
 }
 
 export async function createCustomerPortalSession() {
@@ -118,8 +123,15 @@ export async function cancelMyDataExport(exportId: string) {
   return meApi.cancelDataExport(exportId) as Promise<{ success: boolean; data?: UserDataExportSummary; error?: string }>;
 }
 
-export function buildMyDataExportDownloadUrl(exportId: string, token: string) {
-  return `/api/me/data-exports/${encodeURIComponent(exportId)}/download?token=${encodeURIComponent(token)}`;
+export async function downloadMyDataExport(exportId: string, token: string) {
+  const response = await fetch(`${API_BASE_URL}/me/data-exports/${encodeURIComponent(exportId)}/download`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: { "x-data-export-token": token },
+  });
+  if (!response.ok) throw new Error(`Data export download failed (${response.status})`);
+  return response.blob();
 }
 
 export async function listMyApiKeys() {
@@ -141,3 +153,41 @@ export async function revokeMyApiKey(keyId: string) {
   });
   return result.data;
 }
+
+export async function getMyTransactionBasket() {
+  const result = await meApi.getTransactionBasket();
+  return result.data;
+}
+
+export async function upsertMyTransactionBasketItem(input: { productKey: string; quantity: number }) {
+  return meApi.upsertTransactionBasketItem(input.productKey, input.quantity);
+}
+
+export async function removeMyTransactionBasketItem(productKey: string) {
+  return meApi.removeTransactionBasketItem(productKey);
+}
+
+export async function clearMyTransactionBasket() {
+  return meApi.clearTransactionBasket();
+}
+
+export async function createMyTransactionCheckout() {
+  return meApi.createTransactionCheckout();
+}
+
+export async function getMyTransactionOrders() {
+  const result = await meApi.getTransactionOrders();
+  return result.data;
+}
+
+export async function getMyTransactionOrder(orderId: string) {
+  const result = await meApi.getTransactionOrder(orderId);
+  return result.data;
+}
+
+export async function getMyTransactionEntitlements() {
+  const result = await meApi.getTransactionEntitlements();
+  return result.data;
+}
+
+export type { TransactionBasket, TransactionCheckout, TransactionEntitlement, TransactionOrder } from "@platform/contracts";

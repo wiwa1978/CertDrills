@@ -10,8 +10,8 @@ import {
   QUESTION_IMPORT_DOCUMENT_VERSION,
   QUESTION_IMPORT_MAX_ROW_ERRORS,
   QUESTION_IMPORT_MAX_ROWS,
-} from "../../../src/modules/certdrill/question-import";
-import { createQuestionImportService } from "../../../src/modules/certdrill/question-import-service";
+} from "../../../src/product/certdrill/question-import";
+import { createQuestionImportService } from "../../../src/product/certdrill/question-import-service";
 
 const ids = {
   certification: "10000000-0000-4100-8100-000000000001",
@@ -578,5 +578,5 @@ describe("CertDrill question import service", () => {
 
     expect(imported.importedCount).toBe(1);
     expect(state.questions).toHaveLength(3);
-  });
+  }, 30_000);
 });

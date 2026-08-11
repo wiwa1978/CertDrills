@@ -1,6 +1,6 @@
 export type PaymentProviderName = "dodo" | (string & {});
 
-export type BillingMode = "credits" | "subscriptions";
+export type BillingMode = "credits" | "subscriptions" | "transactions";
 export type ProviderPaymentStatus = "completed" | "pending" | "failed" | "refunded" | string;
 export type ProviderSubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired" | "paused" | string;
 
@@ -32,6 +32,30 @@ export type CreateCheckoutInput = {
   referenceId?: string;
   discountCode?: string;
   customerEmail?: string | null;
+  billingAddress?: {
+    street: string;
+    number: string;
+    zipcode: string;
+    town: string;
+    countryCode: string;
+    countryName?: string | null;
+  } | null;
+  successUrl?: string;
+  cancelUrl?: string;
+};
+
+export type CreateTransactionCheckoutInput = {
+  userId: string;
+  orderId: string;
+  referenceId: string;
+  currency: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    amount: number;
+  }>;
+  customerEmail?: string | null;
+  billingAddress?: CreateCheckoutInput["billingAddress"];
   successUrl?: string;
   cancelUrl?: string;
 };
@@ -249,6 +273,7 @@ export type PaymentProvider = {
   name: PaymentProviderName;
   capabilities: PaymentProviderCapabilities;
   createCheckoutUrl(input: CreateCheckoutInput): Promise<string> | string;
+  createTransactionCheckoutUrl?(input: CreateTransactionCheckoutInput): Promise<string> | string;
   createCustomerPortal?(input: CustomerPortalInput): Promise<CustomerPortalResult>;
   getInvoice?(paymentId: string): Promise<InvoiceResult>;
   createRefund?(input: CreateRefundInput): Promise<RefundResult>;

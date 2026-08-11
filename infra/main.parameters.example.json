@@ -17,11 +17,11 @@
     "postgresServerFqdn": {
       "value": "<postgres-server>.postgres.database.azure.com"
     },
-    "postgresAdminLogin": {
-      "value": "<postgres-admin-login>"
+    "postgresRuntimeLogin": {
+      "value": "<least-privilege-runtime-login>"
     },
-    "postgresAdminPassword": {
-      "value": "<set-via-github-secret>"
+    "postgresRuntimePassword": {
+      "value": "<set-via-github-secret-postgres-runtime-password>"
     },
     "postgresDatabaseName": {
       "value": "certdrills"
@@ -29,7 +29,7 @@
     "apiImage": {
       "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
     },
-    "enableApiLivenessProbe": {
+    "enableContainerAppProbes": {
       "value": false
     },
     "webImage": {
@@ -38,11 +38,8 @@
     "adminImage": {
       "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
     },
-    "acrUsername": {
-      "value": ""
-    },
-    "acrPassword": {
-      "value": ""
+    "alertOperatorEmail": {
+      "value": "production-operator@example.com"
     }
   }
 }

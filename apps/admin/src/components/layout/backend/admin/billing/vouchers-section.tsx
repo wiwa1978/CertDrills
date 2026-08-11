@@ -57,7 +57,6 @@ import {
   searchUsersForVoucher,
   updateVoucher,
   updateVoucherStatus,
-  type VoucherFormData,
   type VoucherStatus,
   type VoucherWithUsers,
 } from "@/lib/services/vouchers";

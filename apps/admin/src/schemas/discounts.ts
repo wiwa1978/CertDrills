@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   createDiscountSchema,
-  discountStatusSchema,
   discountTypeSchema,
   updateDiscountSchema,
   validateDiscountCodeSchema,

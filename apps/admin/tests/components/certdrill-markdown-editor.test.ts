@@ -35,8 +35,8 @@ describe("CertDrill markdown preview", () => {
   });
 
   it("keeps textarea value and preview synchronized when defaultValue changes", () => {
-    expect(markdownSource).toContain("useEffect");
-    expect(markdownSource).toContain("setMarkdown(String(defaultValue ?? \"\"))");
+    expect(markdownSource).toContain("previousDefaultValue !== normalizedDefaultValue");
+    expect(markdownSource).toContain("setMarkdown(normalizedDefaultValue)");
     expect(markdownSource).toContain("value={markdown}");
   });
 

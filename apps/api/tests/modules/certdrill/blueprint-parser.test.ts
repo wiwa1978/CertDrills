@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { blueprintProposalJsonSchema } from "../../../src/modules/certdrill/blueprint-proposal";
-import * as blueprintParserModule from "../../../src/modules/certdrill/blueprint-parser";
+import { blueprintProposalJsonSchema } from "../../../src/product/certdrill/blueprint-proposal";
+import * as blueprintParserModule from "../../../src/product/certdrill/blueprint-parser";
 import {
   BlueprintParserError,
   createFoundryBlueprintParser,
   type BlueprintParserInput,
-} from "../../../src/modules/certdrill/blueprint-parser";
+} from "../../../src/product/certdrill/blueprint-parser";
 
 function createInput(overrides: Partial<BlueprintParserInput> = {}): BlueprintParserInput {
   return {

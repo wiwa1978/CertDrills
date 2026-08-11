@@ -1,5 +1,5 @@
 // Serializable admin mirrors of the API's question import preview/result shapes
-// (apps/api/src/modules/certdrill/question-import.ts and question-import-service.ts).
+// (apps/api/src/product/certdrill/question-import.ts and question-import-service.ts).
 // Keep these in sync with the API types whenever the import contract changes.
 
 export const MAX_QUESTION_IMPORT_BYTES = 5 * 1024 * 1024;

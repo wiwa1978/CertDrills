@@ -69,7 +69,7 @@ function gateInputForUser(user: NonNullable<Awaited<ReturnType<AuthModuleOptions
 }
 
 export function createAuthModule(options: AuthModuleOptions) {
-  const auth = betterAuth(options.betterAuthOptions);
+  const auth = options.auth ?? betterAuth(options.betterAuthOptions);
   const router = new Hono<{ Variables: AuthContextVariables }>();
   const tokenService = createTokenService({
     secret: options.jwt.secret,
@@ -149,6 +149,8 @@ export function createAuthModule(options: AuthModuleOptions) {
   });
   const requireAdminAccess = createRequireAdminAccess({
     allowlist: options.admin.allowlist,
+    totpRequired: options.admin.totpRequired,
+    users: options.users,
   });
 
   router.on(["GET", "POST", "OPTIONS"], "/*", async (c) => {
@@ -194,7 +196,7 @@ export function createAuthModule(options: AuthModuleOptions) {
   mobileRouter.post("/token", zValidator("json", mobileTokenRequestSchema), async (c) => {
     const body = c.req.valid("json");
 
-    const signInResult = (await (auth.api as any).signInEmail({
+    const signInResult = (await auth.api.signInEmail({
       body: {
         email: body.email,
         password: body.password,

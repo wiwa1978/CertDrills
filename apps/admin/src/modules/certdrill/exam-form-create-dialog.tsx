@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ export function ExamFormCreateDialog({ certificationId }: { certificationId: str
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(createCertDrillExamFormAction, initialExamFormActionState);
   const fieldErrors = Object.entries(state.fieldErrors);
-  useEffect(() => { if (state.status === "error") setOpen(true); }, [state.status]);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button>Create Form</Button></DialogTrigger>

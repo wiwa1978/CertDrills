@@ -18,25 +18,29 @@ export type CreditBillingConfig = {
 
 export const CREDIT_PLANS = {
   starter: {
+    credits: 5,
+    price: 500,
+    currency: "EUR",
+    providerProductIds: { dodo: "pdt_0NkioAPBxU4NKmFYXcjqo" },
+  },
+  advanced: {
     credits: 10,
     price: 1000,
     currency: "EUR",
-    providerProductIds: { dodo: "pdt_0NeNL8fjHXLCTIYfvSxYu" },
-  },
-  advanced: {
-    credits: 25,
-    price: 2500,
-    currency: "EUR",
-    providerProductIds: { dodo: "pdt_0NeNLCAY7sLmCDqKfD2wK" },
-    bonus: 5,
+    providerProductIds: { dodo: "pdt_0NkioARiMUT4Q1jXQPqZF" },
     popular: true,
   },
   pro: {
+    credits: 25,
+    price: 2500,
+    currency: "EUR",
+    providerProductIds: { dodo: "pdt_0NkioATqYziYInEZ4cwFQ" },
+  },
+  max: {
     credits: 50,
     price: 5000,
     currency: "EUR",
-    providerProductIds: { dodo: "pdt_0NeNLF57Srgh8qy0lD1kG" },
-    bonus: 20,
+    providerProductIds: { dodo: "pdt_0NkioAW6Ke3fUtKNtnw16" },
   },
 } as const satisfies CreditPlanConfig;
 

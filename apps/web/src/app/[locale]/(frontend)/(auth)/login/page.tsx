@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Mail, CheckCircle2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+
+import { resolveInternalRedirect } from "@platform/frontend-shared/url";
+
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,10 +58,7 @@ function LoginPageContent() {
     message: string;
   } | null>(null);
 
-  // Get callbackUrl from query params, with validation
-  const callbackUrl = searchParams.get("callbackUrl");
-  const redirectTo =
-    callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : DEFAULT_REDIRECT;
+  const redirectTo = resolveInternalRedirect(searchParams.get("callbackUrl"), DEFAULT_REDIRECT);
   const navigationPath = getInternalNavigationPath(redirectTo);
 
   // Helper to get translated error message

@@ -2,6 +2,7 @@ import { desc, ilike } from "drizzle-orm";
 import type { Context } from "hono";
 
 import { auditEntries } from "@platform/platform-db";
+import type { PlatformDb } from "@platform/platform-db";
 
 import type { AppEnv } from "../../context";
 import { redactLogValue } from "../../observability/redaction";
@@ -28,7 +29,7 @@ type ListAuditEntriesInput = {
 };
 
 type AuditServiceDeps = {
-  db: any;
+  db: PlatformDb;
   logger?: { warn(arg1?: unknown, arg2?: unknown): void };
 };
 

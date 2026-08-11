@@ -35,9 +35,7 @@ export const errorHandler: ErrorHandler<AppEnv> = (error, c) => {
   );
 
   const response = c.json(
-    env.NODE_ENV === "development"
-      ? { ...errorPayload(apiErrorCode.internalServerError, error instanceof Error ? error.message : "Internal server error"), errorCode, requestId }
-      : { ...errorPayload(apiErrorCode.internalServerError, "Internal server error"), errorCode, requestId },
+    { ...errorPayload(apiErrorCode.internalServerError, "Internal server error"), errorCode, requestId },
     500,
   );
 

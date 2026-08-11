@@ -4,10 +4,12 @@ import { adminClient } from "better-auth/client/plugins";
 import type { CreateWebAuthClientOptions } from "./types";
 import { createBasePlugins, createFetchOptions } from "./web-shared";
 
-export function createWebAdminAuthClient<Plugins extends import("better-auth").BetterAuthClientPlugin[]>(options: CreateWebAuthClientOptions<Plugins>) {
+export function createWebAdminAuthClient(options: CreateWebAuthClientOptions) {
+  const basePlugins = createBasePlugins();
+  const admin = adminClient();
   return createAuthClient({
     baseURL: options.baseURL,
-    plugins: [...createBasePlugins(options), adminClient()],
+    plugins: [...basePlugins, admin] as [...typeof basePlugins, typeof admin],
     fetchOptions: createFetchOptions(options),
   });
 }

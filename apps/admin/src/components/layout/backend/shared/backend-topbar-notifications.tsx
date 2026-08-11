@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { Bell, Check, Trash2, X } from "lucide-react";
+import { Bell, Check, Trash2 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { formatDistanceToNow } from "date-fns";
 import { translateNotification } from "@/lib/notifications";
@@ -22,6 +22,7 @@ import {
   markAllAsRead,
   markAsRead,
 } from "@/lib/services/notifications";
+import { getMyApplicationConfig } from "@/lib/api/me";
 import { useSession } from "@/lib/auth-client";
 import { adminQueryKeys } from "@/lib/query/keys";
 
@@ -30,17 +31,25 @@ export function BackendTopbarNotifications() {
   const locale = useLocale();
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
   const queryClient = useQueryClient();
-  const notificationsQueryKey = adminQueryKeys.notifications(authConfig.notificationsDropdownLimit);
+  const applicationConfigQuery = useQuery({
+    queryKey: adminQueryKeys.applicationConfig,
+    queryFn: getMyApplicationConfig,
+    staleTime: 60_000,
+  });
+  const notificationsDropdownLimit = applicationConfigQuery.data?.ui.notificationsDropdownLimit ?? authConfig.notificationsDropdownLimit;
+  const notificationsPollingInterval = applicationConfigQuery.data?.ui.notificationsPollingIntervalMs ?? authConfig.notificationsPollingInterval;
+  const notificationsQueryKey = adminQueryKeys.notifications(notificationsDropdownLimit);
 
   const notificationsQuery = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: async () => {
-      const result = await getNotifications(authConfig.notificationsDropdownLimit);
+      const result = await getNotifications(notificationsDropdownLimit);
       return result.success && result.data ? result.data as Notification[] : [];
     },
     enabled: Boolean(session?.user?.id),
-    refetchInterval: authConfig.notificationsPollingInterval > 0 ? authConfig.notificationsPollingInterval : false,
+    refetchInterval: notificationsPollingInterval > 0 ? notificationsPollingInterval : false,
   });
 
   const unreadCountQuery = useQuery({
@@ -50,7 +59,7 @@ export function BackendTopbarNotifications() {
       return result.success ? result.count : 0;
     },
     enabled: Boolean(session?.user?.id),
-    refetchInterval: authConfig.notificationsPollingInterval > 0 ? authConfig.notificationsPollingInterval : false,
+    refetchInterval: notificationsPollingInterval > 0 ? notificationsPollingInterval : false,
   });
 
   const refreshNotifications = React.useCallback(async () => {
@@ -59,6 +68,10 @@ export function BackendTopbarNotifications() {
       queryClient.invalidateQueries({ queryKey: adminQueryKeys.unreadNotifications }),
     ]);
   }, [notificationsQueryKey, queryClient]);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   React.useEffect(() => {
     window.addEventListener("notifications:changed", refreshNotifications);
@@ -84,7 +97,7 @@ export function BackendTopbarNotifications() {
     await deleteMutation.mutateAsync(notificationId);
   };
 
-  if (!session?.user) return null;
+  if (!isMounted || !session?.user) return null;
 
   const notifications = notificationsQuery.data ?? [];
   const unreadCount = unreadCountQuery.data ?? 0;

@@ -5,7 +5,6 @@ import {
   getPasswordSchema as buildPasswordSchema,
   magicLinkSchema,
   signInSchema,
-  type MagicLinkFormValues,
   type PasswordErrorMessages,
 } from "@platform/contracts";
 

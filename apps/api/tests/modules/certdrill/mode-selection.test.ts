@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectQuestionIdsForVariant, uniqueOrderedIds } from "../../../src/modules/certdrill/selection";
+import { selectQuestionIdsForVariant, uniqueOrderedIds } from "../../../src/product/certdrill/selection";
 
 const categories = [
   { id: "domain-1", parentCategoryId: null, weightPct: "60.00", drillQuestionCount: 3 },

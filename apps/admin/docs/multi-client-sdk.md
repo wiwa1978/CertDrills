@@ -4,7 +4,7 @@ This app consumes API contracts from `apps/api` OpenAPI spec.
 
 ## Generate API types
 
-Run API locally on `http://localhost:8877`, then run:
+Run API locally on `http://localhost:8787`, then run:
 
 ```bash
 bun run generate:api-types

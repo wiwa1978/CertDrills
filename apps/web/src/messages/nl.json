@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Bouw sneller, lever slimmer",
-    "description": "Het moderne platform voor het bouwen van uitzonderlijke producten. Stroomlijn je workflow, werk naadloos samen en lever uitstekende resultaten."
+    "title": "CertDrills - Samenstelbare SaaS-starter",
+    "description": "Een single-tenant SaaS-starter met afzonderlijke web-, beheer- en API-applicaties plus bouwstenen voor authenticatie en facturatie."
   },
   "nav": {
     "features": "Functies",
@@ -13,28 +13,27 @@
     "toggleMenu": "Menu openen"
   },
   "hero": {
-    "badge": "Nieuw",
-    "badgeText": "CertDrills",
+    "badge": "Boilerplate",
+    "badgeText": "Een samenstelbare platformbasis",
     "titleBuild": "Bouw",
     "titleFaster": "sneller",
     "titleShip": ", lever",
     "titleSmarter": "slimmer",
     "description": "Het moderne platform voor het bouwen van uitzonderlijke producten. Stroomlijn je workflow, werk naadloos samen en lever uitstekende resultaten.",
     "cta": "Aan de slag",
-    "watchDemo": "Bekijk demo",
-    "socialProof": "Vertrouwd door {count}+ ontwikkelaars en teams wereldwijd"
+    "watchDemo": "Bekijk demo"
   },
   "features": {
     "title": "Alles wat je nodig hebt om te slagen",
-    "description": "Krachtige functies ontworpen om je te helpen producten sneller dan ooit te bouwen, lanceren en schalen.",
+    "description": "Herbruikbare platformmogelijkheden die kunnen worden gecombineerd met productroutes, gegevens en workflows.",
     "items": {
       "lightningFast": {
         "title": "Razendsnel",
         "description": "Geoptimaliseerde prestaties die je applicatie op topsnelheid houden, ongeacht de schaal."
       },
       "enterpriseSecurity": {
-        "title": "Enterprise Beveiliging",
-        "description": "Beveiliging op bankniveau met end-to-end encryptie en naleving van industriestandaarden."
+        "title": "Beveiligingscontroles",
+        "description": "Authenticatie, beheerdersautorisatie, auditregistratie en ondertekende betalingswebhooks zijn ingebouwd in de platformlaag."
       },
       "advancedAnalytics": {
         "title": "Geavanceerde Analyses",
@@ -49,14 +48,14 @@
         "description": "Groei zonder grenzen. Onze infrastructuur schaalt automatisch met jouw behoeften."
       },
       "support": {
-        "title": "24/7 Ondersteuning",
-        "description": "Ondersteuning dag en nacht van ons expertteam om je te helpen slagen."
+        "title": "Operationeel inzicht",
+        "description": "Beheerschermen tonen de status van facturatie, webhooks, audits en achtergrondwerk."
       }
     }
   },
   "pricing": {
     "title": "Eenvoudige, transparante prijzen",
-    "description": "Kies het plan dat bij je past. Alle plannen bevatten een gratis proefperiode van 14 dagen.",
+    "description": "Voorbeeldschermen tonen hoe producten credits, abonnementen of eenmalige transacties kunnen samenstellen.",
     "mostPopular": "Meest populair",
     "perMonth": "/maand",
     "plans": {
@@ -109,8 +108,8 @@
     "subtitle": "We hebben een missie om teams te helpen betere producten te bouwen, sneller.",
     "mission": {
       "title": "Onze Missie",
-      "paragraph1": "Wij geloven dat het bouwen van geweldige producten niet ingewikkeld hoeft te zijn. Ons platform stelt teams van alle groottes in staat om effectief samen te werken, sneller te leveren en te focussen op wat het belangrijkst is — waarde creëren voor hun gebruikers.",
-      "paragraph2": "Opgericht in 2024, hebben we duizenden teams geholpen hun workflows te stroomlijnen en uitzonderlijke resultaten te leveren. Onze toewijding aan eenvoud en ontwikkelaarservaring drijft alles wat we doen."
+      "paragraph1": "Deze repository biedt herbruikbare platformmechanismen en houdt productroutes, gegevens, mogelijkheden en beleid buiten de platformlaag.",
+      "paragraph2": "Gebruik dit als startpunt, vervang de productsamenstelling en valideer de resulterende applicatie vóór de lancering."
     },
     "values": {
       "title": "Onze Waarden",
@@ -130,25 +129,19 @@
         "title": "Continue Verbetering",
         "description": "We leveren snel, leren sneller en stoppen nooit met verbeteren."
       }
-    },
-    "stats": {
-      "activeUsers": "Actieve Gebruikers",
-      "companies": "Bedrijven",
-      "uptimeSla": "Uptime SLA",
-      "support": "Ondersteuning"
     }
   },
   "cta": {
     "title": "Klaar om te beginnen?",
-    "description": "Sluit je aan bij duizenden teams die ons platform al gebruiken om geweldige producten te bouwen. Start vandaag nog je gratis proefperiode.",
-    "primaryButton": "Start gratis proefperiode",
-    "secondaryButton": "Neem contact op",
-    "disclaimer": "Geen creditcard nodig · 14 dagen gratis proefperiode · Altijd opzegbaar"
+    "description": "Verken de platformbasis en koppel daarna je eigen productmodules en facturatiecatalogus.",
+    "primaryButton": "Aan de slag",
+    "secondaryButton": "Bekijk documentatie",
+    "disclaimer": "Configureer authenticatie, facturatie, beheer en productbeleid voor je implementatie"
   },
   "footer": {
-    "description": "De toekomst van productontwikkeling bouwen. Teams in staat stellen om uitzonderlijke ervaringen te creëren.",
-    "copyright": "Acme Inc. Alle rechten voorbehouden.",
-    "madeWith": "Gemaakt met ❤️ voor ontwikkelaars",
+    "description": "Een samenstelbare basis voor single-tenant SaaS-producten.",
+    "copyright": "CertDrills. Alle rechten voorbehouden.",
+    "madeWith": "Gebouwd voor productteams",
     "groups": {
       "product": {
         "title": "Product",
@@ -291,9 +284,7 @@
       "settings": "Instellingen",
       "billing": "Facturatieportaal",
       "userManagement": "Gebruikersbeheer",
-      "admin": "Admin Paneel",
-      "exams": "Examens",
-      "attempts": "Poginggeschiedenis"
+      "admin": "Admin Paneel"
     },
     "signOut": "Uitloggen",
     "topNav": {
@@ -1142,6 +1133,11 @@
         "name": "Pro",
         "description": "Maximaal tegoed met de grootste bonus.",
         "cta": "Koop Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "Het grootste tegoedpakket voor intensief gebruik.",
+        "cta": "Koop Max"
       }
     },
     "features": {
@@ -1190,6 +1186,26 @@
       "successDescription": "Je credits verschijnen zodra de betaling is verwerkt.",
       "cancelTitle": "Afrekenen geannuleerd",
       "cancelDescription": "Er zijn geen credits gekocht."
+    },
+    "credits": {
+      "checkout": {
+        "title": "Koop {package}",
+        "description": "Bevestig je pakketgegevens voordat je doorgaat naar betaling.",
+        "packageNotFound": "Tegoedpakket niet gevonden",
+        "baseCredits": "{count} tegoed",
+        "bonusCredits": "+{count} bonustegoed",
+        "totalCredits": "{count} totaal tegoed",
+        "creditsNeverExpire": "Tegoed verloopt nooit",
+        "subtotal": "Subtotaal",
+        "voucherLabel": "Voucher- of kortingscode",
+        "voucherPlaceholder": "Voer code in",
+        "voucherDescription": "Deze code wordt rechtstreeks naar de betalingsprovider gestuurd.",
+        "billingAddress": "Factuuradres",
+        "addressPlaceholder": "Selecteer een adres",
+        "addAddressInSettings": "Voeg eerst een factuuradres toe in je profielinstellingen.",
+        "redirecting": "Doorsturen...",
+        "proceed": "Doorgaan naar betaling"
+      }
     },
     "portal": {
       "button": "Facturatie beheren",
@@ -1253,6 +1269,93 @@
         "redeeming": "Inwisselen..."
       }
     },
+    "transaction": {
+      "eyebrow": "Transactiefacturatie",
+      "title": "Toegang kopen",
+      "description": "Selecteer producten, controleer je winkelwagen en ga door naar veilig afrekenen.",
+      "loading": "Transactiefacturatie vernieuwen...",
+      "catalog": {
+        "title": "Producten",
+        "description": "Kies toegangsproducten en aantallen. Prijzen zijn exclusief belasting.",
+        "preTax": "Prijs voor belasting",
+        "addOrUpdate": "Toevoegen of bijwerken",
+        "quantityLabel": "Aantal voor {product}: {quantity}",
+        "decreaseQuantity": "Aantal voor {product} verlagen",
+        "increaseQuantity": "Aantal voor {product} verhogen"
+      },
+      "basket": {
+        "title": "Winkelwagen",
+        "description": "Bekijk je winkelwagen en ga verder naar afrekenen.",
+        "triggerLabel": "Winkelwagen openen",
+        "triggerLabelWithCount": "Winkelwagen openen, {count, plural, one {# artikel} other {# artikelen}}",
+        "close": "Winkelwagen sluiten",
+        "loading": "Je winkelwagen laden...",
+        "clear": "Leegmaken",
+        "empty": "Je winkelwagen is leeg.",
+        "remove": "{product} verwijderen",
+        "quantityLabel": "Aantal voor {product}: {quantity}",
+        "decreaseQuantity": "Aantal voor {product} verlagen",
+        "increaseQuantity": "Aantal voor {product} verhogen",
+        "subtotal": "Subtotaal",
+        "taxNote": "Belasting en het eindtotaal worden bij het afrekenen door Dodo berekend.",
+        "checkout": "Afrekenen",
+        "checkoutPending": "Afrekenen openen...",
+        "retry": "Opnieuw proberen"
+      },
+      "errors": {
+        "basketMutation": "Je winkelwagen kon niet worden bijgewerkt. Probeer het opnieuw.",
+        "checkout": "Afrekenen kon niet worden geopend. Probeer het opnieuw.",
+        "basketQueryInitial": "Je winkelwagen kon niet worden geladen.",
+        "basketQuery": "Je winkelwagen kon niet worden vernieuwd. De laatst beschikbare winkelwagen wordt getoond."
+      },
+      "orders": {
+        "title": "Recente bestellingen",
+        "description": "Betalingsgeschiedenis en door de provider berekende totalen.",
+        "empty": "Nog geen bestellingen.",
+        "order": "Bestelling {id}",
+        "status": "Bestelstatus: {status}",
+        "date": "Datum: {date}",
+        "payment": "Betaling: {id}",
+        "quantity": "Aantal: {quantity}",
+        "subtotal": "Subtotaal",
+        "tax": "Belasting",
+        "total": "Totaal",
+        "statuses": {
+          "pending_payment": "Betaling in afwachting",
+          "paid": "Betaald",
+          "failed": "Mislukt",
+          "cancelled": "Geannuleerd",
+          "refund_pending": "Terugbetaling in behandeling",
+          "refunded": "Terugbetaald",
+          "partially_refunded": "Gedeeltelijk terugbetaald"
+        }
+      },
+      "entitlements": {
+        "title": "Toegangsrechten",
+        "description": "Toegang verleend door voltooide bestellingen.",
+        "empty": "Nog geen toegangsrechten.",
+        "status": "Status toegangsrecht: {status}",
+        "order": "Bestelling: {id}",
+        "created": "Aangemaakt: {date}",
+        "consumed": "Gebruikt: {date}",
+        "refunded": "Terugbetaald: {date}",
+        "statuses": {
+          "available": "Beschikbaar",
+          "consumed": "Gebruikt",
+          "refunded": "Terugbetaald"
+        }
+      },
+      "products": {
+        "starterContent": {
+          "name": "Toegang tot starterscontent",
+          "description": "Eén duurzaam toegangsrecht voor het starterscontentproduct."
+        },
+        "premiumContent": {
+          "name": "Toegang tot premiumcontent",
+          "description": "Eén duurzaam toegangsrecht voor het premiumcontentproduct."
+        }
+      }
+    },
     "subscription": {
       "description": "Kies een abonnement om door te gaan.",
       "currentTitle": "Huidig abonnement",
@@ -1266,6 +1369,7 @@
       "mostPopular": "Meest populair",
       "planDescription": "Terugkerende SaaS-toegang, gefactureerd per {interval}",
       "choosePlan": "Kies {plan}",
+      "planNotFound": "Abonnement niet gevonden",
       "discount": {
         "label": "Kortingscode",
         "placeholder": "Voer kortingscode in",
@@ -1292,6 +1396,17 @@
         }
       },
       "checkout": {
+        "title": "Abonneer op {plan}",
+        "description": "Bevestig je plangegevens voordat je doorgaat naar betaling.",
+        "subtotal": "Subtotaal",
+        "discountLabel": "Voucher- of kortingscode",
+        "discountPlaceholder": "Voer code in",
+        "discountDescription": "Deze code wordt rechtstreeks naar de betalingsprovider gestuurd.",
+        "billingAddress": "Factuuradres",
+        "addressPlaceholder": "Selecteer een adres",
+        "addAddressInSettings": "Voeg eerst een factuuradres toe in je profielinstellingen.",
+        "redirecting": "Doorsturen...",
+        "proceed": "Doorgaan naar betaling",
         "successDescription": "Abonnement checkout voltooid. Je abonnement wordt bijgewerkt zodra de betaling is verwerkt.",
         "cancelDescription": "Abonnement checkout is geannuleerd.",
         "portal": {
@@ -1331,12 +1446,7 @@
     "projects": "Projecten",
     "discounts": "Kortingscodes",
     "vouchers": "Vouchers",
-    "logs": "Logs",
-    "exams": "Examens",
-    "start": "Start",
-    "results": "Resultaten",
-    "profile": "Profiel",
-    "attempts": "Pogingen"
+    "logs": "Logs"
   },
   "creditProgressBar": {
     "creditsOf": "{current} van {total} tegoed",

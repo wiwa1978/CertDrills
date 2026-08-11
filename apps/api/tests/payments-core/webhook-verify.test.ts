@@ -26,9 +26,9 @@ const samplePayload = JSON.stringify({
     customer: { email: "buyer@example.com" },
     product_cart: [{ product_id: "prod_credits_100" }],
     metadata: { userId: "11111111-1111-1111-1111-111111111111" },
-    settlement_amount: 1000,
-    settlement_tax: 100,
-    settlement_currency: "EUR",
+    total_amount: 1000,
+    tax: 100,
+    currency: "EUR",
   },
 });
 
@@ -301,9 +301,12 @@ describe("POST /webhooks/dodo response codes", () => {
         customer: { email: "buyer@example.com", customer_id: "cus_failed" },
         product_cart: [{ product_id: "prod_credits_100" }],
         metadata: { userId: "11111111-1111-1111-1111-111111111111" },
-        settlement_amount: 1000,
-        settlement_tax: 100,
-        settlement_currency: "EUR",
+        total_amount: 1000,
+        tax: 100,
+        currency: "EUR",
+        settlement_amount: 1200,
+        settlement_tax: 200,
+        settlement_currency: "USD",
       },
     });
     const { app, onPaymentEvent } = build();
@@ -342,9 +345,12 @@ describe("POST /webhooks/dodo response codes", () => {
         customer: { email: "buyer@example.com", customer_id: "cus_processing" },
         product_cart: [{ product_id: "prod_credits_100" }],
         metadata: { userId: "11111111-1111-1111-1111-111111111111" },
-        settlement_amount: 1000,
-        settlement_tax: 100,
-        settlement_currency: "EUR",
+        total_amount: 1000,
+        tax: 100,
+        currency: "EUR",
+        settlement_amount: 1200,
+        settlement_tax: 200,
+        settlement_currency: "USD",
       },
     });
     const { app, onPaymentEvent } = build();
@@ -530,6 +536,9 @@ describe("POST /webhooks/dodo response codes", () => {
         customer: { email: "buyer@example.com" },
         product_cart: [{ product_id: "prod_credits_100" }],
         metadata: { userId: "11111111-1111-1111-1111-111111111111" },
+        total_amount: 1000,
+        tax: 100,
+        currency: "EUR",
       },
     });
     const t = Math.floor(Date.now() / 1000);
@@ -588,6 +597,9 @@ describe("POST /webhooks/dodo response codes", () => {
         customer: { email: "buyer@example.com" },
         product_cart: [{ product_id: "prod_credits_100" }],
         metadata: { userId: "11111111-1111-1111-1111-111111111111" },
+        total_amount: 1000,
+        tax: 100,
+        currency: "EUR",
       },
     });
     const t = Math.floor(Date.now() / 1000);
@@ -678,6 +690,9 @@ describe("POST /webhooks/dodo response codes", () => {
       data: {
         payment_id: "pay_1",
         customer: { email: "buyer@example.com" },
+        total_amount: 1000,
+        tax: 100,
+        currency: "EUR",
         token: "secret-value",
       },
     });

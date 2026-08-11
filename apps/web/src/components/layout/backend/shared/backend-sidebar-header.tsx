@@ -3,7 +3,6 @@ import * as React from "react"
 import { SidebarHeader } from "@/components/ui/sidebar"
 import { SidebarGroupLabel } from "@/components/ui/sidebar";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Logo, LogoWithText } from "@/components/icons/logo";
 import { cn } from "@/lib/utils";

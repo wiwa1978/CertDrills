@@ -10,7 +10,7 @@ import {
   type AdminQuestionIndexCertificationFilterOption,
   type AdminQuestionIndexQuestionRecord,
   type AdminQuestionIndexRepository,
-} from "../../../src/modules/certdrill/admin-question-index";
+} from "../../../src/product/certdrill/admin-question-index";
 
 const ids = {
   certA: "11111111-1111-4111-8111-111111111111",

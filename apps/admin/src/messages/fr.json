@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Construisez plus vite, livrez plus intelligemment",
-    "description": "La plateforme moderne pour créer des produits exceptionnels. Rationalisez votre flux de travail, collaborez sans effort et obtenez des résultats remarquables."
+    "title": "Administration CertDrills",
+    "description": "Administration sécurisée de la plateforme CertDrills."
   },
   "nav": {
     "features": "Fonctionnalités",
@@ -146,9 +146,9 @@
     "disclaimer": "Pas de carte bancaire requise · 14 jours d'essai gratuit · Annulation à tout moment"
   },
   "footer": {
-    "description": "Construire l'avenir du développement produit. Permettre aux équipes de créer des expériences exceptionnelles.",
-    "copyright": "Acme Inc. Tous droits réservés.",
-    "madeWith": "Fait avec ❤️ pour les développeurs",
+    "description": "Administration sécurisée de la plateforme CertDrills.",
+    "copyright": "CertDrills. Tous droits réservés.",
+    "madeWith": "Conçu pour les équipes produit",
     "groups": {
       "product": {
         "title": "Produit",
@@ -213,14 +213,15 @@
     },
     "errors": {
       "default": "Une erreur s'est produite. Veuillez réessayer.",
-      "NETWORK_ERROR": "Impossible de joindre le service d’authentification. Veuillez réessayer dans un instant.",
       "PASSWORD_COMPROMISED": "Ce mot de passe a été trouvé dans une fuite de données. Veuillez choisir un autre mot de passe.",
       "INVALID_EMAIL_OR_PASSWORD": "E-mail ou mot de passe invalide.",
       "USER_ALREADY_EXISTS": "Un compte avec cet e-mail existe déjà.",
       "EMAIL_NOT_VERIFIED": "Veuillez d'abord vérifier votre adresse e-mail.",
       "INVALID_TOKEN": "Jeton invalide ou expiré.",
       "TOO_MANY_REQUESTS": "Trop de demandes. Veuillez réessayer plus tard.",
-      "BANNED_USER": "Votre compte a été banni. Veuillez contacter le support pour obtenir de l'aide."
+      "BANNED_USER": "Votre compte a été banni. Veuillez contacter le support pour obtenir de l'aide.",
+      "ADMIN_ACCESS_DENIED": "Ce compte n'est pas autorisé à accéder au portail d'administration.",
+      "TWO_FACTOR_REQUIRED": "L’accès administrateur requiert l’authentification à deux facteurs. Désactivez temporairement l’obligation TOTP administrateur, connectez-vous, activez la 2FA dans Paramètres > Sécurité, puis réactivez l’obligation."
     },
     "signup": {
       "title": "Créer un compte",
@@ -616,7 +617,6 @@
     "nav": {
       "overview": "Aperçu",
       "system": "Système",
-      "admins": "Admins",
       "users": "Utilisateurs",
       "billing": "Facturation",
       "webhooks": "Webhooks",
@@ -624,9 +624,7 @@
       "notifications": "Notifications",
       "discounts": "Codes de réduction",
       "vouchers": "Bons",
-      "logs": "Journaux",
-      "certdrill": "CertDrill",
-      "questions": "Questions"
+      "logs": "Journaux"
     },
     "system": {
       "title": "Système",
@@ -655,13 +653,40 @@
         "description": "Fichiers de journaux app et audit disponibles pour l'API.",
         "app": "Journaux app",
         "audit": "Journaux audit"
+      },
+      "runtimeSettings": {
+        "title": "Paramètres d'exécution",
+        "description": "Ajustez certains paramètres de l'application sans redéployer l'app.",
+        "adminSecret": "Secret admin",
+        "adminSecretPlaceholder": "Saisir le secret admin",
+        "updateSuccess": "Paramètre mis à jour.",
+        "updateError": "Échec de la mise à jour du paramètre.",
+        "resetSuccess": "Paramètre réinitialisé à sa valeur par défaut.",
+        "resetError": "Échec de la réinitialisation du paramètre.",
+        "integerError": "La valeur doit être un entier.",
+        "overrideBadge": "Surcharge",
+        "defaultBadge": "Défaut",
+        "value": "Valeur",
+        "sourceValue": "Défaut : {value}",
+        "range": "Plage : {min}-{max}",
+        "save": "Enregistrer",
+        "reset": "Réinitialiser",
+        "categories": {
+          "ui": "Interface"
+        },
+        "notificationsDropdownLimit": {
+          "label": "Limite du menu de notifications",
+          "description": "Nombre maximal de notifications affichées dans le menu de la barre supérieure."
+        },
+        "notificationsPollingIntervalMs": {
+          "label": "Intervalle d'actualisation des notifications",
+          "description": "Fréquence d'actualisation des compteurs et listes de notifications, en millisecondes. Utilisez 0 pour désactiver l'actualisation."
+        },
+        "deleteAccountCountdownSeconds": {
+          "label": "Compte à rebours de suppression de compte",
+          "description": "Nombre de secondes que les utilisateurs doivent attendre après avoir saisi le code de confirmation avant de supprimer leur compte."
+        }
       }
-    },
-    "admins": {
-      "title": "Comptes admin",
-      "description": "Affichez les utilisateurs admin privilégiés dans le système.",
-      "passwordUpdated": "Mot de passe mis à jour. Nouveau mot de passe copié dans le presse-papiers.",
-      "passwordUpdateFailed": "Échec de la définition du mot de passe."
     },
     "backToPortal": "Retour au Portail",
     "impersonation": {
@@ -879,6 +904,80 @@
         "purchases": "Achats",
         "yearly": "Annuel"
       },
+      "creditsDashboard": {
+        "title": "Tableau de bord des credits",
+        "description": "Suivez les revenus, achats, consommations, activites de registre et remboursements de credits.",
+        "unknownUser": "Inconnu",
+        "search": "Rechercher",
+        "searchPlaceholder": "Rechercher par e-mail utilisateur...",
+        "transactionsDescription": "Activite recente des credits pour tous les utilisateurs",
+        "tabs": {
+          "overview": "Apercu",
+          "revenue": "Revenus",
+          "purchases": "Achats",
+          "ledger": "Registre des credits",
+          "consumption": "Consommation",
+          "activity": "Activite",
+          "refunds": "Remboursements et ajustements"
+        },
+        "consumptionChart": {
+          "title": "Total des credits consommes",
+          "description": "Suivez l'utilisation des credits dans le temps",
+          "label": "Credits consommes"
+        },
+        "activityChart": {
+          "title": "Activite des credits",
+          "description": "Suivez l'activite du registre des credits dans le temps",
+          "label": "Transactions"
+        },
+        "stats": {
+          "receivedBreakdown": "{purchased} achetes · {bonus} bonus d'achat · {vouchers} bon · {adjustments} ajustements admin"
+        },
+        "purchases": {
+          "title": "Achats de credits",
+          "description": "Achats de credits pour tous les utilisateurs"
+        },
+        "pagination": {
+          "page": "Page {current} sur {total}",
+          "previous": "Precedent",
+          "next": "Suivant"
+        },
+        "refund": {
+          "title": "Achats remboursables",
+          "description": "Achats de credits termines qui peuvent etre rembourses via le fournisseur de paiement.",
+          "empty": "Aucun achat remboursable trouve.",
+          "action": "Rembourser",
+          "refundablePurchases": "Achats remboursables",
+          "refundablePurchasesDescription": "Achats termines eligibles au remboursement fournisseur.",
+          "refundCredits": "Credits rembourses",
+          "refundCreditsDescription": "Credits annules par les remboursements.",
+          "adminAdjustments": "Ajustements admin",
+          "adminAdjustmentsDescription": "Ajustements manuels du registre.",
+          "refundedPurchases": "Achats rembourses",
+          "refundedPurchasesDescription": "Achats de credits deja rembourses.",
+          "ledgerDescription": "Remboursements et ajustements admin pour tous les utilisateurs.",
+          "success": "Remboursement cree avec succes",
+          "error": "Echec de la creation du remboursement",
+          "missingPayment": "ID de paiement manquant",
+          "table": {
+            "user": "Utilisateur",
+            "package": "Forfait",
+            "amount": "Montant",
+            "payment": "Paiement",
+            "date": "Date",
+            "actions": "Actions"
+          },
+          "dialog": {
+            "title": "Rembourser l'achat de credits",
+            "description": "Creez un remboursement fournisseur et annulez les credits accordes.",
+            "reason": "Raison",
+            "secret": "Secret admin",
+            "cancel": "Annuler",
+            "submit": "Creer le remboursement",
+            "submitting": "Creation..."
+          }
+        }
+      },
       "transactions": {
         "title": "Toutes les Transactions",
         "description": "Transactions de crédits pour tous les utilisateurs",
@@ -1049,84 +1148,45 @@
           }
         }
       },
+      "transactionsMode": {
+        "title": "Finances des transactions",
+        "description": "Suivez les revenus des commandes ponctuelles, les tentatives de paiement, les remboursements, les produits et la conversion.",
+        "tabs": { "label": "Sections des finances transactionnelles", "overview": "Vue d’ensemble", "orders": "Commandes", "refunds": "Remboursements", "products": "Produits" },
+        "filters": { "range": "Période", "startDate": "Date de début", "endDate": "Date de fin", "grouping": "Regrouper par", "currency": "Devise", "allCurrencies": "Toutes les devises", "status": "Statut", "allStatuses": "Tous les statuts", "product": "Produit", "allProducts": "Tous les produits", "search": "Rechercher", "searchPlaceholder": "Rechercher un utilisateur, un e-mail, une commande ou un paiement", "apply": "Appliquer", "clear": "Effacer" },
+        "ranges": { "7d": "7 derniers jours", "30d": "30 derniers jours", "90d": "90 derniers jours", "12m": "12 derniers mois", "custom": "Personnalisée" },
+        "grouping": { "day": "Jour", "week": "Semaine", "month": "Mois", "year": "Année" },
+        "status": { "pending_payment": "Paiement en attente", "paid": "Payée", "failed": "Échouée", "cancelled": "Annulée", "refund_pending": "Remboursement en attente", "refunded": "Remboursée", "partially_refunded": "Partiellement remboursée" },
+        "warnings": { "title": "Avertissement relatif aux données", "providerPayments": "Les données de paiement du prestataire ne sont pas disponibles.", "providerRefunds": "Les données de remboursement du prestataire ne sont pas disponibles.", "providerProducts": "Les données produit du prestataire ne sont pas disponibles.", "providerPageCap": "La limite de pages du prestataire de paiement a été atteinte. Certaines données peuvent être incomplètes.", "analyticsTruncation": "Les analyses locales ont atteint la limite de rapport. Les résultats de cette période peuvent être incomplets.", "localPartialRefund": "Le montant exact d’un ou plusieurs remboursements partiels n’est pas disponible.", "generic": "Certaines données du tableau de bord des transactions ne sont pas disponibles." },
+        "overview": {
+          "conversionRate": "Taux de conversion", "conversionDescription": "Commandes réussies en pourcentage des tentatives",
+          "totalAttempts": "Total des tentatives", "totalAttemptsDescription": "Toutes les tentatives de commande locales correspondantes",
+          "successfulOrders": "Commandes réussies", "successfulOrdersDescription": "Commandes payées et remboursées",
+          "pendingAttempts": "En attente", "pendingAttemptsDescription": "Commandes en attente de paiement",
+          "failedAttempts": "Échouées", "failedAttemptsDescription": "Tentatives de paiement infructueuses",
+          "cancelledAttempts": "Annulées", "cancelledAttemptsDescription": "Tentatives de commande annulées",
+          "refundedOrders": "Remboursées", "refundedOrdersDescription": "Commandes entièrement ou partiellement remboursées",
+          "currencyCard": "Finances en {currency}", "grossRevenue": "Revenu brut", "preTaxRevenue": "Revenu hors taxes", "taxCollected": "Taxes collectées", "refundedAmount": "Montant remboursé"
+        },
+        "charts": { "revenueTitle": "Évolution des revenus", "revenueDescription": "Revenu brut en unités principales, affiché sur une ligne distincte pour chaque devise.", "attemptsTitle": "Évolution par statut de commande", "attemptsDescription": "Tentatives de commande affichées sur des lignes distinctes pour les réussites, échecs, attentes et annulations.", "productVolumeTitle": "Achats par produit", "productVolumeDescription": "Unités vendues et commandes finalisées pour chaque produit.", "productRevenueTitle": "Revenu par produit", "productRevenueDescription": "Revenu brut de chaque produit, séparé par devise.", "successTitle": "Évolution du taux de réussite", "successDescription": "Total des tentatives, commandes réussies et taux de conversion au fil du temps.", "period": "Période", "values": "Valeurs" },
+        "orders": { "title": "Toutes les commandes", "description": "Toutes les commandes transactionnelles locales et leur statut de paiement sur la période sélectionnée." },
+        "orderTrends": { "30d": "Commandes · 30 derniers jours", "90d": "Commandes · 3 derniers mois", "180d": "Commandes · 6 derniers mois", "breakdown": "{successful} réussies · {failed} échouées", "chartLabel": "Évolution du volume des commandes pour {range}" },
+        "table": { "user": "Utilisateur", "customer": "Client", "unknownUser": "Utilisateur inconnu", "order": "ID de commande", "items": "Articles", "quantity": "x{quantity}", "subtotal": "Sous-total", "tax": "Taxe", "total": "Total", "status": "Statut", "payment": "ID de paiement", "created": "Créée", "actions": "Opérations", "notAvailable": "Non disponible" },
+        "details": { "show": "Détails opérationnels", "expand": "Afficher les détails de la commande {orderId}", "collapse": "Masquer les détails de la commande {orderId}", "subtotal": "Sous-total", "tax": "Taxe", "total": "Total", "paymentId": "ID de paiement", "userId": "ID utilisateur", "paymentProvider": "Prestataire de paiement", "checkoutReferenceId": "ID de référence du paiement", "createdAt": "Créée le", "paidAt": "Payée le", "failedAt": "Échouée le", "fulfilledAt": "Traitée le", "items": "Détails des articles", "itemId": "ID d’article", "productKey": "Clé du produit", "name": "Nom", "description": "Description", "quantity": "Quantité", "unitPrice": "Prix unitaire", "itemTotal": "Total de l’article", "currency": "Devise", "providerProductId": "ID produit du prestataire" },
+        "pagination": { "label": "Pagination des commandes", "page": "Page {current} sur {total} · {count} commandes", "previous": "Précédente", "next": "Suivante" },
+        "refunds": { "total": "Remboursements en {currency}", "totalDescription": "Total des remboursements du prestataire en unités principales de la devise", "refundableTitle": "Commandes remboursables", "refundableDescription": "Commandes payées avec des droits inutilisés pouvant être remboursées par le prestataire de paiement.", "action": "Rembourser", "success": "Le remboursement de la commande a été créé.", "error": "Échec de la création du remboursement de la transaction.", "missingOrder": "Sélectionnez une commande à rembourser.", "localTitle": "Commandes remboursées localement", "localDescription": "Commandes locales marquées comme entièrement ou partiellement remboursées.", "providerTitle": "Remboursements du prestataire", "providerDescription": "Métadonnées normalisées des remboursements du prestataire, sans données brutes.", "dialog": { "title": "Rembourser la commande", "description": "Cette action crée un remboursement intégral auprès du prestataire et révoque tous les droits inutilisés de la commande.", "reason": "Motif", "secret": "Secret administrateur", "cancel": "Annuler", "submit": "Créer le remboursement", "submitting": "Création..." } },
+        "provider": { "provider": "Prestataire", "refundId": "ID de remboursement", "amount": "Montant", "reason": "Motif" },
+        "providerStatus": { "successful": "Réussi", "pending": "En attente", "failed": "Échoué", "cancelled": "Annulé", "unknown": "Inconnu" },
+        "products": { "localTitle": "Performance des produits", "localDescription": "Unités, commandes et revenu brut locaux séparés par devise.", "unitsSold": "Unités vendues", "orderCount": "Commandes", "grossRevenue": "Revenu brut", "providerTitle": "Métadonnées produit du prestataire", "providerDescription": "Données produit normalisées du prestataire de paiement, en lecture seule.", "product": "Produit", "productId": "ID produit", "price": "Prix", "recurring": "Récurrent", "taxCategory": "Catégorie fiscale", "updated": "Mis à jour" },
+        "success": { "rate": "Taux de réussite", "total": "Total des tentatives", "successful": "Réussies" },
+        "empty": { "financials": "Aucun total financier n’est disponible pour ces filtres.", "chart": "Aucune donnée de tendance n’est disponible pour ces filtres.", "orders": "Aucune commande ne correspond à ces filtres.", "refunds": "Aucun remboursement ne correspond à ces filtres.", "refundableOrders": "Aucune commande payée n’est disponible pour un remboursement sur cette période.", "providerRefunds": "Aucun remboursement du prestataire n’est disponible.", "products": "Aucun récapitulatif produit ne correspond à ces filtres.", "providerProducts": "Aucune métadonnée produit du prestataire n’est disponible." },
+        "common": { "yes": "Oui", "no": "Non" }
+      },
       "errors": {
         "fetchFailed": "Échec de la récupération des données de facturation.",
         "statsFetchFailed": "Échec de la récupération des statistiques de facturation.",
         "revenueFetchFailed": "Échec de la récupération des données de revenus.",
         "transactionsFetchFailed": "Échec de la récupération des transactions.",
         "purchasesFetchFailed": "Échec de la récupération des achats."
-      },
-      "creditsDashboard": {
-        "unknownUser": "Unknown",
-        "search": "Search",
-        "searchPlaceholder": "Search by user email...",
-        "transactionsDescription": "Recent credit activity across all users",
-        "tabs": {
-          "overview": "Overview",
-          "revenue": "Revenue",
-          "purchases": "Purchases",
-          "ledger": "Credit ledger",
-          "consumption": "Consumption",
-          "activity": "Activity",
-          "refunds": "Refunds & adjustments"
-        },
-        "consumptionChart": {
-          "title": "Total credits consumed",
-          "description": "Track credit usage over time",
-          "label": "Credits consumed"
-        },
-        "activityChart": {
-          "title": "Credit activity",
-          "description": "Track credit ledger activity over time",
-          "label": "Transactions"
-        },
-        "stats": {
-          "receivedBreakdown": "{purchased} purchased · {bonus} purchase bonus · {vouchers} voucher · {adjustments} admin adjustments"
-        },
-        "purchases": {
-          "title": "Credit purchases",
-          "description": "Credit purchases across all users"
-        },
-        "pagination": {
-          "page": "Page {current} of {total}",
-          "previous": "Previous",
-          "next": "Next"
-        },
-        "refund": {
-          "title": "Refundable purchases",
-          "description": "Completed credit purchases that can be refunded through the payment provider.",
-          "empty": "No refundable purchases found.",
-          "action": "Refund",
-          "refundablePurchases": "Refundable purchases",
-          "refundablePurchasesDescription": "Completed purchases eligible for provider refund.",
-          "refundCredits": "Refund credits",
-          "refundCreditsDescription": "Credits reversed by refunds.",
-          "adminAdjustments": "Admin adjustments",
-          "adminAdjustmentsDescription": "Manual ledger adjustments.",
-          "refundedPurchases": "Refunded purchases",
-          "refundedPurchasesDescription": "Credit purchases already refunded.",
-          "ledgerDescription": "Refund and admin adjustment activity across all users.",
-          "success": "Refund created successfully",
-          "error": "Failed to create refund",
-          "missingPayment": "Missing payment ID",
-          "table": {
-            "user": "User",
-            "package": "Package",
-            "amount": "Amount",
-            "payment": "Payment",
-            "date": "Date",
-            "actions": "Actions"
-          },
-          "dialog": {
-            "title": "Refund credit purchase",
-            "description": "Create a provider refund and reverse the granted credits.",
-            "reason": "Reason",
-            "secret": "Admin secret",
-            "cancel": "Cancel",
-            "submit": "Create refund",
-            "submitting": "Creating..."
-          }
-        }
       }
     },
     "discounts": {
@@ -1459,6 +1519,11 @@
         "name": "Pro",
         "description": "Maximum de crédits avec le plus gros bonus.",
         "cta": "Acheter Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "Le plus grand forfait de crédits pour une utilisation intensive.",
+        "cta": "Acheter Max"
       }
     },
     "features": {
@@ -1569,13 +1634,7 @@
     "discounts": "Codes de réduction",
     "vouchers": "Bons",
     "logs": "Journaux",
-    "system": "Système",
-    "certdrill": "CertDrill",
-    "questions": "Questions",
-    "exam-forms": "Formulaires d’examen",
-    "new": "Nouveau",
-    "import": "Importer",
-    "operations": "Opérations"
+    "system": "Système"
   },
   "creditProgressBar": {
     "creditsOf": "{current} sur {total} crédits",

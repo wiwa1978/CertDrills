@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "Acme - Bouw sneller, lever slimmer",
-    "description": "Het moderne platform voor het bouwen van uitzonderlijke producten. Stroomlijn je workflow, werk naadloos samen en lever uitstekende resultaten."
+    "title": "CertDrills Beheer",
+    "description": "Veilig beheer voor het CertDrills-platform."
   },
   "nav": {
     "features": "Functies",
@@ -146,9 +146,9 @@
     "disclaimer": "Geen creditcard nodig · 14 dagen gratis proefperiode · Altijd opzegbaar"
   },
   "footer": {
-    "description": "De toekomst van productontwikkeling bouwen. Teams in staat stellen om uitzonderlijke ervaringen te creëren.",
-    "copyright": "Acme Inc. Alle rechten voorbehouden.",
-    "madeWith": "Gemaakt met ❤️ voor ontwikkelaars",
+    "description": "Veilig beheer voor het CertDrills-platform.",
+    "copyright": "CertDrills. Alle rechten voorbehouden.",
+    "madeWith": "Gebouwd voor productteams",
     "groups": {
       "product": {
         "title": "Product",
@@ -213,14 +213,15 @@
     },
     "errors": {
       "default": "Er is een fout opgetreden. Probeer het opnieuw.",
-      "NETWORK_ERROR": "Kan de authenticatieservice niet bereiken. Probeer het zo meteen opnieuw.",
       "PASSWORD_COMPROMISED": "Dit wachtwoord is gevonden in een datalek. Kies een ander wachtwoord.",
       "INVALID_EMAIL_OR_PASSWORD": "Ongeldig e-mailadres of wachtwoord.",
       "USER_ALREADY_EXISTS": "Er bestaat al een account met dit e-mailadres.",
       "EMAIL_NOT_VERIFIED": "Verifieer eerst je e-mailadres.",
       "INVALID_TOKEN": "Ongeldige of verlopen token.",
       "TOO_MANY_REQUESTS": "Te veel verzoeken. Probeer het later opnieuw.",
-      "BANNED_USER": "Uw account is geblokkeerd. Neem contact op met de ondersteuning voor hulp."
+      "BANNED_USER": "Uw account is geblokkeerd. Neem contact op met de ondersteuning voor hulp.",
+      "ADMIN_ACCESS_DENIED": "Dit account heeft geen toegang tot het beheerdersportaal.",
+      "TWO_FACTOR_REQUIRED": "Voor beheerderstoegang is tweefactorauthenticatie vereist. Schakel de beheerders-TOTP-verplichting tijdelijk uit, log in, schakel 2FA in via Instellingen > Beveiliging en schakel de verplichting daarna weer in."
     },
     "signup": {
       "title": "Account aanmaken",
@@ -616,7 +617,6 @@
     "nav": {
       "overview": "Overzicht",
       "system": "Systeem",
-      "admins": "Admins",
       "users": "Gebruikers",
       "billing": "Facturatie",
       "webhooks": "Webhooks",
@@ -624,9 +624,7 @@
       "notifications": "Meldingen",
       "discounts": "Kortingscodes",
       "vouchers": "Vouchers",
-      "logs": "Logs",
-      "certdrill": "CertDrill",
-      "questions": "Vragen"
+      "logs": "Logs"
     },
     "system": {
       "title": "Systeem",
@@ -655,13 +653,40 @@
         "description": "Beschikbare API app- en auditlogbestanden.",
         "app": "App-logs",
         "audit": "Auditlogs"
+      },
+      "runtimeSettings": {
+        "title": "Runtime-instellingen",
+        "description": "Pas geselecteerde applicatie-instellingen aan zonder de app opnieuw uit te rollen.",
+        "adminSecret": "Admin-secret",
+        "adminSecretPlaceholder": "Voer admin-secret in",
+        "updateSuccess": "Instelling bijgewerkt.",
+        "updateError": "Kan instelling niet bijwerken.",
+        "resetSuccess": "Instelling teruggezet naar standaardwaarde.",
+        "resetError": "Kan instelling niet terugzetten.",
+        "integerError": "Waarde moet een geheel getal zijn.",
+        "overrideBadge": "Overschrijving",
+        "defaultBadge": "Standaard",
+        "value": "Waarde",
+        "sourceValue": "Standaard: {value}",
+        "range": "Bereik: {min}-{max}",
+        "save": "Opslaan",
+        "reset": "Resetten",
+        "categories": {
+          "ui": "Interface"
+        },
+        "notificationsDropdownLimit": {
+          "label": "Limiet meldingenmenu",
+          "description": "Maximaal aantal meldingen dat in het topbarmenu wordt getoond."
+        },
+        "notificationsPollingIntervalMs": {
+          "label": "Pollinginterval meldingen",
+          "description": "Hoe vaak meldingentellers en lijsten verversen, in milliseconden. Gebruik 0 om polling uit te schakelen."
+        },
+        "deleteAccountCountdownSeconds": {
+          "label": "Countdown account verwijderen",
+          "description": "Aantal seconden dat gebruikers moeten wachten na het invoeren van de bevestigingscode voordat ze hun account verwijderen."
+        }
       }
-    },
-    "admins": {
-      "title": "Admin-accounts",
-      "description": "Bekijk geprivilegieerde admin-gebruikers in het systeem.",
-      "passwordUpdated": "Wachtwoord bijgewerkt. Nieuw wachtwoord gekopieerd naar klembord.",
-      "passwordUpdateFailed": "Kan wachtwoord niet instellen."
     },
     "backToPortal": "Terug naar Portaal",
     "impersonation": {
@@ -912,6 +937,8 @@
         "purchases": "Aankopen"
       },
       "creditsDashboard": {
+        "title": "Creditsdashboard",
+        "description": "Monitor creditomzet, aankopen, verbruik, logboekactiviteit en terugbetalingen.",
         "unknownUser": "Onbekend",
         "search": "Zoeken",
         "searchPlaceholder": "Zoek op e-mail van gebruiker...",
@@ -1152,6 +1179,39 @@
             "received": "Ontvangen"
           }
         }
+      },
+      "transactionsMode": {
+        "title": "Transactiefinanciën",
+        "description": "Volg omzet uit eenmalige bestellingen, betaalpogingen, terugbetalingen, producten en conversieprestaties.",
+        "tabs": { "label": "Onderdelen van transactiefinanciën", "overview": "Overzicht", "orders": "Bestellingen", "refunds": "Terugbetalingen", "products": "Producten" },
+        "filters": { "range": "Datumbereik", "startDate": "Begindatum", "endDate": "Einddatum", "grouping": "Groeperen op", "currency": "Valuta", "allCurrencies": "Alle valuta", "status": "Status", "allStatuses": "Alle statussen", "product": "Product", "allProducts": "Alle producten", "search": "Zoeken", "searchPlaceholder": "Zoek op gebruiker, e-mail, bestelling of betalings-ID", "apply": "Toepassen", "clear": "Wissen" },
+        "ranges": { "7d": "Afgelopen 7 dagen", "30d": "Afgelopen 30 dagen", "90d": "Afgelopen 90 dagen", "12m": "Afgelopen 12 maanden", "custom": "Aangepast" },
+        "grouping": { "day": "Dag", "week": "Week", "month": "Maand", "year": "Jaar" },
+        "status": { "pending_payment": "Wacht op betaling", "paid": "Betaald", "failed": "Mislukt", "cancelled": "Geannuleerd", "refund_pending": "Terugbetaling in behandeling", "refunded": "Terugbetaald", "partially_refunded": "Gedeeltelijk terugbetaald" },
+        "warnings": { "title": "Gegevenswaarschuwing", "providerPayments": "Betalingsgegevens van de betaalprovider zijn niet beschikbaar.", "providerRefunds": "Terugbetalingsgegevens van de betaalprovider zijn niet beschikbaar.", "providerProducts": "Productgegevens van de betaalprovider zijn niet beschikbaar.", "providerPageCap": "De paginalimiet van de betaalprovider is bereikt. Sommige providergegevens kunnen onvolledig zijn.", "analyticsTruncation": "Lokale analyses hebben de rapportagelimiet bereikt. De resultaten voor dit bereik kunnen onvolledig zijn.", "localPartialRefund": "Voor een of meer gedeeltelijke terugbetalingen is geen exact bedrag beschikbaar.", "generic": "Sommige gegevens van het transactiedashboard zijn niet beschikbaar." },
+        "overview": {
+          "conversionRate": "Conversiepercentage", "conversionDescription": "Geslaagde bestellingen als percentage van alle pogingen",
+          "totalAttempts": "Totaal aantal pogingen", "totalAttemptsDescription": "Alle overeenkomende lokale bestelpogingen",
+          "successfulOrders": "Geslaagde bestellingen", "successfulOrdersDescription": "Betaalde en terugbetaalde bestellingen",
+          "pendingAttempts": "In afwachting", "pendingAttemptsDescription": "Bestellingen die op betaling wachten",
+          "failedAttempts": "Mislukt", "failedAttemptsDescription": "Mislukte betaalpogingen",
+          "cancelledAttempts": "Geannuleerd", "cancelledAttemptsDescription": "Geannuleerde bestelpogingen",
+          "refundedOrders": "Terugbetaald", "refundedOrdersDescription": "Volledig of gedeeltelijk terugbetaalde bestellingen",
+          "currencyCard": "Financiën in {currency}", "grossRevenue": "Bruto-omzet", "preTaxRevenue": "Omzet vóór belasting", "taxCollected": "Geïnde belasting", "refundedAmount": "Terugbetaald bedrag"
+        },
+        "charts": { "revenueTitle": "Omzettrend", "revenueDescription": "Bruto-omzet in hoofdeenheden, met een afzonderlijke lijn per valuta.", "attemptsTitle": "Trend per bestelstatus", "attemptsDescription": "Bestelpogingen als afzonderlijke lijnen voor geslaagde, mislukte, openstaande en geannuleerde resultaten.", "productVolumeTitle": "Aankopen per product", "productVolumeDescription": "Verkochte eenheden en voltooide bestellingen per product.", "productRevenueTitle": "Omzet per product", "productRevenueDescription": "Bruto-omzet per product, afzonderlijk per valuta.", "successTitle": "Trend in slagingspercentage", "successDescription": "Totaal aantal pogingen, geslaagde bestellingen en conversiepercentage door de tijd.", "period": "Periode", "values": "Waarden" },
+        "orders": { "title": "Alle bestellingen", "description": "Elke lokale transactiebestelling en betaalstatus binnen het geselecteerde bereik." },
+        "orderTrends": { "30d": "Bestellingen · afgelopen 30 dagen", "90d": "Bestellingen · afgelopen 3 maanden", "180d": "Bestellingen · afgelopen 6 maanden", "breakdown": "{successful} geslaagd · {failed} mislukt", "chartLabel": "Trend in bestelvolume voor {range}" },
+        "table": { "user": "Gebruiker", "customer": "Klant", "unknownUser": "Onbekende gebruiker", "order": "Bestellings-ID", "items": "Artikelen", "quantity": "x{quantity}", "subtotal": "Subtotaal", "tax": "Belasting", "total": "Totaal", "status": "Status", "payment": "Betalings-ID", "created": "Aangemaakt", "actions": "Acties", "notAvailable": "Niet beschikbaar" },
+        "details": { "show": "Operationele details", "expand": "Details voor bestelling {orderId} tonen", "collapse": "Details voor bestelling {orderId} verbergen", "subtotal": "Subtotaal", "tax": "Belasting", "total": "Totaal", "paymentId": "Betalings-ID", "userId": "Gebruikers-ID", "paymentProvider": "Betaalprovider", "checkoutReferenceId": "Checkoutreferentie-ID", "createdAt": "Aangemaakt op", "paidAt": "Betaald op", "failedAt": "Mislukt op", "fulfilledAt": "Afgehandeld op", "items": "Artikelgegevens", "itemId": "Artikel-ID", "productKey": "Productsleutel", "name": "Naam", "description": "Beschrijving", "quantity": "Aantal", "unitPrice": "Eenheidsprijs", "itemTotal": "Artikeltotaal", "currency": "Valuta", "providerProductId": "Product-ID bij provider" },
+        "pagination": { "label": "Paginering van bestellingen", "page": "Pagina {current} van {total} · {count} bestellingen", "previous": "Vorige", "next": "Volgende" },
+        "refunds": { "total": "Terugbetalingen in {currency}", "totalDescription": "Totaal van providerterugbetalingen in hoofdeenheden van de valuta", "refundableTitle": "Terugbetaalbare bestellingen", "refundableDescription": "Betaalde bestellingen met ongebruikte rechten die via de betaalprovider kunnen worden terugbetaald.", "action": "Terugbetalen", "success": "Terugbetaling voor de transactiebestelling is aangemaakt.", "error": "Aanmaken van de transactieterugbetaling is mislukt.", "missingOrder": "Selecteer een bestelling om terug te betalen.", "localTitle": "Lokaal terugbetaalde bestellingen", "localDescription": "Lokale bestellingen die als volledig of gedeeltelijk terugbetaald zijn gemarkeerd.", "providerTitle": "Terugbetalingen van provider", "providerDescription": "Genormaliseerde terugbetalingsgegevens van de provider zonder ruwe payloads.", "dialog": { "title": "Transactiebestelling terugbetalen", "description": "Dit maakt een volledige terugbetaling bij de provider aan en trekt alle ongebruikte rechten van de bestelling in.", "reason": "Reden", "secret": "Beheerdersgeheim", "cancel": "Annuleren", "submit": "Terugbetaling aanmaken", "submitting": "Aanmaken..." } },
+        "provider": { "provider": "Provider", "refundId": "Terugbetalings-ID", "amount": "Bedrag", "reason": "Reden" },
+        "providerStatus": { "successful": "Geslaagd", "pending": "In afwachting", "failed": "Mislukt", "cancelled": "Geannuleerd", "unknown": "Onbekend" },
+        "products": { "localTitle": "Productprestaties", "localDescription": "Lokale aantallen, bestellingen en bruto-omzet afzonderlijk per valuta.", "unitsSold": "Verkochte eenheden", "orderCount": "Bestellingen", "grossRevenue": "Bruto-omzet", "providerTitle": "Productgegevens van provider", "providerDescription": "Alleen-lezen genormaliseerde productgegevens van de betaalprovider.", "product": "Product", "productId": "Product-ID", "price": "Prijs", "recurring": "Terugkerend", "taxCategory": "Belastingcategorie", "updated": "Bijgewerkt" },
+        "success": { "rate": "Slagingspercentage", "total": "Totaal aantal pogingen", "successful": "Geslaagd" },
+        "empty": { "financials": "Voor deze filters zijn geen financiële totalen beschikbaar.", "chart": "Voor deze filters zijn geen trendgegevens beschikbaar.", "orders": "Geen bestellingen gevonden voor deze filters.", "refunds": "Geen terugbetalingen gevonden voor deze filters.", "refundableOrders": "Voor deze periode zijn geen betaalde bestellingen beschikbaar om terug te betalen.", "providerRefunds": "Er zijn geen terugbetalingen van de provider beschikbaar.", "products": "Geen productoverzichten gevonden voor deze filters.", "providerProducts": "Er zijn geen productgegevens van de provider beschikbaar." },
+        "common": { "yes": "Ja", "no": "Nee" }
       },
       "errors": {
         "fetchFailed": "Facturatiegegevens ophalen mislukt.",
@@ -1459,6 +1519,11 @@
         "name": "Pro",
         "description": "Maximaal tegoed met de grootste bonus.",
         "cta": "Koop Pro"
+      },
+      "max": {
+        "name": "Max",
+        "description": "Het grootste tegoedpakket voor intensief gebruik.",
+        "cta": "Koop Max"
       }
     },
     "features": {
@@ -1569,13 +1634,7 @@
     "discounts": "Kortingscodes",
     "vouchers": "Vouchers",
     "logs": "Logs",
-    "system": "Systeem",
-    "certdrill": "CertDrill",
-    "questions": "Vragen",
-    "exam-forms": "Exam Forms",
-    "new": "Nieuw",
-    "import": "Importeren",
-    "operations": "Bewerkingen"
+    "system": "Systeem"
   },
   "creditProgressBar": {
     "creditsOf": "{current} van {total} tegoed",

@@ -1,21 +1,28 @@
-import { describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import * as authExports from "../../src/lib/auth-client";
 
-describe("admin auth client exports", () => {
-  it("keeps admin auth plugin helpers available", async () => {
-    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3001";
-    process.env.NEXT_PUBLIC_APP_NAME = "Test Admin";
+const mocks = vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+  process.env.NEXT_PUBLIC_APP_NAME = "Test Admin";
+  return { options: null as null | Record<string, unknown> };
+});
 
-    const authExports = await import("../../src/lib/auth-client");
+vi.mock("@platform/auth-client/web-admin", () => ({
+  createWebAdminAuthClient: (options: Record<string, unknown>) => {
+    mocks.options = options;
+    return { admin: {}, twoFactor: {} };
+  },
+}));
 
+
+describe("admin auth client", () => {
+  it("configures the isolated admin realm without billing", () => {
     expect(Object.prototype.hasOwnProperty.call(authExports, "admin")).toBe(true);
     expect(Object.prototype.hasOwnProperty.call(authExports, "twoFactor")).toBe(true);
-  });
-
-  it("imports the admin-capable auth client subpath", async () => {
-    const appAuthClientSource = await readFile(join(process.cwd(), "src/lib/auth-client.ts"), "utf8");
-
-    expect(appAuthClientSource).toContain('from "@platform/auth-client/web-admin"');
+    expect(mocks.options).toMatchObject({
+      baseURL: "http://localhost:8787/admin-auth",
+      features: { billing: false },
+    });
   });
 });

@@ -3,6 +3,7 @@ export type BaseSendEmailParams = {
   subject: string;
   html: string;
   text?: string;
+  idempotencyKey?: string;
 };
 
 export type SendEmailResult =

@@ -1,0 +1,4 @@
+{"type":"server-started","port":56527,"host":"0.0.0.0","url_host":"192.168.1.223","url":"http://192.168.1.223:56527","screen_dir":"/home/wim/Code/Repositories/Personal/Boilerplate-SingleTenant-Hono/.superpowers/brainstorm/89234-1777538169/content","state_dir":"/home/wim/Code/Repositories/Personal/Boilerplate-SingleTenant-Hono/.superpowers/brainstorm/89234-1777538169/state"}
+{"type":"screen-added","file":"/home/wim/Code/Repositories/Personal/Boilerplate-SingleTenant-Hono/.superpowers/brainstorm/89234-1777538169/content/subscription-dashboard-layout.html"}
+{"type":"screen-added","file":"/home/wim/Code/Repositories/Personal/Boilerplate-SingleTenant-Hono/.superpowers/brainstorm/89234-1777538169/content/waiting-terminal.html"}
+{"type":"server-stopped","reason":"idle timeout"}

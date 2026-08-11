@@ -15,10 +15,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  ColumnDef,
-  SortingState,
-} from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

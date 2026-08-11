@@ -9,6 +9,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   BUN_VERSION: 1.3.9
@@ -23,6 +24,7 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'germanywestcentral' }}
       AZURE_RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME || 'RG-CertDrills' }}
       AZURE_ENVIRONMENT_NAME: ${{ vars.AZURE_ENVIRONMENT_NAME || 'production' }}
+      AZURE_ALERT_OPERATOR_EMAIL: ${{ vars.AZURE_ALERT_OPERATOR_EMAIL }}
       APP_NAME: ${{ vars.APP_NAME || 'certdrills' }}
       NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'CertDrills' }}
       NEXT_PUBLIC_ADMIN_APP_NAME: ${{ vars.NEXT_PUBLIC_ADMIN_APP_NAME || 'CertDrills Admin' }}
@@ -31,44 +33,69 @@ jobs:
       PUBLIC_ADMIN_URL: ${{ vars.PUBLIC_ADMIN_URL }}
       COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
       BETTER_AUTH_ALLOWED_ORIGINS: ${{ vars.BETTER_AUTH_ALLOWED_ORIGINS }}
-      DODO_PAYMENTS_ENVIRONMENT: ${{ vars.DODO_PAYMENTS_ENVIRONMENT || 'live_mode' }}
+      PAYMENT_PROVIDER: dodo
+      DODO_PAYMENTS_ENVIRONMENT: ${{ vars.DODO_PAYMENTS_ENVIRONMENT }}
+      DODO_LIVE_MODE_APPROVED: ${{ vars.DODO_LIVE_MODE_APPROVED }}
+      INNGEST_APP_ID: ${{ vars.INNGEST_APP_ID || 'certdrills-api' }}
+      AZURE_AI_FOUNDRY_PROJECT_ENDPOINT: ${{ vars.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT }}
+      AZURE_AI_FOUNDRY_MODEL: ${{ vars.AZURE_AI_FOUNDRY_MODEL }}
+      AZURE_AI_FOUNDRY_TIMEOUT_MS: ${{ vars.AZURE_AI_FOUNDRY_TIMEOUT_MS || '60000' }}
+      ADMIN_PORTAL_TOTP_REQUIRED: ${{ vars.ADMIN_PORTAL_TOTP_REQUIRED || 'true' }}
+      DODO_CREDITS_BRAND_ID: ${{ vars.DODO_CREDITS_BRAND_ID }}
+      DODO_SUBSCRIPTIONS_BRAND_ID: ${{ vars.DODO_SUBSCRIPTIONS_BRAND_ID }}
+      DODO_TRANSACTIONS_BRAND_ID: ${{ vars.DODO_TRANSACTIONS_BRAND_ID }}
       POSTGRES_SERVER_FQDN: ${{ vars.POSTGRES_SERVER_FQDN }}
       POSTGRES_ADMIN_LOGIN: ${{ vars.POSTGRES_ADMIN_LOGIN }}
+      POSTGRES_MIGRATION_LOGIN: ${{ vars.POSTGRES_MIGRATION_LOGIN }}
+      POSTGRES_RUNTIME_LOGIN: ${{ vars.POSTGRES_RUNTIME_LOGIN }}
       POSTGRES_DATABASE_NAME: ${{ vars.POSTGRES_DATABASE_NAME || 'certdrills' }}
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2.2.0
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Validate Dodo environment
+        shell: bash
+        run: bash .github/scripts/validate-dodo-environment.sh
 
       - name: Validate production configuration
         shell: bash
         env:
           POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_MIGRATION_PASSWORD: ${{ secrets.POSTGRES_MIGRATION_PASSWORD }}
+          POSTGRES_RUNTIME_PASSWORD: ${{ secrets.POSTGRES_RUNTIME_PASSWORD }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           BILLING_RECONCILIATION_SECRET: ${{ secrets.BILLING_RECONCILIATION_SECRET }}
-          JOBS_SECRET_KEY: ${{ secrets.JOBS_SECRET_KEY }}
           DODO_PAYMENTS_API_KEY: ${{ secrets.DODO_PAYMENTS_API_KEY }}
+          INNGEST_EVENT_KEY: ${{ secrets.INNGEST_EVENT_KEY }}
+          INNGEST_SIGNING_KEY: ${{ secrets.INNGEST_SIGNING_KEY }}
           DODO_PAYMENTS_WEBHOOK_SECRET: ${{ secrets.DODO_PAYMENTS_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           required_vars=(
             POSTGRES_SERVER_FQDN
             POSTGRES_ADMIN_LOGIN
+            POSTGRES_MIGRATION_LOGIN
+            POSTGRES_RUNTIME_LOGIN
+            AZURE_ALERT_OPERATOR_EMAIL
             POSTGRES_DATABASE_NAME
             POSTGRES_ADMIN_PASSWORD
+            POSTGRES_MIGRATION_PASSWORD
+            POSTGRES_RUNTIME_PASSWORD
             BETTER_AUTH_SECRET
             JWT_SECRET
             ADMIN_SECRET
             BILLING_RECONCILIATION_SECRET
-            JOBS_SECRET_KEY
             DODO_PAYMENTS_API_KEY
+            INNGEST_EVENT_KEY
+            INNGEST_SIGNING_KEY
             DODO_PAYMENTS_WEBHOOK_SECRET
           )
           for name in "${required_vars[@]}"; do
@@ -77,6 +104,15 @@ jobs:
               exit 1
             fi
           done
+
+          if [[ "${POSTGRES_ADMIN_LOGIN}" == "${POSTGRES_MIGRATION_LOGIN}" || "${POSTGRES_ADMIN_LOGIN}" == "${POSTGRES_RUNTIME_LOGIN}" || "${POSTGRES_MIGRATION_LOGIN}" == "${POSTGRES_RUNTIME_LOGIN}" ]]; then
+            echo "PostgreSQL administrator, migration, and runtime logins must be distinct." >&2
+            exit 1
+          fi
+          if [[ "${POSTGRES_ADMIN_PASSWORD}" == "${POSTGRES_MIGRATION_PASSWORD}" || "${POSTGRES_ADMIN_PASSWORD}" == "${POSTGRES_RUNTIME_PASSWORD}" || "${POSTGRES_MIGRATION_PASSWORD}" == "${POSTGRES_RUNTIME_PASSWORD}" ]]; then
+            echo "PostgreSQL administrator, migration, and runtime passwords must be distinct." >&2
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -88,15 +124,11 @@ jobs:
         run: bun run typecheck:all
 
       - name: Azure login
-        uses: azure/login@v3
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
-          creds: >-
-            {
-              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
-              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
-              "subscriptionId": "${{ vars.AZURE_SUBSCRIPTION_ID }}",
-              "tenantId": "${{ vars.AZURE_TENANT_ID }}"
-            }
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Select Azure subscription
         shell: bash
@@ -106,11 +138,24 @@ jobs:
           set -euo pipefail
           az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
 
+      - name: Resolve effective Dodo brands
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${PAYMENT_PROVIDER}" == "dodo" ]]; then
+            active_brand_env="$(bun -e '
+              import { applicationConfig } from "./apps/api/src/config/application.ts";
+              import { DODO_BRAND_ENV_BY_BILLING_MODE } from "./apps/api/src/config/dodo-brands.ts";
+              process.stdout.write(DODO_BRAND_ENV_BY_BILLING_MODE[applicationConfig.billing.mode]);
+            ')"
+            ACTIVE_DODO_BRAND_ENV="${active_brand_env}" bash .github/scripts/resolve-dodo-brands.sh
+          fi
+
       - name: Resolve or bootstrap Azure infrastructure
         id: infra
         shell: bash
         env:
-          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_RUNTIME_PASSWORD: ${{ secrets.POSTGRES_RUNTIME_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -192,15 +237,14 @@ jobs:
               appName="${APP_NAME}" \
               environmentName="${AZURE_ENVIRONMENT_NAME}" \
               postgresServerFqdn="${POSTGRES_SERVER_FQDN}" \
-              postgresAdminLogin="${POSTGRES_ADMIN_LOGIN}" \
-              postgresAdminPassword="${POSTGRES_ADMIN_PASSWORD}" \
+              postgresRuntimeLogin="${POSTGRES_RUNTIME_LOGIN}" \
+              postgresRuntimePassword="${POSTGRES_RUNTIME_PASSWORD}" \
               postgresDatabaseName="${POSTGRES_DATABASE_NAME}" \
               apiImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
-              enableApiLivenessProbe=false \
+              enableContainerAppProbes=false \
               webImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
               adminImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
-              acrUsername="" \
-              acrPassword="" \
+              alertOperatorEmail="${AZURE_ALERT_OPERATOR_EMAIL}" \
             --query properties.outputs \
             --output json > deployment-outputs.json
 
@@ -230,17 +274,6 @@ jobs:
           set -euo pipefail
           az acr login --name "${{ steps.infra.outputs.acr_name }}"
 
-      - name: Read Azure resource credentials
-        shell: bash
-        run: |
-          set -euo pipefail
-          acr_username="$(az acr credential show --name "${{ steps.infra.outputs.acr_name }}" --query username --output tsv)"
-          acr_password="$(az acr credential show --name "${{ steps.infra.outputs.acr_name }}" --query 'passwords[0].value' --output tsv)"
-          echo "::add-mask::${acr_username}"
-          echo "::add-mask::${acr_password}"
-
-          printf '%s' "${acr_username}" > "${RUNNER_TEMP}/acr-username"
-          printf '%s' "${acr_password}" > "${RUNNER_TEMP}/acr-password"
 
       - name: Build and push API image
         id: api-image
@@ -289,6 +322,13 @@ jobs:
           docker push "${image}"
           echo "image=${image}" >> "${GITHUB_OUTPUT}"
 
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client
+
       - name: Add temporary PostgreSQL firewall rule
         id: postgres-firewall
         shell: bash
@@ -310,17 +350,41 @@ jobs:
             echo "rule_name=${rule_name}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Run database migrations
+      - name: Provision PostgreSQL roles and grants
         shell: bash
         env:
           POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_MIGRATION_PASSWORD: ${{ secrets.POSTGRES_MIGRATION_PASSWORD }}
+          POSTGRES_RUNTIME_PASSWORD: ${{ secrets.POSTGRES_RUNTIME_PASSWORD }}
         run: |
           set -euo pipefail
-          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_PASSWORD"], safe=""))')"
+          encoded_admin_login="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_LOGIN"], safe=""))')"
+          encoded_admin_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_PASSWORD"], safe=""))')"
+          encoded_database_name="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_DATABASE_NAME"], safe=""))')"
+          postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
+          admin_database_url="postgresql://${encoded_admin_login}:${encoded_admin_password}@${postgres_server_host}:5432/${encoded_database_name}?sslmode=require"
+          echo "::add-mask::${encoded_admin_password}"
+          echo "::add-mask::${admin_database_url}"
+          PGCONNECT_TIMEOUT=15 psql "${admin_database_url}" \
+            --set=migration_role="${POSTGRES_MIGRATION_LOGIN}" \
+            --set=migration_password="${POSTGRES_MIGRATION_PASSWORD}" \
+            --set=runtime_role="${POSTGRES_RUNTIME_LOGIN}" \
+            --set=runtime_password="${POSTGRES_RUNTIME_PASSWORD}" \
+            --file=.github/scripts/provision-postgres-roles.sql
+
+      - name: Run database migrations
+        shell: bash
+        env:
+          POSTGRES_MIGRATION_PASSWORD: ${{ secrets.POSTGRES_MIGRATION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          encoded_login="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_MIGRATION_LOGIN"], safe=""))')"
+          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_MIGRATION_PASSWORD"], safe=""))')"
+          encoded_database_name="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_DATABASE_NAME"], safe=""))')"
           echo "::add-mask::${encoded_password}"
           postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
-          export DATABASE_URL="postgresql://${POSTGRES_ADMIN_LOGIN}:${encoded_password}@${postgres_server_host}:5432/${POSTGRES_DATABASE_NAME}?sslmode=require"
-          echo "::add-mask::${DATABASE_URL}"
+          export MIGRATION_DATABASE_URL="postgresql://${encoded_login}:${encoded_password}@${postgres_server_host}:5432/${encoded_database_name}?sslmode=require"
+          echo "::add-mask::${MIGRATION_DATABASE_URL}"
           for attempt in {1..6}; do
             if bun run db:migrate; then
               exit 0
@@ -350,11 +414,9 @@ jobs:
       - name: Deploy final Azure infrastructure
         shell: bash
         env:
-          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_RUNTIME_PASSWORD: ${{ secrets.POSTGRES_RUNTIME_PASSWORD }}
         run: |
           set -euo pipefail
-          acr_username="$(< "${RUNNER_TEMP}/acr-username")"
-          acr_password="$(< "${RUNNER_TEMP}/acr-password")"
           az deployment sub create \
             --name "deploy-production-${GITHUB_RUN_ID}" \
             --location "${AZURE_LOCATION}" \
@@ -365,46 +427,91 @@ jobs:
               appName="${APP_NAME}" \
               environmentName="${AZURE_ENVIRONMENT_NAME}" \
               postgresServerFqdn="${POSTGRES_SERVER_FQDN}" \
-              postgresAdminLogin="${POSTGRES_ADMIN_LOGIN}" \
-              postgresAdminPassword="${POSTGRES_ADMIN_PASSWORD}" \
+              postgresRuntimeLogin="${POSTGRES_RUNTIME_LOGIN}" \
+              postgresRuntimePassword="${POSTGRES_RUNTIME_PASSWORD}" \
               postgresDatabaseName="${POSTGRES_DATABASE_NAME}" \
               apiImage="${{ steps.api-image.outputs.image }}" \
-              enableApiLivenessProbe=false \
+              enableContainerAppProbes=false \
               webImage="${{ steps.web-image.outputs.image }}" \
               adminImage="${{ steps.admin-image.outputs.image }}" \
-              acrUsername="${acr_username}" \
-              acrPassword="${acr_password}" \
+              alertOperatorEmail="${AZURE_ALERT_OPERATOR_EMAIL}" \
             --output none
+
+      - name: Bind custom public hostnames
+        shell: bash
+        run: |
+          set -euo pipefail
+          bindings=(
+            "${{ steps.infra.outputs.api_app_name }}|${{ steps.infra.outputs.api_url }}|${{ steps.infra.outputs.public_api_url }}"
+            "${{ steps.infra.outputs.web_app_name }}|${{ steps.infra.outputs.web_url }}|${{ steps.infra.outputs.public_web_url }}"
+            "${{ steps.infra.outputs.admin_app_name }}|${{ steps.infra.outputs.admin_url }}|${{ steps.infra.outputs.public_admin_url }}"
+          )
+
+          for binding in "${bindings[@]}"; do
+            IFS='|' read -r app_name generated_url public_url <<< "${binding}"
+            generated_url="${generated_url%/}"
+            public_url="${public_url%/}"
+            if [[ "${public_url}" == "${generated_url}" ]]; then
+              continue
+            fi
+
+            hostname="${public_url#*://}"
+            hostname="${hostname%%/*}"
+            hostname="${hostname%%:*}"
+            if [[ -z "${hostname}" ]]; then
+              printf 'Could not resolve a hostname from public URL %s.\n' "${public_url}" >&2
+              exit 1
+            fi
+
+            environment_id="$(az containerapp show \
+              --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+              --name "${app_name}" \
+              --query properties.managedEnvironmentId \
+              --output tsv)"
+            az containerapp hostname bind \
+              --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+              --name "${app_name}" \
+              --hostname "${hostname}" \
+              --environment "${environment_id}" \
+              --validation-method CNAME \
+              --output none
+          done
 
       - name: Configure API secrets
         shell: bash
         env:
-          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           BILLING_RECONCILIATION_SECRET: ${{ secrets.BILLING_RECONCILIATION_SECRET }}
-          JOBS_SECRET_KEY: ${{ secrets.JOBS_SECRET_KEY }}
           DODO_PAYMENTS_API_KEY: ${{ secrets.DODO_PAYMENTS_API_KEY }}
+          INNGEST_EVENT_KEY: ${{ secrets.INNGEST_EVENT_KEY }}
+          INNGEST_SIGNING_KEY: ${{ secrets.INNGEST_SIGNING_KEY }}
+          INNGEST_SIGNING_KEY_FALLBACK: ${{ secrets.INNGEST_SIGNING_KEY_FALLBACK }}
           DODO_PAYMENTS_WEBHOOK_SECRET: ${{ secrets.DODO_PAYMENTS_WEBHOOK_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          AZURE_AI_FOUNDRY_API_KEY: ${{ secrets.AZURE_AI_FOUNDRY_API_KEY }}
         run: |
           set -euo pipefail
-          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_ADMIN_PASSWORD"], safe=""))')"
-          postgres_server_host="${POSTGRES_SERVER_FQDN%%:*}"
-          database_url="postgresql://${POSTGRES_ADMIN_LOGIN}:${encoded_password}@${postgres_server_host}:5432/${POSTGRES_DATABASE_NAME}?sslmode=require"
           secret_args=(
-            "database-url=${database_url}"
             "better-auth-secret=${BETTER_AUTH_SECRET}"
             "jwt-secret=${JWT_SECRET}"
             "admin-secret=${ADMIN_SECRET}"
             "billing-reconciliation-secret=${BILLING_RECONCILIATION_SECRET}"
-            "jobs-secret-key=${JOBS_SECRET_KEY}"
             "dodo-api-key=${DODO_PAYMENTS_API_KEY}"
+            "inngest-event-key=${INNGEST_EVENT_KEY}"
+            "inngest-signing-key=${INNGEST_SIGNING_KEY}"
             "dodo-webhook-secret=${DODO_PAYMENTS_WEBHOOK_SECRET}"
           )
+          if [[ -n "${INNGEST_SIGNING_KEY_FALLBACK}" ]]; then
+            secret_args+=("inngest-signing-key-fallback=${INNGEST_SIGNING_KEY_FALLBACK}")
+          fi
+          if [[ -n "${AZURE_AI_FOUNDRY_API_KEY}" ]]; then
+            secret_args+=("azure-ai-foundry-api-key=${AZURE_AI_FOUNDRY_API_KEY}")
+          fi
+
 
           if [[ -n "${RESEND_API_KEY}" ]]; then
             secret_args+=("resend-api-key=${RESEND_API_KEY}")
@@ -418,8 +525,6 @@ jobs:
             secret_args+=("github-client-secret=${GITHUB_CLIENT_SECRET}")
           fi
 
-          echo "::add-mask::${encoded_password}"
-          echo "::add-mask::${database_url}"
           az containerapp secret set \
             --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
             --name "${{ steps.infra.outputs.api_app_name }}" \
@@ -437,11 +542,13 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
           GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          INNGEST_SIGNING_KEY_FALLBACK: ${{ secrets.INNGEST_SIGNING_KEY_FALLBACK }}
+          AZURE_AI_FOUNDRY_API_KEY: ${{ secrets.AZURE_AI_FOUNDRY_API_KEY }}
         run: |
           set -euo pipefail
           env_args=(
             NODE_ENV=production
-            PORT=8877
+            PORT=8787
             LOG_LEVEL=info
             "APP_URL=${{ steps.infra.outputs.public_web_url }}"
             "API_URL=${{ steps.infra.outputs.public_api_url }}"
@@ -450,21 +557,49 @@ jobs:
             TRUST_PROXY=true
             "ADMIN_ALLOWLIST=${ADMIN_ALLOWLIST}"
             PAYMENT_PROVIDER=dodo
+            "ADMIN_PORTAL_TOTP_REQUIRED=${ADMIN_PORTAL_TOTP_REQUIRED}"
             "DODO_PAYMENTS_ENVIRONMENT=${DODO_PAYMENTS_ENVIRONMENT}"
+            "DODO_LIVE_MODE_APPROVED=${DODO_LIVE_MODE_APPROVED}"
+            "INNGEST_APP_ID=${INNGEST_APP_ID}"
+            INNGEST_DEV=false
+            INNGEST_EVENT_KEY=secretref:inngest-event-key
+            INNGEST_SIGNING_KEY=secretref:inngest-signing-key
             "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}"
             "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
             "GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}"
             JWT_ISSUER=api-production
             JWT_AUDIENCE=mobile-clients
             DATABASE_URL=secretref:database-url
+            AZURE_PRIVACY_EXPORT_STORAGE_CONNECTION_STRING=secretref:privacy-export-storage-connection-string
+            AZURE_PRIVACY_EXPORT_STORAGE_CONTAINER=privacy-exports
             BETTER_AUTH_SECRET=secretref:better-auth-secret
             JWT_SECRET=secretref:jwt-secret
             ADMIN_SECRET=secretref:admin-secret
             BILLING_RECONCILIATION_SECRET=secretref:billing-reconciliation-secret
-            JOBS_SECRET_KEY=secretref:jobs-secret-key
             DODO_PAYMENTS_API_KEY=secretref:dodo-api-key
             DODO_PAYMENTS_WEBHOOK_SECRET=secretref:dodo-webhook-secret
           )
+
+          if [[ -n "${INNGEST_SIGNING_KEY_FALLBACK}" ]]; then
+            env_args+=(INNGEST_SIGNING_KEY_FALLBACK=secretref:inngest-signing-key-fallback)
+          fi
+
+          if [[ -n "${AZURE_AI_FOUNDRY_PROJECT_ENDPOINT}" && -n "${AZURE_AI_FOUNDRY_MODEL}" && -n "${AZURE_AI_FOUNDRY_API_KEY}" ]]; then
+            env_args+=(
+              "AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=${AZURE_AI_FOUNDRY_PROJECT_ENDPOINT}"
+              AZURE_AI_FOUNDRY_API_KEY=secretref:azure-ai-foundry-api-key
+              "AZURE_AI_FOUNDRY_MODEL=${AZURE_AI_FOUNDRY_MODEL}"
+              "AZURE_AI_FOUNDRY_TIMEOUT_MS=${AZURE_AI_FOUNDRY_TIMEOUT_MS}"
+            )
+          fi
+
+          brand_names=(DODO_CREDITS_BRAND_ID DODO_SUBSCRIPTIONS_BRAND_ID DODO_TRANSACTIONS_BRAND_ID)
+          for name in "${brand_names[@]}"; do
+            effective_name="EFFECTIVE_${name}"
+            if [[ -n "${!effective_name}" ]]; then
+              env_args+=("${name}=${!effective_name}")
+            fi
+          done
 
           if [[ -n "${COOKIE_DOMAIN}" ]]; then
             env_args+=("COOKIE_DOMAIN=${COOKIE_DOMAIN}")
@@ -493,51 +628,76 @@ jobs:
               "${env_args[@]}" \
             --output none
 
-      - name: Enable API liveness probe
+      - name: Enable Container App health probes
         shell: bash
         run: |
           set -euo pipefail
-          api_app_id="$(az containerapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
-            --name "${{ steps.infra.outputs.api_app_name }}" \
-            --query id \
-            --output tsv)"
+          apps=(
+            "${{ steps.infra.outputs.api_app_name }}:8787"
+            "${{ steps.infra.outputs.web_app_name }}:3100"
+            "${{ steps.infra.outputs.admin_app_name }}:3101"
+          )
 
-          template="$(az containerapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
-            --name "${{ steps.infra.outputs.api_app_name }}" \
-            --query properties.template \
-            --output json)"
-
-          patch_body="$(jq -cn --argjson template "${template}" '{properties:{template:($template | del(.scale.cooldownPeriod, .scale.pollingInterval) | .containers[0].probes=[{"type":"Liveness","httpGet":{"path":"/health","port":8877},"initialDelaySeconds":30,"periodSeconds":30}])}}')"
-
-          az rest \
-            --method patch \
-            --uri "https://management.azure.com${api_app_id}?api-version=2024-03-01" \
-            --body "${patch_body}" \
-            --output none
-
-      - name: Wait for API provisioning after liveness probe
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in {1..30}; do
-            state="$(az containerapp show \
+          for app_spec in "${apps[@]}"; do
+            app_name="${app_spec%%:*}"
+            port="${app_spec##*:}"
+            app_id="$(az containerapp show \
               --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
-              --name "${{ steps.infra.outputs.api_app_name }}" \
-              --query properties.provisioningState \
+              --name "${app_name}" \
+              --query id \
               --output tsv)"
+            template="$(az containerapp show \
+              --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+              --name "${app_name}" \
+              --query properties.template \
+              --output json)"
+            patch_body="$(jq -cn \
+              --argjson template "${template}" \
+              --argjson port "${port}" \
+              '{properties:{template:($template | del(.scale.cooldownPeriod, .scale.pollingInterval) | .containers[0].probes=[
+                {"type":"Liveness","httpGet":{"path":"/health","port":$port},"initialDelaySeconds":30,"periodSeconds":30,"timeoutSeconds":5,"failureThreshold":3},
+                {"type":"Readiness","httpGet":{"path":"/ready","port":$port},"initialDelaySeconds":10,"periodSeconds":10,"timeoutSeconds":5,"failureThreshold":3,"successThreshold":1}
+              ])}}')"
 
-            if [[ "${state}" == "Succeeded" ]]; then
-              exit 0
-            fi
-
-            echo "API Container App provisioning state is ${state:-unknown} on attempt ${attempt}; waiting 10 seconds."
-            sleep 10
+            az rest \
+              --method patch \
+              --uri "https://management.azure.com${app_id}?api-version=2024-03-01" \
+              --body "${patch_body}" \
+              --output none
           done
 
-          echo "API Container App provisioning did not reach Succeeded after 30 attempts." >&2
-          exit 1
+      - name: Wait for health probe provisioning
+        shell: bash
+        run: |
+          set -euo pipefail
+          apps=(
+            "${{ steps.infra.outputs.api_app_name }}"
+            "${{ steps.infra.outputs.web_app_name }}"
+            "${{ steps.infra.outputs.admin_app_name }}"
+          )
+
+          for app_name in "${apps[@]}"; do
+            for attempt in {1..30}; do
+              state="$(az containerapp show \
+                --resource-group "${AZURE_RESOURCE_GROUP_NAME}" \
+                --name "${app_name}" \
+                --query properties.provisioningState \
+                --output tsv)"
+
+              if [[ "${state}" == "Succeeded" ]]; then
+                break
+              fi
+
+              if [[ "${attempt}" -eq 30 ]]; then
+                printf 'Container App %s provisioning did not reach Succeeded after 30 attempts.\n' "${app_name}" >&2
+                exit 1
+              fi
+
+              printf 'Container App %s provisioning state is %s on attempt %s; waiting 10 seconds.\n' \
+                "${app_name}" "${state:-unknown}" "${attempt}"
+              sleep 10
+            done
+          done
 
       - name: Deploy API image
         shell: bash
@@ -548,6 +708,26 @@ jobs:
             --name "${{ steps.infra.outputs.api_app_name }}" \
             --image "${{ steps.api-image.outputs.image }}" \
             --output none
+
+      - name: Check production readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          readiness_urls=(
+            "${{ steps.infra.outputs.api_url }}/ready"
+            "${{ steps.infra.outputs.web_url }}/ready"
+            "${{ steps.infra.outputs.admin_url }}/ready"
+            "${{ steps.infra.outputs.public_api_url }}/ready"
+            "${{ steps.infra.outputs.public_web_url }}/ready"
+            "${{ steps.infra.outputs.public_admin_url }}/ready"
+          )
+          for readiness_url in "${readiness_urls[@]}"; do
+            curl --fail-with-body --silent --show-error \
+              --retry 12 \
+              --retry-delay 10 \
+              --retry-all-errors \
+              "${readiness_url}" >/dev/null
+          done
 
       - name: Print production URLs
         shell: bash

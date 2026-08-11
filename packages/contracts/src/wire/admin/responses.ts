@@ -96,50 +96,30 @@ export const adminWebhookStatsSchema = z.object({
   failed: z.number().int().nonnegative(),
 });
 
-export const adminJobStatusSchema = z.enum(["idle", "running", "disabled"]);
-export const adminJobRunStatusSchema = z.enum(["success", "failed"]);
-export const adminPendingEmailStatusSchema = z.enum(["pending", "sending", "sent", "failed"]);
+export const adminBackgroundEventStatusSchema = z.enum(["pending", "publishing", "published", "failed"]);
+export const adminEmailDeliveryStatusSchema = z.enum(["pending", "sending", "sent", "failed"]);
 
-export const adminJobSchema = z.object({
+export const adminBackgroundEventSchema = z.object({
   id: z.string().uuid(),
-  name: z.string(),
-  status: adminJobStatusSchema,
-  intervalSeconds: z.number().int().nonnegative(),
-  nextRunAt: z.string(),
-  lockedAt: z.string().nullable(),
-  lockedBy: z.string().nullable(),
-  lastRunAt: z.string().nullable(),
-  lastSuccessAt: z.string().nullable(),
-  lastFailureAt: z.string().nullable(),
+  eventName: z.string(),
+  status: adminBackgroundEventStatusSchema,
+  attempts: z.number().int().nonnegative(),
+  nextAttemptAt: z.string(),
+  publishedAt: z.string().nullable(),
+  inngestEventId: z.string().nullable(),
   lastError: z.string().nullable(),
-  metadata: z.unknown().nullable(),
+  payload: z.unknown(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-export const adminJobRunSchema = z.object({
-  id: z.string().uuid(),
-  jobId: z.string(),
-  jobName: z.string(),
-  status: adminJobRunStatusSchema,
-  startedAt: z.string(),
-  finishedAt: z.string(),
-  durationMs: z.number().int().nonnegative(),
-  result: z.unknown().nullable(),
-  error: z.string().nullable(),
-  createdAt: z.string(),
-});
-
-export const adminPendingEmailSchema = z.object({
+export const adminEmailDeliverySchema = z.object({
   id: z.string().uuid(),
   to: z.string(),
   subject: z.string(),
-  html: z.string(),
-  text: z.string().nullable(),
-  status: adminPendingEmailStatusSchema,
+  status: adminEmailDeliveryStatusSchema,
   attempts: z.number().int().nonnegative(),
-  maxAttempts: z.number().int().nonnegative(),
-  nextAttemptAt: z.string(),
+  lastAttemptAt: z.string().nullable(),
   sentAt: z.string().nullable(),
   failedAt: z.string().nullable(),
   lastError: z.string().nullable(),
@@ -149,28 +129,23 @@ export const adminPendingEmailSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const adminJobsListSchema = z.object({
-  jobs: z.array(adminJobSchema),
+export const adminBackgroundEventsListSchema = z.object({
+  events: z.array(adminBackgroundEventSchema),
   total: z.number().int().nonnegative(),
 });
 
-export const adminJobRunsListSchema = z.object({
-  runs: z.array(adminJobRunSchema),
-  total: z.number().int().nonnegative(),
-});
-
-export const adminPendingEmailsListSchema = z.object({
-  emails: z.array(adminPendingEmailSchema),
+export const adminEmailDeliveriesListSchema = z.object({
+  emails: z.array(adminEmailDeliverySchema),
   total: z.number().int().nonnegative(),
 });
 
 export const adminOperationsStatsSchema = z.object({
-  jobs: z.object({
+  events: z.object({
     total: z.number().int().nonnegative(),
-    idle: z.number().int().nonnegative(),
-    running: z.number().int().nonnegative(),
-    disabled: z.number().int().nonnegative(),
-    failedRuns: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    publishing: z.number().int().nonnegative(),
+    published: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
   }),
   emails: z.object({
     total: z.number().int().nonnegative(),
@@ -192,9 +167,8 @@ export const adminSearchUsersResponseSchema = successResultSchema(z.array(adminS
 export const adminWebhookEventsListResponseSchema = successResultSchema(adminWebhookEventsListSchema);
 export const adminWebhookStatsResponseSchema = successResultSchema(adminWebhookStatsSchema);
 export const adminWebhookEventDetailResponseSchema = successResultSchema(adminWebhookEventSchema);
-export const adminJobsListResponseSchema = successResultSchema(adminJobsListSchema);
-export const adminJobRunsListResponseSchema = successResultSchema(adminJobRunsListSchema);
-export const adminPendingEmailsListResponseSchema = successResultSchema(adminPendingEmailsListSchema);
+export const adminBackgroundEventsListResponseSchema = successResultSchema(adminBackgroundEventsListSchema);
+export const adminEmailDeliveriesListResponseSchema = successResultSchema(adminEmailDeliveriesListSchema);
 export const adminOperationsStatsResponseSchema = successResultSchema(adminOperationsStatsSchema);
 
 export type AdminDashboardStats = z.infer<typeof adminDashboardStatsSchema>;
@@ -207,13 +181,10 @@ export type AdminWebhookEventStatus = z.infer<typeof adminWebhookEventStatusSche
 export type AdminWebhookEvent = z.infer<typeof adminWebhookEventSchema>;
 export type AdminWebhookEventsList = z.infer<typeof adminWebhookEventsListSchema>;
 export type AdminWebhookStats = z.infer<typeof adminWebhookStatsSchema>;
-export type AdminJobStatus = z.infer<typeof adminJobStatusSchema>;
-export type AdminJobRunStatus = z.infer<typeof adminJobRunStatusSchema>;
-export type AdminPendingEmailStatus = z.infer<typeof adminPendingEmailStatusSchema>;
-export type AdminJob = z.infer<typeof adminJobSchema>;
-export type AdminJobRun = z.infer<typeof adminJobRunSchema>;
-export type AdminPendingEmail = z.infer<typeof adminPendingEmailSchema>;
-export type AdminJobsList = z.infer<typeof adminJobsListSchema>;
-export type AdminJobRunsList = z.infer<typeof adminJobRunsListSchema>;
-export type AdminPendingEmailsList = z.infer<typeof adminPendingEmailsListSchema>;
+export type AdminBackgroundEventStatus = z.infer<typeof adminBackgroundEventStatusSchema>;
+export type AdminEmailDeliveryStatus = z.infer<typeof adminEmailDeliveryStatusSchema>;
+export type AdminBackgroundEvent = z.infer<typeof adminBackgroundEventSchema>;
+export type AdminEmailDelivery = z.infer<typeof adminEmailDeliverySchema>;
+export type AdminBackgroundEventsList = z.infer<typeof adminBackgroundEventsListSchema>;
+export type AdminEmailDeliveriesList = z.infer<typeof adminEmailDeliveriesListSchema>;
 export type AdminOperationsStats = z.infer<typeof adminOperationsStatsSchema>;

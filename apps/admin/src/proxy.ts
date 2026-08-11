@@ -19,7 +19,7 @@ export async function proxy(request: NextRequest) {
   const { activeLocale, pathWithoutLocale } = getPathLocale(pathname);
 
   // fast cookie-only check (no DB)
-  const rawCookie = getSessionCookie(request);
+  const rawCookie = getSessionCookie(request, { cookiePrefix: "better-auth-admin" });
   const isAuthenticated = !!rawCookie;
 
   const isAdminRoute = ADMIN_ONLY.some(
@@ -45,7 +45,7 @@ export async function proxy(request: NextRequest) {
     try {
       const res = await fetch(sessionUrl, { headers, cache: "no-store" });
       if (!res.ok) {
-        return NextResponse.redirect(new URL(`/${activeLocale}/login`, request.url));
+        return NextResponse.redirect(adminLoginUrl(request, activeLocale));
       }
 
       return intlMiddleware(request as unknown as Parameters<typeof intlMiddleware>[0]);
@@ -58,5 +58,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|static|.*\\..*).*)"],
+  matcher: ["/((?!api|health|ready|_next|_vercel|static|.*\\..*).*)"],
 };

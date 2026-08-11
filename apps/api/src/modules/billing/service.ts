@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import {
   creditPurchases,
@@ -7,8 +7,10 @@ import {
   user,
   userCredits,
 } from "@platform/platform-db";
+import type { PlatformDb, PlatformDbExecutor } from "@platform/platform-db";
 
 import type { ConsumeCreditsRequest, ConsumeCreditsResponse } from "@platform/contracts/wire";
+import type { CapabilityDefinition } from "@platform/module-contracts";
 
 import { creditPackages } from "../../config/billing";
 import type { PaymentProvider } from "../payments/provider";
@@ -35,8 +37,9 @@ type ApplyCreditDeltaResult = {
 };
 
 type BillingServiceDeps = {
-  db: any;
+  db: PlatformDb;
   paymentProvider: PaymentProvider;
+  capabilities?: readonly CapabilityDefinition[];
   notifications: {
     createNotification: (input: {
       userId: string;
@@ -52,6 +55,12 @@ type BillingServiceDeps = {
 };
 
 type PaymentStatus = "completed" | "pending" | "failed" | "refunded";
+
+const customerVisibleCreditPaymentStatuses = ["completed", "refunded"] as const satisfies readonly PaymentStatus[];
+
+export function isCustomerVisibleCreditPaymentStatus(status: PaymentStatus) {
+  return customerVisibleCreditPaymentStatuses.some((visibleStatus) => visibleStatus === status);
+}
 
 type PaymentSnapshot = {
   provider: string;
@@ -75,9 +84,9 @@ function buildPaymentSnapshot(args: PaymentSnapshot): PaymentSnapshot {
   };
 }
 
-async function getOrInitializeCredits(db: any, userId: string) {
+async function getOrInitializeCredits(db: PlatformDbExecutor, userId: string) {
   const existing = await db.query.userCredits.findFirst({
-    where: (table: any, operators: any) => operators.eq(table.userId, userId),
+    where: (table, operators) => operators.eq(table.userId, userId),
   });
 
   if (existing) {
@@ -99,12 +108,14 @@ async function getOrInitializeCredits(db: any, userId: string) {
     return created;
   }
 
-  return db.query.userCredits.findFirst({
-    where: (table: any, operators: any) => operators.eq(table.userId, userId),
+  const initialized = await db.query.userCredits.findFirst({
+    where: (table, operators) => operators.eq(table.userId, userId),
   });
+  if (!initialized) throw new Error("Credit balance could not be initialized");
+  return initialized;
 }
 
-async function applyCreditDelta(db: any, input: ApplyCreditDeltaInput): Promise<ApplyCreditDeltaResult> {
+async function applyCreditDelta(db: PlatformDbExecutor, input: ApplyCreditDeltaInput): Promise<ApplyCreditDeltaResult> {
   const current = await getOrInitializeCredits(db, input.userId);
   const balanceBefore = Number(current.balance);
   const now = input.createdAt ?? new Date();
@@ -190,7 +201,10 @@ export function createBillingService(deps: BillingServiceDeps) {
         createdAt: creditPurchases.createdAt,
       })
       .from(creditPurchases)
-      .where(eq(creditPurchases.userId, userId))
+      .where(and(
+        eq(creditPurchases.userId, userId),
+        inArray(creditPurchases.paymentStatus, customerVisibleCreditPaymentStatuses),
+      ))
       .orderBy(desc(creditPurchases.createdAt))
       .limit(normalizedLimit);
   }
@@ -232,133 +246,131 @@ export function createBillingService(deps: BillingServiceDeps) {
       currency,
     });
 
-    const result = await deps.db.transaction(async (tx: any) => {
-      async function grantCredits(grantedAt: Date) {
-        const baseCredits = creditPackage.credits;
-        const bonusCredits = "bonus" in creditPackage ? creditPackage.bonus : 0;
-        const totalCredits = baseCredits + bonusCredits;
-        const current = await getOrInitializeCredits(tx, userId);
-
-        const [updated] = await tx
-          .update(userCredits)
-          .set({
-            balance: sql`${userCredits.balance} + ${totalCredits}`,
-            totalPurchased: sql`${userCredits.totalPurchased} + ${baseCredits}`,
-            updatedAt: grantedAt,
-          })
-          .where(eq(userCredits.userId, userId))
-          .returning({ balanceAfter: userCredits.balance });
-
-        const balanceBefore = Number(current.balance);
-        const newBalance = Number(updated.balanceAfter);
-
+    const result = await deps.db.transaction(async (tx) => { async function grantCredits(grantedAt: Date) {
+      const baseCredits = creditPackage.credits;
+      const bonusCredits = "bonus" in creditPackage ? creditPackage.bonus : 0;
+      const totalCredits = baseCredits + bonusCredits;
+      const current = await getOrInitializeCredits(tx, userId);
+    
+      const [updated] = await tx
+        .update(userCredits)
+        .set({
+          balance: sql`${userCredits.balance} + ${totalCredits}`,
+          totalPurchased: sql`${userCredits.totalPurchased} + ${baseCredits}`,
+          updatedAt: grantedAt,
+        })
+        .where(eq(userCredits.userId, userId))
+        .returning({ balanceAfter: userCredits.balance });
+    
+      const balanceBefore = Number(current.balance);
+      const newBalance = Number(updated.balanceAfter);
+    
+      await tx.insert(creditTransactions).values({
+        userId,
+        type: "purchase",
+        amount: baseCredits.toString(),
+        description: `Package: ${packageKey.charAt(0).toUpperCase() + packageKey.slice(1)}`,
+        referenceId: paymentId,
+        balanceAfter: (balanceBefore + baseCredits).toString(),
+      });
+    
+      if (bonusCredits > 0) {
         await tx.insert(creditTransactions).values({
           userId,
-          type: "purchase",
-          amount: baseCredits.toString(),
-          description: `Package: ${packageKey.charAt(0).toUpperCase() + packageKey.slice(1)}`,
+          type: "bonus",
+          amount: bonusCredits.toString(),
+          description: `Bonus credits for ${packageKey.charAt(0).toUpperCase() + packageKey.slice(1)}`,
           referenceId: paymentId,
-          balanceAfter: (balanceBefore + baseCredits).toString(),
+          balanceAfter: newBalance.toString(),
+          createdAt: new Date(grantedAt.getTime() + 1),
         });
-
-        if (bonusCredits > 0) {
-          await tx.insert(creditTransactions).values({
-            userId,
-            type: "bonus",
-            amount: bonusCredits.toString(),
-            description: `Bonus credits for ${packageKey.charAt(0).toUpperCase() + packageKey.slice(1)}`,
-            referenceId: paymentId,
-            balanceAfter: newBalance.toString(),
-            createdAt: new Date(grantedAt.getTime() + 1),
-          });
-        }
-
-        return { credits: totalCredits, amount: priceInclVat / 100, currency };
       }
-
-      const existingPurchase = await tx.query.creditPurchases.findFirst({
-        where: eq(creditPurchases.paymentId, paymentId),
-      });
-
-      if (existingPurchase) {
-        if (existingPurchase.userId !== userId) {
-          throw new Error(`Payment ${paymentId} is already associated with another user`);
-        }
-
-        if (existingPurchase.creditsGrantedAt && paymentStatus !== "completed") {
-          return { purchase: existingPurchase, notificationData: null };
-        }
-
-        const shouldGrantCredits = paymentStatus === "completed" && !existingPurchase.creditsGrantedAt;
-        const creditsGrantedAt = shouldGrantCredits ? new Date() : existingPurchase.creditsGrantedAt;
-        const nextProviderCustomerId = providerCustomerId ?? existingPurchase.providerCustomerId ?? existingPurchase.dodoCustomerId;
-
-        if (existingPurchase.paymentStatus !== paymentStatus || providerCustomerId || shouldGrantCredits || pricingData) {
-          await tx
-            .update(creditPurchases)
-            .set({
-              paymentStatus,
-              providerCustomerId: nextProviderCustomerId,
-              dodoCustomerId: nextProviderCustomerId,
-              price: priceInclVat,
-              priceExclVat,
-              priceInclVat,
-              vatAmount,
-              currency,
-              creditsGrantedAt,
-              paymentSnapshot,
-              updatedAt: new Date(),
-            })
-            .where(eq(creditPurchases.id, existingPurchase.id));
-        }
-
-        let notificationData: { credits: number; amount: number; currency: string } | null = null;
-        if (shouldGrantCredits) {
-          notificationData = await grantCredits(creditsGrantedAt);
-        }
-
-        const purchase = {
-          ...existingPurchase,
-          paymentStatus,
-          providerCustomerId: nextProviderCustomerId,
-          dodoCustomerId: nextProviderCustomerId,
-          creditsGrantedAt,
-          paymentSnapshot,
-        };
-
-        return { purchase, notificationData };
+    
+      return { credits: totalCredits, amount: priceInclVat / 100, currency };
+    }
+    
+    const existingPurchase = await tx.query.creditPurchases.findFirst({
+      where: eq(creditPurchases.paymentId, paymentId),
+    });
+    
+    if (existingPurchase) {
+      if (existingPurchase.userId !== userId) {
+        throw new Error(`Payment ${paymentId} is already associated with another user`);
       }
-
-      const creditsGrantedAt = paymentStatus === "completed" ? new Date() : null;
-
-      const [purchase] = await tx
-        .insert(creditPurchases)
-        .values({
-          userId,
-          packageKey,
-          credits: creditPackage.credits,
-          bonusCredits: "bonus" in creditPackage ? creditPackage.bonus : 0,
-          price: priceInclVat,
-          priceExclVat,
-          priceInclVat,
-          vatAmount,
-          currency,
-          paymentId,
-          providerCustomerId,
-          dodoCustomerId: providerCustomerId,
-          paymentStatus,
-          creditsGrantedAt,
-          paymentSnapshot,
-        })
-        .returning();
-
+    
+      if (existingPurchase.creditsGrantedAt && paymentStatus !== "completed") {
+        return { purchase: existingPurchase, notificationData: null };
+      }
+    
+      const shouldGrantCredits = paymentStatus === "completed" && !existingPurchase.creditsGrantedAt;
+      const creditsGrantedAt = shouldGrantCredits ? new Date() : existingPurchase.creditsGrantedAt;
+      const nextProviderCustomerId = providerCustomerId ?? existingPurchase.providerCustomerId ?? existingPurchase.dodoCustomerId;
+    
+      if (existingPurchase.paymentStatus !== paymentStatus || providerCustomerId || shouldGrantCredits || pricingData) {
+        await tx
+          .update(creditPurchases)
+          .set({
+            paymentStatus,
+            providerCustomerId: nextProviderCustomerId,
+            dodoCustomerId: nextProviderCustomerId,
+            price: priceInclVat,
+            priceExclVat,
+            priceInclVat,
+            vatAmount,
+            currency,
+            creditsGrantedAt,
+            paymentSnapshot,
+            updatedAt: new Date(),
+          })
+          .where(eq(creditPurchases.id, existingPurchase.id));
+      }
+    
       let notificationData: { credits: number; amount: number; currency: string } | null = null;
-      if (creditsGrantedAt) {
+      if (shouldGrantCredits && creditsGrantedAt) {
         notificationData = await grantCredits(creditsGrantedAt);
       }
-
+    
+      const purchase = {
+        ...existingPurchase,
+        paymentStatus,
+        providerCustomerId: nextProviderCustomerId,
+        dodoCustomerId: nextProviderCustomerId,
+        creditsGrantedAt,
+        paymentSnapshot,
+      };
+    
       return { purchase, notificationData };
-    });
+    }
+    
+    const creditsGrantedAt = paymentStatus === "completed" ? new Date() : null;
+    
+    const [purchase] = await tx
+      .insert(creditPurchases)
+      .values({
+        userId,
+        packageKey,
+        credits: creditPackage.credits,
+        bonusCredits: "bonus" in creditPackage ? creditPackage.bonus : 0,
+        price: priceInclVat,
+        priceExclVat,
+        priceInclVat,
+        vatAmount,
+        currency,
+        paymentId,
+        providerCustomerId,
+        dodoCustomerId: providerCustomerId,
+        paymentStatus,
+        creditsGrantedAt,
+        paymentSnapshot,
+      })
+      .returning();
+    
+    let notificationData: { credits: number; amount: number; currency: string } | null = null;
+    if (creditsGrantedAt) {
+      notificationData = await grantCredits(creditsGrantedAt);
+    }
+    
+    return { purchase, notificationData }; });
 
     if (result.notificationData) {
       await deps.notifications.createNotification({
@@ -379,49 +391,47 @@ export function createBillingService(deps: BillingServiceDeps) {
     reason: "refund" | "dispute",
     metadata: Record<string, string | undefined> = {},
   ) {
-    return deps.db.transaction(async (tx: any) => {
-      const purchase = await tx.query.creditPurchases.findFirst({
-        where: eq(creditPurchases.paymentId, paymentId),
-      });
-
-      if (!purchase) {
-        throw new Error(`Payment ${paymentId} not found for ${reason}`);
-      }
-
-      const nextStatus = reason === "refund" ? "refunded" : "failed";
-
-      if (!purchase.creditsGrantedAt) {
-        await tx
-          .update(creditPurchases)
-          .set({ paymentStatus: nextStatus, updatedAt: new Date() })
-          .where(eq(creditPurchases.id, purchase.id));
-        return { ...purchase, paymentStatus: nextStatus };
-      }
-
-      if (purchase.paymentStatus === nextStatus) {
-        return purchase;
-      }
-
-      const totalCredits = Number(purchase.credits) + Number(purchase.bonusCredits ?? 0);
-
-      await applyCreditDelta(tx, {
-        userId: purchase.userId,
-        amount: -totalCredits,
-        type: reason === "refund" ? "refund" : "admin_adjustment",
-        description: `${reason === "refund" ? "Refund" : "Dispute reversal"}: ${purchase.packageKey.charAt(0).toUpperCase() + purchase.packageKey.slice(1)}`,
-        referenceType: "payment",
-        referenceId: paymentId,
-        metadata,
-        allowNegativeBalance: true,
-      });
-
+    return deps.db.transaction(async (tx) => { const purchase = await tx.query.creditPurchases.findFirst({
+      where: eq(creditPurchases.paymentId, paymentId),
+    });
+    
+    if (!purchase) {
+      throw new Error(`Payment ${paymentId} not found for ${reason}`);
+    }
+    
+    const nextStatus = reason === "refund" ? "refunded" : "failed";
+    
+    if (!purchase.creditsGrantedAt) {
       await tx
         .update(creditPurchases)
         .set({ paymentStatus: nextStatus, updatedAt: new Date() })
         .where(eq(creditPurchases.id, purchase.id));
-
       return { ...purchase, paymentStatus: nextStatus };
+    }
+    
+    if (purchase.paymentStatus === nextStatus) {
+      return purchase;
+    }
+    
+    const totalCredits = Number(purchase.credits) + Number(purchase.bonusCredits ?? 0);
+    
+    await applyCreditDelta(tx, {
+      userId: purchase.userId,
+      amount: -totalCredits,
+      type: reason === "refund" ? "refund" : "admin_adjustment",
+      description: `${reason === "refund" ? "Refund" : "Dispute reversal"}: ${purchase.packageKey.charAt(0).toUpperCase() + purchase.packageKey.slice(1)}`,
+      referenceType: "payment",
+      referenceId: paymentId,
+      metadata,
+      allowNegativeBalance: true,
     });
+    
+    await tx
+      .update(creditPurchases)
+      .set({ paymentStatus: nextStatus, updatedAt: new Date() })
+      .where(eq(creditPurchases.id, purchase.id));
+    
+    return { ...purchase, paymentStatus: nextStatus }; });
   }
 
   async function processCreditRefund(paymentId: string, refundId?: string) {
@@ -516,25 +526,13 @@ export function createBillingService(deps: BillingServiceDeps) {
 
   async function downloadInvoice(userId: string, paymentId: string) {
     const [purchase] = await deps.db
-      .select({
-        id: creditPurchases.id,
-        userId: creditPurchases.userId,
-        paymentStatus: creditPurchases.paymentStatus,
-      })
+      .select({ paymentStatus: creditPurchases.paymentStatus })
       .from(creditPurchases)
-      .where(eq(creditPurchases.paymentId, paymentId))
+      .where(and(eq(creditPurchases.paymentId, paymentId), eq(creditPurchases.userId, userId)))
       .limit(1);
 
-    if (!purchase) {
-      throw new Error("Purchase not found");
-    }
-
-    if (purchase.userId !== userId) {
-      throw new Error("Unauthorized");
-    }
-
-    if (purchase.paymentStatus !== "completed") {
-      throw new Error("Invoice not available for this payment");
+    if (purchase?.paymentStatus !== "completed") {
+      throw new Error("Invoice not found");
     }
 
     if (!deps.paymentProvider.getInvoice) {
@@ -574,60 +572,73 @@ export function createBillingService(deps: BillingServiceDeps) {
     return result;
   }
 
+  function creditCost(featureKey: string) {
+    const capability = deps.capabilities?.find((definition) => definition.key === featureKey);
+    if (capability?.consumption !== "credits" || capability.creditCost === undefined) {
+      throw new Error(`Credit-backed capability not found: ${featureKey}`);
+    }
+    if (!Number.isFinite(capability.creditCost) || capability.creditCost <= 0) {
+      throw new Error(`Invalid credit cost for capability: ${featureKey}`);
+    }
+    return capability.creditCost;
+  }
+
   async function consumeCredits(userId: string, input: ConsumeCreditsRequest): Promise<ConsumeCreditsResponse> {
-    return deps.db.transaction(async (tx: any) => {
-      const existing = await tx.query.creditUsageEvents.findFirst({
-        where: (table: any, operators: any) => operators.and(
-          operators.eq(table.userId, userId),
-          operators.eq(table.idempotencyKey, input.idempotencyKey),
-        ),
-      });
-
-      if (existing) {
-        const [txRow] = await tx.select({ balanceAfter: creditTransactions.balanceAfter })
-          .from(creditTransactions)
-          .where(eq(creditTransactions.id, existing.transactionId))
-          .limit(1);
-
-        const balanceAfter = txRow?.balanceAfter ?? "0";
-        const balanceBefore = (Number(balanceAfter) + Number(existing.amount)).toFixed(2);
-
-        return {
-          transactionId: existing.transactionId,
-          idempotencyKey: existing.idempotencyKey,
-          balanceBefore,
-          balanceAfter,
-          alreadyProcessed: true,
-        };
-      }
-
-      const result = await applyCreditDelta(tx, {
-        userId,
-        amount: -Math.abs(input.amount),
-        type: "usage",
-        description: input.description ?? `Usage: ${input.featureKey}`,
-        referenceType: "feature_usage",
-        referenceId: input.idempotencyKey,
-        metadata: { featureKey: input.featureKey, ...(input.metadata ?? {}) },
-      });
-
-      await tx.insert(creditUsageEvents).values({
-        userId,
-        featureKey: input.featureKey,
-        idempotencyKey: input.idempotencyKey,
-        amount: input.amount.toFixed(2),
-        transactionId: result.transactionId,
-        metadata: input.metadata,
-      });
-
-      return {
-        transactionId: result.transactionId,
-        idempotencyKey: input.idempotencyKey,
-        balanceBefore: result.balanceBefore,
-        balanceAfter: result.balanceAfter,
-        alreadyProcessed: false,
-      };
+    const amount = creditCost(input.featureKey);
+    return deps.db.transaction(async (tx) => { const existing = await tx.query.creditUsageEvents.findFirst({
+      where: (table, operators) => operators.and(
+        operators.eq(table.userId, userId),
+        operators.eq(table.idempotencyKey, input.idempotencyKey),
+      ),
     });
+    if (existing && existing.featureKey !== input.featureKey) {
+      throw new Error("Idempotency key was already used for another capability");
+    }
+    
+    if (existing) {
+      const [txRow] = await tx.select({ balanceAfter: creditTransactions.balanceAfter })
+        .from(creditTransactions)
+        .where(eq(creditTransactions.id, existing.transactionId))
+        .limit(1);
+    
+      const balanceAfter = txRow?.balanceAfter ?? "0";
+      const balanceBefore = (Number(balanceAfter) + Number(existing.amount)).toFixed(2);
+    
+      return {
+        transactionId: existing.transactionId,
+        idempotencyKey: existing.idempotencyKey,
+        balanceBefore,
+        balanceAfter,
+        alreadyProcessed: true,
+      };
+    }
+    
+    const result = await applyCreditDelta(tx, {
+      userId,
+      amount: -amount,
+      type: "usage",
+      description: input.description ?? `Usage: ${input.featureKey}`,
+      referenceType: "feature_usage",
+      referenceId: input.idempotencyKey,
+      metadata: { featureKey: input.featureKey, ...(input.metadata ?? {}) },
+    });
+    
+    await tx.insert(creditUsageEvents).values({
+      userId,
+      featureKey: input.featureKey,
+      idempotencyKey: input.idempotencyKey,
+      amount: amount.toFixed(2),
+      transactionId: result.transactionId,
+      metadata: input.metadata,
+    });
+    
+    return {
+      transactionId: result.transactionId,
+      idempotencyKey: input.idempotencyKey,
+      balanceBefore: result.balanceBefore,
+      balanceAfter: result.balanceAfter,
+      alreadyProcessed: false,
+    }; });
   }
 
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateCategorySiblingWeights, validateQuestionForPublish } from "../../../src/modules/certdrill/validation";
+import { validateCategorySiblingWeights, validateQuestionForPublish } from "../../../src/product/certdrill/validation";
 
 describe("CertDrill validation", () => {
   it("accepts sibling weights when there are no categories", () => {

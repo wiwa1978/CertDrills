@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { BackendNavAdminItems } from "@/config/backend-navbar-admin"
+import { getBackendNavAdminItems } from "@/config/backend-navbar-admin"
 
 export interface DashboardNavItem {
   title: string
@@ -16,7 +16,7 @@ interface DashboardNavContextValue {
 const DashboardNavContext = React.createContext<DashboardNavContextValue | undefined>(undefined)
 
 export function DashboardNavProvider({ children }: { children: React.ReactNode }) {
-  const navItems = React.useMemo(() => BackendNavAdminItems, []);
+  const navItems = React.useMemo(() => getBackendNavAdminItems(), []);
 
   return (
     <DashboardNavContext.Provider value={{ navItems }}>

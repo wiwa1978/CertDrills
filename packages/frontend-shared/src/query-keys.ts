@@ -13,4 +13,10 @@ export const queryKeys = {
     unreadCount: ["me", "notifications", "unread-count"] as const,
     activeBanner: ["me", "notifications", "active-banner"] as const,
   },
+  transactions: {
+    basket: (userId: string) => ["me", userId, "transactions", "basket"] as const,
+    orders: (userId: string) => ["me", userId, "transactions", "orders"] as const,
+    order: (userId: string, orderId: string) => ["me", userId, "transactions", "orders", orderId] as const,
+    entitlements: (userId: string) => ["me", userId, "transactions", "entitlements"] as const,
+  },
 };

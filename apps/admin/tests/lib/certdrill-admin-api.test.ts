@@ -44,12 +44,12 @@ describe("CertDrill admin API helpers", () => {
     };
     const updatePayload = { name: "Azure Administrator Associate", isActive: false };
 
-    await expectHelperCall("listCertDrillAdminCertificationsServer", [], "/api/admin/certdrill/certifications");
-    await expectHelperCall("createCertDrillAdminCertificationServer", [createPayload], "/api/admin/certdrill/certifications", {
+    await expectHelperCall("listCertDrillAdminCertificationsServer", [], "/admin/certdrill/certifications");
+    await expectHelperCall("createCertDrillAdminCertificationServer", [createPayload], "/admin/certdrill/certifications", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminCertificationServer", ["cert-1", updatePayload], "/api/admin/certdrill/certifications/cert-1", {
+    await expectHelperCall("updateCertDrillAdminCertificationServer", ["cert-1", updatePayload], "/admin/certdrill/certifications/cert-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
@@ -70,13 +70,13 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall(
       "listCertDrillAdminCategoriesServer",
       ["cert-1"],
-      "/api/admin/certdrill/certifications/cert-1/categories",
+      "/admin/certdrill/certifications/cert-1/categories",
     );
-    await expectHelperCall("createCertDrillAdminCategoryServer", [createPayload], "/api/admin/certdrill/categories", {
+    await expectHelperCall("createCertDrillAdminCategoryServer", [createPayload], "/admin/certdrill/categories", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminCategoryServer", ["category-1", updatePayload], "/api/admin/certdrill/categories/category-1", {
+    await expectHelperCall("updateCertDrillAdminCategoryServer", ["category-1", updatePayload], "/admin/certdrill/categories/category-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
@@ -99,26 +99,26 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall(
       "listCertDrillAdminQuestionsServer",
       ["cert-1"],
-      "/api/admin/certdrill/certifications/cert-1/questions",
+      "/admin/certdrill/certifications/cert-1/questions",
     );
-    await expectHelperCall("createCertDrillAdminQuestionServer", [createPayload], "/api/admin/certdrill/questions", {
+    await expectHelperCall("createCertDrillAdminQuestionServer", [createPayload], "/admin/certdrill/questions", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminQuestionServer", ["question-1", updatePayload], "/api/admin/certdrill/questions/question-1", {
+    await expectHelperCall("updateCertDrillAdminQuestionServer", ["question-1", updatePayload], "/admin/certdrill/questions/question-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
-    await expectHelperCall("publishCertDrillAdminQuestionServer", ["question-1"], "/api/admin/certdrill/questions/question-1/publish", {
+    await expectHelperCall("publishCertDrillAdminQuestionServer", ["question-1"], "/admin/certdrill/questions/question-1/publish", {
       method: "POST",
     });
     const bulkPayload = { questionIds: ["question-1", "question-2"], status: "published" };
-    await expectHelperCall("updateCertDrillAdminQuestionStatusesServer", [bulkPayload], "/api/admin/certdrill/questions/status", {
+    await expectHelperCall("updateCertDrillAdminQuestionStatusesServer", [bulkPayload], "/admin/certdrill/questions/status", {
       method: "PATCH",
       body: JSON.stringify(bulkPayload),
     });
     const purposePayload = { questionIds: ["question-1", "question-2"], deliveryPurpose: "assessment" as const };
-    await expectHelperCall("updateCertDrillAdminQuestionDeliveryPurposesServer", [purposePayload], "/api/admin/certdrill/questions/delivery-purpose", {
+    await expectHelperCall("updateCertDrillAdminQuestionDeliveryPurposesServer", [purposePayload], "/admin/certdrill/questions/delivery-purpose", {
       method: "PATCH",
       body: JSON.stringify(purposePayload),
     });
@@ -223,7 +223,7 @@ describe("CertDrill admin API helpers", () => {
     });
 
     expect(serverApiRequestMock).toHaveBeenCalledWith(
-      "/api/admin/certdrill/questions?search=zero+trust&certificationId=cert-1&status=published&difficulty=hard&sort=stem-desc&page=3",
+      "/admin/certdrill/questions?search=zero+trust&certificationId=cert-1&status=published&difficulty=hard&sort=stem-desc&page=3",
     );
   });
 
@@ -279,7 +279,7 @@ describe("CertDrill admin API helpers", () => {
       total: 0,
     });
 
-    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/questions");
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/admin/certdrill/questions");
   });
 
   it("uses focused admin exam form endpoints", async () => {
@@ -291,32 +291,32 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall(
       "listCertDrillAdminExamFormsServer",
       ["cert-1"],
-      "/api/admin/certdrill/certifications/cert-1/exam-forms",
+      "/admin/certdrill/certifications/cert-1/exam-forms",
     );
-    await expectHelperCall("getCertDrillAdminExamFormServer", ["form-1"], "/api/admin/certdrill/exam-forms/form-1");
-    await expectHelperCall("createCertDrillAdminExamFormServer", [createPayload], "/api/admin/certdrill/exam-forms", {
+    await expectHelperCall("getCertDrillAdminExamFormServer", ["form-1"], "/admin/certdrill/exam-forms/form-1");
+    await expectHelperCall("createCertDrillAdminExamFormServer", [createPayload], "/admin/certdrill/exam-forms", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminExamFormMetadataServer", ["form-1", updatePayload], "/api/admin/certdrill/exam-forms/form-1", {
+    await expectHelperCall("updateCertDrillAdminExamFormMetadataServer", ["form-1", updatePayload], "/admin/certdrill/exam-forms/form-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
-    await expectHelperCall("regenerateCertDrillAdminExamFormServer", ["form-1", regeneratePayload], "/api/admin/certdrill/exam-forms/form-1/regenerate", { method: "POST", body: JSON.stringify(regeneratePayload) });
-    await expectHelperCall("replaceCertDrillAdminExamFormQuestionServer", ["form-1", replacePayload], "/api/admin/certdrill/exam-forms/form-1/questions/replace", { method: "POST", body: JSON.stringify(replacePayload) });
-    await expectHelperCall("setCertDrillAdminExamFormActiveServer", ["form-1", false], "/api/admin/certdrill/exam-forms/form-1/activation", { method: "PATCH", body: JSON.stringify({ isActive: false }) });
+    await expectHelperCall("regenerateCertDrillAdminExamFormServer", ["form-1", regeneratePayload], "/admin/certdrill/exam-forms/form-1/regenerate", { method: "POST", body: JSON.stringify(regeneratePayload) });
+    await expectHelperCall("replaceCertDrillAdminExamFormQuestionServer", ["form-1", replacePayload], "/admin/certdrill/exam-forms/form-1/questions/replace", { method: "POST", body: JSON.stringify(replacePayload) });
+    await expectHelperCall("setCertDrillAdminExamFormActiveServer", ["form-1", false], "/admin/certdrill/exam-forms/form-1/activation", { method: "PATCH", body: JSON.stringify({ isActive: false }) });
   });
 
   it("uses focused scenario administration endpoints", async () => {
     const createPayload = { certificationId: "cert-1", title: "Incident", description: null, difficulty: "medium", estimatedMinutes: 15, contentJson: { initialNodeKey: "start", nodes: [] } };
     const { certificationId: _certificationId, ...updatePayload } = createPayload;
-    await expectHelperCall("listCertDrillAdminScenariosServer", ["cert-1"], "/api/admin/certdrill/certifications/cert-1/scenarios");
-    await expectHelperCall("createCertDrillAdminScenarioServer", [createPayload], "/api/admin/certdrill/scenarios", { method: "POST", body: JSON.stringify(createPayload) });
-    await expectHelperCall("updateCertDrillAdminScenarioServer", ["scenario-1", updatePayload], "/api/admin/certdrill/scenarios/scenario-1", { method: "PATCH", body: JSON.stringify(updatePayload) });
-    await expectHelperCall("validateCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/validate", { method: "POST", body: JSON.stringify({}) });
-    await expectHelperCall("publishCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/publish", { method: "POST", body: JSON.stringify({}) });
-    await expectHelperCall("updateCertDrillAdminScenarioStatusesServer", [{ scenarioIds: ["scenario-1"], status: "published" }], "/api/admin/certdrill/scenarios/status", { method: "PATCH", body: JSON.stringify({ scenarioIds: ["scenario-1"], status: "published" }) });
-    await expectHelperCall("archiveCertDrillAdminScenarioServer", ["scenario-1"], "/api/admin/certdrill/scenarios/scenario-1/archive", { method: "POST", body: JSON.stringify({}) });
+    await expectHelperCall("listCertDrillAdminScenariosServer", ["cert-1"], "/admin/certdrill/certifications/cert-1/scenarios");
+    await expectHelperCall("createCertDrillAdminScenarioServer", [createPayload], "/admin/certdrill/scenarios", { method: "POST", body: JSON.stringify(createPayload) });
+    await expectHelperCall("updateCertDrillAdminScenarioServer", ["scenario-1", updatePayload], "/admin/certdrill/scenarios/scenario-1", { method: "PATCH", body: JSON.stringify(updatePayload) });
+    await expectHelperCall("validateCertDrillAdminScenarioServer", ["scenario-1"], "/admin/certdrill/scenarios/scenario-1/validate", { method: "POST", body: JSON.stringify({}) });
+    await expectHelperCall("publishCertDrillAdminScenarioServer", ["scenario-1"], "/admin/certdrill/scenarios/scenario-1/publish", { method: "POST", body: JSON.stringify({}) });
+    await expectHelperCall("updateCertDrillAdminScenarioStatusesServer", [{ scenarioIds: ["scenario-1"], status: "published" }], "/admin/certdrill/scenarios/status", { method: "PATCH", body: JSON.stringify({ scenarioIds: ["scenario-1"], status: "published" }) });
+    await expectHelperCall("archiveCertDrillAdminScenarioServer", ["scenario-1"], "/admin/certdrill/scenarios/scenario-1/archive", { method: "POST", body: JSON.stringify({}) });
   });
 
   it("lists, creates, and updates admin resources", async () => {
@@ -335,13 +335,13 @@ describe("CertDrill admin API helpers", () => {
     await expectHelperCall(
       "listCertDrillAdminResourcesServer",
       ["cert-1"],
-      "/api/admin/certdrill/certifications/cert-1/resources",
+      "/admin/certdrill/certifications/cert-1/resources",
     );
-    await expectHelperCall("createCertDrillAdminResourceServer", [createPayload], "/api/admin/certdrill/resources", {
+    await expectHelperCall("createCertDrillAdminResourceServer", [createPayload], "/admin/certdrill/resources", {
       method: "POST",
       body: JSON.stringify(createPayload),
     });
-    await expectHelperCall("updateCertDrillAdminResourceServer", ["resource-1", updatePayload], "/api/admin/certdrill/resources/resource-1", {
+    await expectHelperCall("updateCertDrillAdminResourceServer", ["resource-1", updatePayload], "/admin/certdrill/resources/resource-1", {
       method: "PATCH",
       body: JSON.stringify(updatePayload),
     });
@@ -405,18 +405,18 @@ describe("CertDrill admin API helpers", () => {
 
     serverApiRequestMock.mockResolvedValueOnce({ success: true, data: [apiRun] });
     await expect(certdrillApi.listCertDrillAdminBlueprintParseRunsServer("cert-1")).resolves.toEqual([expectedRun]);
-    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/blueprint-parse-runs");
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/admin/certdrill/certifications/cert-1/blueprint-parse-runs");
 
     serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
     await expect(certdrillApi.startCertDrillAdminCategoryDiscoveryServer("cert-1", "https://learn.example/study-guide")).resolves.toEqual(expectedRun);
-    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/certifications/cert-1/category-discoveries", {
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/admin/certdrill/certifications/cert-1/category-discoveries", {
       method: "POST",
       body: JSON.stringify({ url: "https://learn.example/study-guide" }),
     });
 
     serverApiRequestMock.mockResolvedValueOnce({ success: true, data: apiRun });
     await expect(certdrillApi.getCertDrillAdminBlueprintParseRunServer("run-1")).resolves.toEqual(expectedRun);
-    expect(serverApiRequestMock).toHaveBeenCalledWith("/api/admin/certdrill/blueprint-parse-runs/run-1");
+    expect(serverApiRequestMock).toHaveBeenCalledWith("/admin/certdrill/blueprint-parse-runs/run-1");
   });
 
   it("starts, lists, and reads grounded generation jobs", async () => {
@@ -433,17 +433,17 @@ describe("CertDrill admin API helpers", () => {
       deliveryPurpose: "practice" as const,
     };
 
-    await expectHelperCall("startCertDrillAdminQuestionGenerationServer", ["cert-1", input], "/api/admin/certdrill/certifications/cert-1/question-generation-jobs", {
+    await expectHelperCall("startCertDrillAdminQuestionGenerationServer", ["cert-1", input], "/admin/certdrill/certifications/cert-1/question-generation-jobs", {
       method: "POST",
       body: JSON.stringify(input),
     });
-    await expectHelperCall("listCertDrillAdminQuestionGenerationJobsServer", ["cert-1"], "/api/admin/certdrill/certifications/cert-1/question-generation-jobs");
-    await expectHelperCall("getCertDrillAdminQuestionGenerationJobServer", ["job-1"], "/api/admin/certdrill/question-generation-jobs/job-1");
+    await expectHelperCall("listCertDrillAdminQuestionGenerationJobsServer", ["cert-1"], "/admin/certdrill/certifications/cert-1/question-generation-jobs");
+    await expectHelperCall("getCertDrillAdminQuestionGenerationJobServer", ["job-1"], "/admin/certdrill/question-generation-jobs/job-1");
   });
 
   it("lists question feedback for admin review", async () => {
-    await expectHelperCall("listCertDrillAdminQuestionFeedbackServer", [], "/api/admin/certdrill/question-feedback");
-    await expectHelperCall("updateCertDrillAdminQuestionFeedbackServer", ["feedback-1", { status: "resolved" }], "/api/admin/certdrill/question-feedback/feedback-1", {
+    await expectHelperCall("listCertDrillAdminQuestionFeedbackServer", [], "/admin/certdrill/question-feedback");
+    await expectHelperCall("updateCertDrillAdminQuestionFeedbackServer", ["feedback-1", { status: "resolved" }], "/admin/certdrill/question-feedback/feedback-1", {
       method: "PATCH",
       body: JSON.stringify({ status: "resolved" }),
     });

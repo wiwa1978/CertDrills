@@ -16,6 +16,7 @@ export const requestLogger: MiddlewareHandler<AppEnv> = async (c, next) => {
   logger.info(
     {
       requestId,
+      moduleId: c.get("moduleId"),
       method: c.req.method,
       path: c.req.path,
       status: c.res.status,

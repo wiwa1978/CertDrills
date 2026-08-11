@@ -1,20 +1,18 @@
-import { Container } from "@/components/ui/container";
-import { OperationsMonitor } from "@/components/layout/backend/admin/operations/operations-monitor";
-import {
-  getAdminJobRunsServer,
-  getAdminJobsServer,
-  getAdminOperationsStatsServer,
-  getAdminPendingEmailsServer,
-} from "@/lib/api/admin.server";
-import type { AdminJobRunStatus, AdminJobStatus, AdminPendingEmailStatus } from "@platform/contracts";
+import type { AdminBackgroundEventStatus, AdminEmailDeliveryStatus } from "@platform/contracts";
 
-type OperationsFilters = {
-  jobName: string;
-  jobStatus: AdminJobStatus | "";
-  runJobName: string;
-  runStatus: AdminJobRunStatus | "";
+import { OperationsMonitor } from "@/components/layout/backend/admin/operations/operations-monitor";
+import { Container } from "@/components/ui/container";
+import {
+  getAdminBackgroundEventsServer,
+  getAdminEmailDeliveriesServer,
+  getAdminOperationsStatsServer,
+} from "@/lib/api/admin.server";
+
+export type OperationsFilters = {
+  eventName: string;
+  eventStatus: AdminBackgroundEventStatus | "";
   emailText: string;
-  emailStatus: AdminPendingEmailStatus | "";
+  emailStatus: AdminEmailDeliveryStatus | "";
 };
 
 type AdminOperationsPageProps = {
@@ -25,15 +23,11 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function jobStatus(value: string | undefined): AdminJobStatus | undefined {
-  return value === "idle" || value === "running" || value === "disabled" ? value : undefined;
+function eventStatus(value: string | undefined): AdminBackgroundEventStatus | undefined {
+  return value === "pending" || value === "publishing" || value === "published" || value === "failed" ? value : undefined;
 }
 
-function jobRunStatus(value: string | undefined): AdminJobRunStatus | undefined {
-  return value === "success" || value === "failed" ? value : undefined;
-}
-
-function pendingEmailStatus(value: string | undefined): AdminPendingEmailStatus | undefined {
+function emailStatus(value: string | undefined): AdminEmailDeliveryStatus | undefined {
   return value === "pending" || value === "sending" || value === "sent" || value === "failed" ? value : undefined;
 }
 
@@ -41,27 +35,32 @@ export default async function AdminOperationsPage({ searchParams }: AdminOperati
   const params = (await searchParams) ?? {};
   const limit = Math.min(Math.max(Number(first(params.limit) ?? 50) || 50, 1), 100);
   const filters: OperationsFilters = {
-    jobName: first(params.jobName) ?? "",
-    jobStatus: jobStatus(first(params.jobStatus)) ?? "",
-    runJobName: first(params.runJobName) ?? "",
-    runStatus: jobRunStatus(first(params.runStatus)) ?? "",
+    eventName: first(params.eventName) ?? "",
+    eventStatus: eventStatus(first(params.eventStatus)) ?? "",
     emailText: first(params.emailText) ?? "",
-    emailStatus: pendingEmailStatus(first(params.emailStatus)) ?? "",
+    emailStatus: emailStatus(first(params.emailStatus)) ?? "",
   };
 
-  const [stats, jobs, runs, emails] = await Promise.all([
+  const [stats, events, emails] = await Promise.all([
     getAdminOperationsStatsServer().catch(() => ({
-      jobs: { total: 0, idle: 0, running: 0, disabled: 0, failedRuns: 0 },
+      events: { total: 0, pending: 0, publishing: 0, published: 0, failed: 0 },
       emails: { total: 0, pending: 0, sending: 0, sent: 0, failed: 0 },
     })),
-    getAdminJobsServer({ limit, name: filters.jobName, status: jobStatus(filters.jobStatus) }).catch(() => ({ jobs: [], total: 0 })),
-    getAdminJobRunsServer({ limit, jobName: filters.runJobName, status: jobRunStatus(filters.runStatus) }).catch(() => ({ runs: [], total: 0 })),
-    getAdminPendingEmailsServer({ limit, text: filters.emailText, status: pendingEmailStatus(filters.emailStatus) }).catch(() => ({ emails: [], total: 0 })),
+    getAdminBackgroundEventsServer({
+      limit,
+      eventName: filters.eventName || undefined,
+      status: eventStatus(filters.eventStatus),
+    }).catch(() => ({ events: [], total: 0 })),
+    getAdminEmailDeliveriesServer({
+      limit,
+      text: filters.emailText || undefined,
+      status: emailStatus(filters.emailStatus),
+    }).catch(() => ({ emails: [], total: 0 })),
   ]);
 
   return (
     <Container className="py-6">
-      <OperationsMonitor stats={stats} jobs={jobs} runs={runs} emails={emails} filters={filters} limit={limit} />
+      <OperationsMonitor stats={stats} events={events} emails={emails} filters={filters} limit={limit} />
     </Container>
   );
 }

@@ -73,33 +73,6 @@ export function About() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mx-auto mt-16 grid max-w-4xl grid-cols-2 gap-8 md:grid-cols-4">
-          <div className="text-center">
-            <div className="text-3xl font-bold text-primary">10K+</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {t("stats.activeUsers")}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-primary">500+</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {t("stats.companies")}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-primary">99.9%</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {t("stats.uptimeSla")}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-primary">24/7</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {t("stats.support")}
-            </div>
-          </div>
-        </div>
       </Container>
     </section>
   );

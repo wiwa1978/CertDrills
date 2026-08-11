@@ -1,0 +1,15 @@
+{
+  "name": "@platform/module-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.13.1",
+    "inngest": "^4.18.0"
+  }
+}

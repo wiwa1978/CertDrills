@@ -1,7 +1,7 @@
 import { getTableName, type Table } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { seedCertDrillDemoData } from "../../../src/modules/certdrill/seed-demo";
+import { seedCertDrillDemoData } from "../../../src/product/certdrill/seed-demo";
 
 type CertificationRow = {
   id: string;

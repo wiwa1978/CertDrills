@@ -1,6 +1,5 @@
 "use client";
 
-import { nextCookies } from "better-auth/next-js";
 import { toast } from "sonner";
 
 import { createWebUserAuthClient } from "@platform/auth-client/web-user";
@@ -31,7 +30,6 @@ export const authClient = createWebUserAuthClient({
     passkeys: authConfig.enablePasskeys,
     magicLink: authConfig.enableMagicLink,
   },
-  plugins: [nextCookies()],
   onError({ error, context }) {
     if (isHandledAuthError(error)) {
       return;

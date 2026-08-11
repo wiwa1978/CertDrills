@@ -42,13 +42,15 @@ const paymentSucceededSchema = z.object({
       .array(
         z.object({
           product_id: z.string().min(1),
+          quantity: z.number().int().positive().optional(),
         }),
       )
       .optional(),
     settlement_amount: z.number().optional(),
-    total_amount: z.number().optional(),
+    total_amount: z.number(),
     settlement_tax: z.number().optional(),
-    tax: z.number().optional(),
+    tax: z.number().nullable().optional(),
+    currency: z.string().min(1),
     settlement_currency: z.string().optional(),
   }),
 });
@@ -70,13 +72,15 @@ const paymentFailedSchema = z.object({
       .array(
         z.object({
           product_id: z.string().min(1),
+          quantity: z.number().int().positive().optional(),
         }),
       )
       .optional(),
     settlement_amount: z.number().optional(),
-    total_amount: z.number().optional(),
+    total_amount: z.number(),
     settlement_tax: z.number().optional(),
-    tax: z.number().optional(),
+    tax: z.number().nullable().optional(),
+    currency: z.string().min(1),
     settlement_currency: z.string().optional(),
   }),
 });
@@ -156,10 +160,14 @@ export function mapDodoEvent(payload: unknown): NormalizedPaymentEvent | null {
       customerEmail: data.customer?.email,
       customerId: data.customer?.customer_id,
       productId: data.product_cart?.[0]?.product_id,
+      cartItems: data.product_cart?.map((item) => ({
+        productId: item.product_id,
+        quantity: item.quantity ?? 1,
+      })),
       metadata: data.metadata,
-      currency: data.settlement_currency,
-      totalAmount: data.settlement_amount ?? data.total_amount,
-      taxAmount: data.settlement_tax ?? data.tax,
+      currency: data.currency,
+      totalAmount: data.total_amount,
+      taxAmount: data.tax ?? 0,
       raw: payload,
     };
   }
@@ -179,10 +187,14 @@ export function mapDodoEvent(payload: unknown): NormalizedPaymentEvent | null {
       customerEmail: data.customer?.email,
       customerId: data.customer?.customer_id,
       productId: data.product_cart?.[0]?.product_id,
+      cartItems: data.product_cart?.map((item) => ({
+        productId: item.product_id,
+        quantity: item.quantity ?? 1,
+      })),
       metadata: data.metadata,
-      currency: data.settlement_currency,
-      totalAmount: data.settlement_amount ?? data.total_amount,
-      taxAmount: data.settlement_tax ?? data.tax,
+      currency: data.currency,
+      totalAmount: data.total_amount,
+      taxAmount: data.tax ?? 0,
       raw: payload,
     };
   }
@@ -202,10 +214,14 @@ export function mapDodoEvent(payload: unknown): NormalizedPaymentEvent | null {
       customerEmail: data.customer?.email,
       customerId: data.customer?.customer_id,
       productId: data.product_cart?.[0]?.product_id,
+      cartItems: data.product_cart?.map((item) => ({
+        productId: item.product_id,
+        quantity: item.quantity ?? 1,
+      })),
       metadata: data.metadata,
-      currency: data.settlement_currency,
-      totalAmount: data.settlement_amount ?? data.total_amount,
-      taxAmount: data.settlement_tax ?? data.tax,
+      currency: data.currency,
+      totalAmount: data.total_amount,
+      taxAmount: data.tax ?? 0,
       raw: payload,
     };
   }

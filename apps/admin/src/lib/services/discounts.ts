@@ -11,12 +11,10 @@ import {
 import type {
   AdminCreateDiscountInput,
   AdminUpdateDiscountInput,
-  CreateDiscountInput,
   Discount,
   DiscountActionResult,
   DiscountListResponse,
   DiscountResponse,
-  UpdateDiscountInput,
 } from "@/types/discounts";
 
 function discountFailure(error: string): DiscountActionResult {

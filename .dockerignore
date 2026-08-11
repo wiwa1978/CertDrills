@@ -4,7 +4,9 @@
 .superpowers
 node_modules
 **/node_modules
-**/.next
+**/.next*
+**/*.tsbuildinfo
+**/.turbo
 **/dist
 coverage
 **/coverage

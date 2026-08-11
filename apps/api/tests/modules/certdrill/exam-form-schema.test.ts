@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { certdrillExamForms } from "@platform/platform-db";
 
 const migrationSql = readFileSync(
-  new URL("../../../../../packages/platform-db/drizzle/0027_certdrill_exam_form_assignments.sql", import.meta.url),
+  new URL("../../../../../packages/platform-db/drizzle/0026_certdrill_module.sql", import.meta.url),
   "utf8",
 );
 
@@ -24,19 +24,12 @@ describe("CertDrill exam form schema", () => {
     );
   });
 
-  it("gives generated timestamps a database default", () => {
-    expect(migrationSql).toMatch(
-      /ADD COLUMN "generated_at" timestamp with time zone DEFAULT now\(\)/,
-    );
-  });
-
-  it("deactivates invalid legacy assignments in one update", () => {
-    const deactivationUpdates = migrationSql.match(
-      /UPDATE "certdrill_exam_forms"(?:.|\n)*?SET "?is_active"?\s*=\s*false/g,
-    );
-
-    expect(deactivationUpdates).toHaveLength(1);
-    expect(migrationSql).toContain('cardinality(form."question_ids") <> (SELECT count(DISTINCT "question_id")');
-    expect(migrationSql).toContain("(allocation ->> 'assignedCount')::integer <> (allocation ->> 'allocatedCount')::integer");
+  it("creates generated assignment metadata and invariants", () => {
+    expect(migrationSql).toContain('"target_question_count" integer NOT NULL');
+    expect(migrationSql).toContain('"assignment_version" integer DEFAULT 1 NOT NULL');
+    expect(migrationSql).toContain('"allocation_snapshot" jsonb DEFAULT \'[]\'::jsonb NOT NULL');
+    expect(migrationSql).toContain('"generated_at" timestamp with time zone DEFAULT now() NOT NULL');
+    expect(migrationSql).toContain('CONSTRAINT "certdrill_exam_forms_target_question_count_positive"');
+    expect(migrationSql).toContain('CONSTRAINT "certdrill_exam_forms_assignment_version_positive"');
   });
 });

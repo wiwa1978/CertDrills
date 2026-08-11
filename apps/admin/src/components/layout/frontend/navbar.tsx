@@ -30,7 +30,6 @@ export function Navbar() {
   const isLoginPage = pathname === "/login";
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
-  const [activeHash, setActiveHash] = React.useState("");
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -41,29 +40,6 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Track hash changes for anchor link highlighting
-  React.useEffect(() => {
-    const handleHashChange = () => {
-      setActiveHash(window.location.hash);
-    };
-
-    // Set initial hash
-    setActiveHash(window.location.hash);
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
-
-  // Check if a nav link is active
-  const isLinkActive = (href: string) => {
-    // For hash links like /#features
-    if (href.includes("#")) {
-      const hash = href.split("#")[1];
-      return activeHash === `#${hash}`;
-    }
-    // For regular routes
-    return pathname === href;
-  };
 
   return (
     <header

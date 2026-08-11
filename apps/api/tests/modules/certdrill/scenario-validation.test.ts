@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateScenarioGraph } from "../../../src/modules/certdrill/scenario-validation";
+import { validateScenarioGraph } from "../../../src/product/certdrill/scenario-validation";
 
 function node(key: string, nextNodeKey: string | null) {
   return {

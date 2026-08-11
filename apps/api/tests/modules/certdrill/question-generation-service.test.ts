@@ -1,8 +1,8 @@
 import { getTableName, type Table } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
-import type { QuestionGenerator } from "../../../src/modules/certdrill/question-generator";
-import { createQuestionGenerationService } from "../../../src/modules/certdrill/question-generation-service";
+import type { QuestionGenerator } from "../../../src/product/certdrill/question-generator";
+import { createQuestionGenerationService } from "../../../src/product/certdrill/question-generation-service";
 
 const ids = {
   certification: "22222222-2222-4222-8222-222222222222",
