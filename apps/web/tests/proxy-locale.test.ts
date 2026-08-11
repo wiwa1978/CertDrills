@@ -38,4 +38,20 @@ describe("proxy locale parsing", () => {
       vi.unstubAllEnvs();
     }
   });
+
+  it("does not redirect a canonical host forwarded by the platform proxy", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://certdrills-web.wimwauters.be");
+
+    try {
+      const { proxy } = await import("../src/proxy");
+      const response = proxy(new NextRequest("https://internal-container/nl/login", {
+        headers: { "x-forwarded-host": "certdrills-web.wimwauters.be" },
+      }));
+
+      expect(response.status).toBe(204);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

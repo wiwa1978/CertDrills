@@ -10,11 +10,16 @@ import { getSessionCookie } from "better-auth/cookies";
 const intlMiddleware = createMiddleware(routing);
 const ADMIN_ONLY = ["/admin", "/dashboard", "/settings", "/billing"];
 
+function requestHost(request: NextRequest) {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  return forwardedHost || request.headers.get("host") || request.nextUrl.host;
+}
+
 function canonicalRedirect(request: NextRequest) {
   if (process.env.NODE_ENV !== "production" || !process.env.NEXT_PUBLIC_APP_URL) return null;
 
   const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL);
-  if (request.nextUrl.origin === canonicalOrigin.origin) return null;
+  if (requestHost(request) === canonicalOrigin.host) return null;
 
   return NextResponse.redirect(
     new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonicalOrigin),
