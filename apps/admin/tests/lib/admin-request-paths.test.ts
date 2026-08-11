@@ -8,8 +8,8 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/env", () => ({
   env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8787",
-    NEXT_PUBLIC_APP_URL: "http://localhost:3101",
+    NEXT_PUBLIC_API_URL: "http://localhost:3302",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3301",
   },
 }));
 vi.mock("@platform/frontend-shared", () => ({

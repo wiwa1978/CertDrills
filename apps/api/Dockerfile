@@ -51,7 +51,7 @@ COPY --chown=node:node packages/payments-core/src ./packages/payments-core/src
 COPY --chown=node:node packages/platform-db/package.json ./packages/platform-db/package.json
 COPY --chown=node:node packages/platform-db/src ./packages/platform-db/src
 
-EXPOSE 8787
+EXPOSE 3302
 
 USER node
 

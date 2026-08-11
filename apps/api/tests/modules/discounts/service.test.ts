@@ -7,7 +7,7 @@ function dodoProvider(apiKey?: string) {
   return createDodoPaymentProvider({
     apiKey,
     environment: "test_mode",
-    appUrl: "http://localhost:3100",
+    appUrl: "http://localhost:3300",
   });
 }
 

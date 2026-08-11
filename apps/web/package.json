@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3100",
+    "dev": "next dev -p 3300",
     "build": "next build",
-    "start": "next start -p 3100",
+    "start": "next start -p 3300",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -14,7 +14,7 @@
     "lint": "eslint src",
     "lint:strict": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "generate:api-types": "openapi-typescript http://localhost:8787/openapi.json -o src/lib/api/openapi.generated.ts"
+    "generate:api-types": "openapi-typescript http://localhost:3302/openapi.json -o src/lib/api/openapi.generated.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "^1.6.26",

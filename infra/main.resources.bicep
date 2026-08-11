@@ -209,7 +209,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 8787
+        targetPort: 3302
         transport: 'auto'
       }
       registries: [
@@ -244,7 +244,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: 8787
+                port: 3302
               }
               initialDelaySeconds: 30
               periodSeconds: 30
@@ -255,7 +255,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Readiness'
               httpGet: {
                 path: '/ready'
-                port: 8787
+                port: 3302
               }
               initialDelaySeconds: 10
               periodSeconds: 10
@@ -293,7 +293,7 @@ resource webApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 3100
+        targetPort: 3300
         transport: 'auto'
       }
       registries: [
@@ -317,7 +317,7 @@ resource webApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: 3100
+                port: 3300
               }
               initialDelaySeconds: 15
               periodSeconds: 30
@@ -328,7 +328,7 @@ resource webApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Readiness'
               httpGet: {
                 path: '/ready'
-                port: 3100
+                port: 3300
               }
               initialDelaySeconds: 5
               periodSeconds: 10
@@ -366,7 +366,7 @@ resource adminApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 3101
+        targetPort: 3301
         transport: 'auto'
       }
       registries: [
@@ -390,7 +390,7 @@ resource adminApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: 3101
+                port: 3301
               }
               initialDelaySeconds: 15
               periodSeconds: 30
@@ -401,7 +401,7 @@ resource adminApp 'Microsoft.App/containerApps@2024-03-01' = {
               type: 'Readiness'
               httpGet: {
                 path: '/ready'
-                port: 3101
+                port: 3301
               }
               initialDelaySeconds: 5
               periodSeconds: 10

@@ -95,10 +95,10 @@ const mocks = vi.hoisted(() => {
     adminTransactionFinanceDashboardService,
     env: {
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
-      APP_URL: "http://localhost:3100",
-      API_URL: "http://localhost:8787",
+      APP_URL: "http://localhost:3300",
+      API_URL: "http://localhost:3302",
       ADMIN_ALLOWLIST: "admin@example.com",
-      ADMIN_APP_URL: "http://localhost:3101",
+      ADMIN_APP_URL: "http://localhost:3301",
       ADMIN_PORTAL_TOTP_REQUIRED: false,
       DODO_PAYMENTS_ENVIRONMENT: "test_mode" as const,
       BETTER_AUTH_SECRET: "this-is-a-long-enough-secret",
@@ -392,7 +392,7 @@ describe("authz contract", () => {
     mocks.authState.useRealmCookies = true;
     const headers = {
       cookie: "better-auth.session_token=public-token",
-      origin: "http://localhost:3101",
+      origin: "http://localhost:3301",
     };
 
     const [status, adminMe, plugin] = await Promise.all([
@@ -413,7 +413,7 @@ describe("authz contract", () => {
       method: "POST",
       headers: {
         cookie: "better-auth-admin.session_token=admin-token",
-        origin: "http://localhost:3101",
+        origin: "http://localhost:3301",
       },
     });
 
@@ -426,7 +426,7 @@ describe("authz contract", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        origin: "http://localhost:3101",
+        origin: "http://localhost:3301",
       },
       body: "{}",
     });
@@ -439,7 +439,7 @@ describe("authz contract", () => {
     mocks.authState.impersonating = true;
     const headers = {
       cookie: "better-auth-admin.session_token=admin-token",
-      origin: "http://localhost:3101",
+      origin: "http://localhost:3301",
     };
 
     const status = await app.request("/admin/status", { headers });
@@ -496,7 +496,7 @@ describe("authz contract", () => {
       method: "POST",
       headers: {
         cookie: "better-auth-admin.session_token=admin-token",
-        origin: "http://localhost:3101",
+        origin: "http://localhost:3301",
       },
     });
 
@@ -517,7 +517,7 @@ describe("authz contract", () => {
       method: "POST",
       headers: {
         cookie: "better-auth-admin.session_token=admin-token",
-        origin: "http://localhost:3101",
+        origin: "http://localhost:3301",
       },
     });
 
@@ -533,7 +533,7 @@ describe("authz contract", () => {
     const res = await app.request("/admin/status", {
       method: "OPTIONS",
       headers: {
-        origin: "http://localhost:3100",
+        origin: "http://localhost:3300",
         "access-control-request-method": "GET",
       },
     });
@@ -545,7 +545,7 @@ describe("authz contract", () => {
     const res = await app.request(path, {
       method: "OPTIONS",
       headers: {
-        origin: "http://localhost:3100",
+        origin: "http://localhost:3300",
         "access-control-request-method": "POST",
       },
     });
@@ -584,7 +584,7 @@ describe("authz contract", () => {
       headers: {
         "content-type": "application/json",
         cookie: "better-auth.session_token=session-token",
-        origin: "http://localhost:3101",
+        origin: "http://localhost:3301",
       },
       body: JSON.stringify({ secret: "secret" }),
     });

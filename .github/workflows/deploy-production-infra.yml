@@ -548,7 +548,7 @@ jobs:
           set -euo pipefail
           env_args=(
             NODE_ENV=production
-            PORT=8787
+            PORT=3302
             LOG_LEVEL=info
             "APP_URL=${{ steps.infra.outputs.public_web_url }}"
             "API_URL=${{ steps.infra.outputs.public_api_url }}"
@@ -633,9 +633,9 @@ jobs:
         run: |
           set -euo pipefail
           apps=(
-            "${{ steps.infra.outputs.api_app_name }}:8787"
-            "${{ steps.infra.outputs.web_app_name }}:3100"
-            "${{ steps.infra.outputs.admin_app_name }}:3101"
+            "${{ steps.infra.outputs.api_app_name }}:3302"
+            "${{ steps.infra.outputs.web_app_name }}:3300"
+            "${{ steps.infra.outputs.admin_app_name }}:3301"
           )
 
           for app_spec in "${apps[@]}"; do

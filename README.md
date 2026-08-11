@@ -22,7 +22,7 @@ The platform layer owns authentication, billing, payments, email, privacy, opera
 
 ### `apps/api`
 
-Hono API on port `8787`. Owns:
+Hono API on port `3302`. Owns:
 
 - Better Auth server runtime and `/auth/*` routes
 - browser session validation and native JWT token flows
@@ -35,7 +35,7 @@ Hono API on port `8787`. Owns:
 
 ### `apps/web`
 
-Next.js user-facing client on port `3100`. Owns:
+Next.js user-facing client on port `3300`. Owns:
 
 - localized public and authenticated user pages
 - Better Auth browser client configuration
@@ -44,7 +44,7 @@ Next.js user-facing client on port `3100`. Owns:
 
 ### `apps/admin`
 
-Next.js admin client on port `3101`. Owns:
+Next.js admin client on port `3301`. Owns:
 
 - localized admin dashboards and workflows
 - Better Auth browser client configuration
@@ -272,9 +272,9 @@ The Azure topology is:
 - one Azure Container Apps Environment
 - one Log Analytics workspace
 - three separate Azure Container Apps:
-- API: `${APP_NAME}-api`, port `8787`
-- web: `${APP_NAME}-web`, port `3100`
-- admin: `${APP_NAME}-admin`, port `3101`
+- API: `${APP_NAME}-api`, port `3302`
+- web: `${APP_NAME}-web`, port `3300`
+- admin: `${APP_NAME}-admin`, port `3301`
 - external PostgreSQL, managed outside this Bicep stack
 
 Default deployment values:

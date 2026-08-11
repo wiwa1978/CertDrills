@@ -12,7 +12,7 @@
     "dev:web": "bun run --cwd apps/web dev",
     "dev:admin": "bun run --cwd apps/admin dev",
     "dev:all": "bunx concurrently --kill-others-on-fail -n api,web,admin -c cyan,magenta,green \"bun run dev:api\" \"bun run dev:web\" \"bun run dev:admin\"",
-    "dev:inngest": "docker run --rm --add-host=host.docker.internal:host-gateway -p 8288:8288 inngest/inngest@sha256:0ad9d99466d3a6e0141bc2eea5834eb3f334500b5097d757c82d228d37efa884 inngest dev --no-discovery -u http://host.docker.internal:8787/api/inngest",
+    "dev:inngest": "docker run --rm --add-host=host.docker.internal:host-gateway -p 8288:8288 inngest/inngest@sha256:0ad9d99466d3a6e0141bc2eea5834eb3f334500b5097d757c82d228d37efa884 inngest dev --no-discovery -u http://host.docker.internal:3302/api/inngest",
     "test:api": "bun run --cwd apps/api test",
     "test:web": "bun run --cwd apps/web test",
     "test:admin": "bun run --cwd apps/admin test",

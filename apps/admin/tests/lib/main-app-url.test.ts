@@ -10,10 +10,10 @@ afterEach(() => {
 
 describe("admin main app url", () => {
   it("builds a main app dashboard URL without falling back to the API", () => {
-    process.env.NEXT_PUBLIC_MAIN_APP_URL = "http://localhost:3100/";
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    process.env.NEXT_PUBLIC_MAIN_APP_URL = "http://localhost:3300/";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:3302";
 
-    expect(getMainAppDashboardUrl("nl")).toBe("http://localhost:3100/nl/dashboard");
+    expect(getMainAppDashboardUrl("nl")).toBe("http://localhost:3300/nl/dashboard");
 
     delete process.env.NEXT_PUBLIC_MAIN_APP_URL;
     delete process.env.NEXT_PUBLIC_APP_URL;

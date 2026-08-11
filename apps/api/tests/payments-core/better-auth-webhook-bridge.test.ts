@@ -138,7 +138,7 @@ function createEndpointHarness(onPaymentEvent: (event: NormalizedPaymentEvent) =
     onPaymentEvent,
   });
   const auth = betterAuth({
-    baseURL: "http://localhost:8787/auth",
+    baseURL: "http://localhost:3302/auth",
     secret: "test-better-auth-secret-with-enough-entropy-123456789",
     plugins: [
       dodopayments({

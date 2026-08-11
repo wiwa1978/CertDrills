@@ -26,8 +26,8 @@ bun run dev
 
 Use `.env` in this folder. Minimum keys:
 
-- `NEXT_PUBLIC_APP_URL` (admin URL, e.g. `http://localhost:3001`)
-- `NEXT_PUBLIC_MAIN_APP_URL` (main app URL, e.g. `http://localhost:3000`)
-- `NEXT_PUBLIC_API_URL` (API URL, e.g. `http://localhost:8787`)
+- `NEXT_PUBLIC_APP_URL` (admin URL, e.g. `http://localhost:3301`)
+- `NEXT_PUBLIC_MAIN_APP_URL` (main app URL, e.g. `http://localhost:3300`)
+- `NEXT_PUBLIC_API_URL` (API URL, e.g. `http://localhost:3302`)
 
 Backend secrets, Better Auth server config, and admin allowlist configuration belong to `apps/api`.

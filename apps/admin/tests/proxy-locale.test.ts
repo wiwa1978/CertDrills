@@ -12,7 +12,7 @@ vi.mock("next-intl/middleware", () => ({
 describe("proxy locale parsing", () => {
   it("allows authenticated admin routes when admin status is valid", async () => {
     vi.resetModules();
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:3302";
     vi.doMock("better-auth/cookies", () => ({
       getSessionCookie: () => "session-token",
     }));
@@ -69,7 +69,7 @@ describe("proxy locale parsing", () => {
 
   it("redirects to a clean localized login when the admin status request throws", async () => {
     vi.resetModules();
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:3302";
     vi.doMock("better-auth/cookies", () => ({
       getSessionCookie: () => "session-token",
     }));
@@ -99,7 +99,7 @@ describe("proxy locale parsing", () => {
 
   it("requests only the admin session cookie prefix", async () => {
     vi.resetModules();
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8787";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:3302";
     const getSessionCookie = vi.fn(() => "admin-session-token");
     vi.doMock("better-auth/cookies", () => ({ getSessionCookie }));
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));

@@ -245,9 +245,9 @@ const mocks = vi.hoisted(() => {
     applicationSettingsTable,
     env: {
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
-      APP_URL: "http://localhost:3100",
-      ADMIN_APP_URL: "http://localhost:3101",
-      API_URL: "http://localhost:8787",
+      APP_URL: "http://localhost:3300",
+      ADMIN_APP_URL: "http://localhost:3301",
+      API_URL: "http://localhost:3302",
       ADMIN_ALLOWLIST: "admin@example.com",
       ADMIN_PORTAL_TOTP_REQUIRED: false,
       LOG_LEVEL: "info" as const,
@@ -636,19 +636,19 @@ describe("auth realm bootstrap", () => {
       trustedOrigins: options.betterAuthOptions?.trustedOrigins,
     }))).toEqual([
       {
-        baseURL: "http://localhost:8787/auth",
+        baseURL: "http://localhost:3302/auth",
         cookiePrefix: "better-auth",
         trustedOrigins: [
-          "http://localhost:3100",
-          "http://localhost:8787",
-          "http://localhost:3101",
+          "http://localhost:3300",
+          "http://localhost:3302",
+          "http://localhost:3301",
           "http://partner.example",
         ],
       },
       {
-        baseURL: "http://localhost:8787/admin-auth",
+        baseURL: "http://localhost:3302/admin-auth",
         cookiePrefix: "better-auth-admin",
-        trustedOrigins: ["http://localhost:3101", "http://localhost:8787"],
+        trustedOrigins: ["http://localhost:3301", "http://localhost:3302"],
       },
     ]);
     expect(mocks.paymentPluginFactoryCalls).toHaveLength(1);
@@ -1008,8 +1008,8 @@ describe("API functional routes", () => {
     expect(rootSpec.info?.title).toBe("SaaS Platform API");
     expect(rootSpec.servers).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ url: "http://localhost:8787" }),
-        expect.objectContaining({ url: `http://localhost:8787${API_VERSION_POLICY.nextStablePrefix}` }),
+        expect.objectContaining({ url: "http://localhost:3302" }),
+        expect.objectContaining({ url: `http://localhost:3302${API_VERSION_POLICY.nextStablePrefix}` }),
       ]),
     );
     expect(rootSpec.paths?.["/auth/sign-in/email"]?.post).toBeTruthy();
@@ -1116,8 +1116,8 @@ describe("API functional routes", () => {
         referenceId: "checkout-ref-functional",
         checkoutReferenceId: "checkout-ref-functional",
       }),
-      return_url: "http://localhost:3100/billing?success=true",
-      cancel_url: "http://localhost:3100/billing?cancel=true",
+      return_url: "http://localhost:3300/billing?success=true",
+      cancel_url: "http://localhost:3300/billing?cancel=true",
     }));
     expect(mocks.checkoutIntentsService.create).toHaveBeenCalledWith({
       userId: "auth-user",
@@ -1139,8 +1139,8 @@ describe("API functional routes", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.dodoCheckoutSessions.create).toHaveBeenCalledWith(expect.objectContaining({
-      return_url: "http://localhost:3101/billing?success=true",
-      cancel_url: "http://localhost:3101/billing?cancel=true",
+      return_url: "http://localhost:3301/billing?success=true",
+      cancel_url: "http://localhost:3301/billing?cancel=true",
     }));
   });
 
@@ -1158,8 +1158,8 @@ describe("API functional routes", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.dodoCheckoutSessions.create).toHaveBeenCalledWith(expect.objectContaining({
-      return_url: "http://localhost:3100/billing?success=true",
-      cancel_url: "http://localhost:3100/billing?cancel=true",
+      return_url: "http://localhost:3300/billing?success=true",
+      cancel_url: "http://localhost:3300/billing?cancel=true",
     }));
   });
 
@@ -1204,7 +1204,7 @@ describe("API functional routes", () => {
     });
     expect(mocks.billingService.getLatestProviderCustomerId).toHaveBeenCalledWith("auth-user");
     expect(mocks.dodoCustomerPortal.create).toHaveBeenCalledWith("cus_auth_user", {
-      return_url: "http://localhost:3100/billing",
+      return_url: "http://localhost:3300/billing",
     });
   });
 

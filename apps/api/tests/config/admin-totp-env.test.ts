@@ -4,8 +4,8 @@ async function loadAdminTotpPolicy(value?: string) {
   vi.resetModules();
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/test");
-  vi.stubEnv("APP_URL", "http://localhost:3100");
-  vi.stubEnv("API_URL", "http://localhost:8787");
+  vi.stubEnv("APP_URL", "http://localhost:3300");
+  vi.stubEnv("API_URL", "http://localhost:3302");
   vi.stubEnv("BETTER_AUTH_SECRET", "this-is-a-long-enough-secret");
   vi.stubEnv("JWT_SECRET", "this-is-a-long-enough-jwt-secret");
   vi.stubEnv("ADMIN_PORTAL_TOTP_REQUIRED", value);

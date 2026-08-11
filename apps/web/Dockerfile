@@ -58,7 +58,7 @@ ARG NEXT_PUBLIC_API_URL
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3100
+ENV PORT=3300
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_ADMIN_APP_URL=${NEXT_PUBLIC_ADMIN_APP_URL}
@@ -71,7 +71,7 @@ COPY --from=build --chown=node:node /app/apps/web/.next/standalone /app
 COPY --from=build --chown=node:node /app/apps/web/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/apps/web/public ./public
 
-EXPOSE 3100
+EXPOSE 3300
 
 USER node
 
