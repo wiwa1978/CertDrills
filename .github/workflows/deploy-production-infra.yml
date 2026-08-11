@@ -267,6 +267,12 @@ jobs:
             echo "public_web_url=${public_web_url}"
             echo "public_admin_url=${public_admin_url}"
           } >> "${GITHUB_OUTPUT}"
+      - name: Resolve authentication cookie domain
+        shell: bash
+        env:
+          GENERATED_API_URL: ${{ steps.infra.outputs.api_url }}
+        run: bash .github/scripts/resolve-cookie-domain.sh
+
 
       - name: Log in to Azure Container Registry
         shell: bash
@@ -601,9 +607,7 @@ jobs:
             fi
           done
 
-          if [[ -n "${COOKIE_DOMAIN}" ]]; then
-            env_args+=("COOKIE_DOMAIN=${COOKIE_DOMAIN}")
-          fi
+          env_args+=("COOKIE_DOMAIN=${EFFECTIVE_COOKIE_DOMAIN}")
 
           if [[ -n "${BETTER_AUTH_ALLOWED_ORIGINS}" ]]; then
             env_args+=("BETTER_AUTH_ALLOWED_ORIGINS=${BETTER_AUTH_ALLOWED_ORIGINS}")

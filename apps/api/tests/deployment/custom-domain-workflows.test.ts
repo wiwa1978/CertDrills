@@ -42,6 +42,40 @@ const dodoBrandVariables = [
 
 const resolveDodoBrandsScript = join(process.cwd(), "../../.github/scripts/resolve-dodo-brands.sh");
 const validateDodoEnvironmentScript = join(process.cwd(), "../../.github/scripts/validate-dodo-environment.sh");
+const resolveCookieDomainScript = join(process.cwd(), "../../.github/scripts/resolve-cookie-domain.sh");
+
+function runCookieDomainResolver(options: {
+  generatedApiUrl?: string;
+  cookieDomain?: string;
+  publicWebUrl?: string;
+  publicApiUrl?: string;
+  publicAdminUrl?: string;
+} = {}) {
+  const directory = mkdtempSync(join(tmpdir(), "cookie-domain-resolver-"));
+  const githubEnvironment = join(directory, "github-env");
+  writeFileSync(githubEnvironment, "");
+
+  const result = spawnSync("bash", [resolveCookieDomainScript], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GITHUB_ENV: githubEnvironment,
+      GENERATED_API_URL: options.generatedApiUrl ?? "https://certdrills-api.example.germanywestcentral.azurecontainerapps.io",
+      COOKIE_DOMAIN: options.cookieDomain ?? "",
+      PUBLIC_WEB_URL: options.publicWebUrl ?? "",
+      PUBLIC_API_URL: options.publicApiUrl ?? "",
+      PUBLIC_ADMIN_URL: options.publicAdminUrl ?? "",
+    },
+  });
+
+  const output = {
+    environment: readFileSync(githubEnvironment, "utf8"),
+    result,
+  };
+  rmSync(directory, { force: true, recursive: true });
+  return output;
+}
+
 
 function runDodoEnvironmentValidation(environment?: string, liveApproval?: string) {
   return spawnSync("bash", [validateDodoEnvironmentScript], {
@@ -110,6 +144,34 @@ fi
 }
 
 describe("production deployment custom domains", () => {
+  it("derives a shared cookie domain for generated Container Apps URLs", () => {
+    const { environment, result } = runCookieDomainResolver();
+
+    expect(result.status).toBe(0);
+    expect(environment).toBe("EFFECTIVE_COOKIE_DOMAIN=example.germanywestcentral.azurecontainerapps.io\n");
+  });
+
+  it("uses the configured cookie domain for custom public URLs", () => {
+    const { environment, result } = runCookieDomainResolver({
+      cookieDomain: ".certdrills.example.com",
+      publicWebUrl: "https://app.certdrills.example.com",
+      publicApiUrl: "https://api.certdrills.example.com",
+      publicAdminUrl: "https://admin.certdrills.example.com",
+    });
+
+    expect(result.status).toBe(0);
+    expect(environment).toBe("EFFECTIVE_COOKIE_DOMAIN=.certdrills.example.com\n");
+  });
+
+  it("rejects custom public URLs without a shared cookie domain", () => {
+    const { result } = runCookieDomainResolver({
+      publicWebUrl: "https://app.certdrills.example.com",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("COOKIE_DOMAIN is required");
+  });
+
   it.each(["deploy-production.yml", "deploy-production-infra.yml"])(
     "%s supports custom public URLs for builds",
     (workflowName) => {
@@ -134,7 +196,7 @@ describe("production deployment custom domains", () => {
     expect(workflow).toContain("ADMIN_APP_URL=${{ steps.infra.outputs.public_admin_url }}");
     expect(workflow).toContain("COOKIE_DOMAIN:");
     expect(workflow).toContain("BETTER_AUTH_ALLOWED_ORIGINS:");
-    expect(workflow).toContain("COOKIE_DOMAIN=${COOKIE_DOMAIN}");
+    expect(workflow).toContain("COOKIE_DOMAIN=${EFFECTIVE_COOKIE_DOMAIN}");
     expect(workflow).toContain("BETTER_AUTH_ALLOWED_ORIGINS=${BETTER_AUTH_ALLOWED_ORIGINS}");
   });
 
