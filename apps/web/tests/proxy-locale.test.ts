@@ -19,4 +19,23 @@ describe("proxy locale parsing", () => {
       "http://localhost/nl/login?callbackUrl=%2Fnl%2Fdashboard",
     );
   });
+
+  it("redirects alternate production hosts to the canonical app origin", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://certdrills-web.wimwauters.be");
+
+    try {
+      const { proxy } = await import("../src/proxy");
+      const response = proxy(new NextRequest(
+        "https://certdrills-web.example.azurecontainerapps.io/nl/login?callbackUrl=%2Fnl%2Fdashboard",
+      ));
+
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(
+        "https://certdrills-web.wimwauters.be/nl/login?callbackUrl=%2Fnl%2Fdashboard",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

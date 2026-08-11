@@ -128,4 +128,23 @@ describe("proxy locale parsing", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("redirects alternate production hosts to the canonical admin origin", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://certdrills-admin.wimwauters.be");
+
+    try {
+      const { proxy } = await import("../src/proxy");
+      const response = await proxy(new NextRequest(
+        "https://certdrills-admin.example.azurecontainerapps.io/nl/login?callbackUrl=%2Fnl%2Fadmin",
+      ));
+
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(
+        "https://certdrills-admin.wimwauters.be/nl/login?callbackUrl=%2Fnl%2Fadmin",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
 });

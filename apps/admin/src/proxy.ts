@@ -10,11 +10,26 @@ import { getSessionCookie } from "better-auth/cookies";
 const intlMiddleware = createMiddleware(routing);
 const ADMIN_ONLY = ["/admin", "/dashboard", "/settings", "/billing"];
 
+function canonicalRedirect(request: NextRequest) {
+  if (process.env.NODE_ENV !== "production" || !process.env.NEXT_PUBLIC_APP_URL) return null;
+
+  const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL);
+  if (request.nextUrl.origin === canonicalOrigin.origin) return null;
+
+  return NextResponse.redirect(
+    new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonicalOrigin),
+    308,
+  );
+}
+
 function adminLoginUrl(request: NextRequest, locale: string) {
   return new URL(`/${locale}/login`, request.url);
 }
 
 export async function proxy(request: NextRequest) {
+  const canonicalResponse = canonicalRedirect(request);
+  if (canonicalResponse) return canonicalResponse;
+
   const { pathname, search } = request.nextUrl;
   const { activeLocale, pathWithoutLocale } = getPathLocale(pathname);
 
